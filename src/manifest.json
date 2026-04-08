@@ -35,6 +35,8 @@
     "<all_urls>",
     "http://localhost:11434/*",
     "http://127.0.0.1:11434/*",
+    "https://github.com/*",
+    "https://models.github.ai/*",
     "https://raw.githubusercontent.com/dogeow/ollama-translate/*"
   ],
   "commands": {

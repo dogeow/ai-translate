@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import { getConfig } from "../lib/utils.js";
-import { DEFAULT_MINIMAX_MODEL } from "../../shared/constants.js";
+import {
+  DEFAULT_MINIMAX_MODEL,
+  DEFAULT_GITHUB_MODEL,
+} from "../../shared/constants.js";
 import {
   fetchMiniMaxModels,
   testMiniMaxConnection,
@@ -8,8 +11,13 @@ import {
 import {
   isMiniMaxGlobalApiUrl,
   isMiniMaxProvider,
+  isGitHubModelsProvider,
 } from "../../shared/settings.js";
 import { filterTranslationModels } from "../../shared/model-utils.js";
+import {
+  fetchGitHubModels,
+  testGitHubModelsConnection,
+} from "../../shared/github-models-api.js";
 
 /**
  * 管理翻译提供商连接状态的 hook
@@ -49,6 +57,10 @@ export function useConnectionStatus({
     return isMiniMaxGlobalApiUrl(apiBaseUrl) ? "国外" : "国内";
   }
 
+  function getGitHubModelsList(fallbackModel = DEFAULT_GITHUB_MODEL) {
+    return [{ name: fallbackModel || DEFAULT_GITHUB_MODEL }];
+  }
+
   function applyConnectionStatus(nextStatus, updateBannerStatus) {
     if (!updateBannerStatus) return;
     setConnectionStatus(nextStatus);
@@ -83,7 +95,11 @@ export function useConnectionStatus({
       } = options;
       const requestId = ++connectionRequestIdRef.current;
       const provider = getConfig(nextSettings).provider;
-      const providerLabel = isMiniMaxProvider(provider) ? "MiniMax" : "Ollama";
+      const providerLabel = isMiniMaxProvider(provider)
+        ? "MiniMax"
+        : isGitHubModelsProvider(provider)
+          ? "GitHub Models"
+          : "Ollama";
       applyConnectionStatus(
         {
           kind: "pending",
@@ -183,6 +199,85 @@ export function useConnectionStatus({
             });
           }
           setOriginsModalOpen(false);
+        }
+        return;
+      }
+
+      if (isGitHubModelsProvider(provider)) {
+        const fallbackModel = nextSettings.githubModel || DEFAULT_GITHUB_MODEL;
+        let githubModels = getGitHubModelsList(fallbackModel);
+        let fetchedFromApi = false;
+
+        if (!apiKey) {
+          applyConnectionStatus(
+            {
+              kind: "err",
+              text: `${apiKeyLabel || "GitHub 访问令牌"} 未填写`,
+              showAction: false,
+            },
+            updateBannerStatus,
+          );
+          setModels(githubModels);
+          if (!preserveTestMessage) {
+            setTestConnectionResult({
+              text: `请先填写${apiKeyLabel || "GitHub 访问令牌"}`,
+              tone: "err",
+              showAction: false,
+            });
+          }
+          return;
+        }
+
+        try {
+          try {
+            const remoteModelNames = await fetchGitHubModels(base, apiKey);
+            if (requestId !== connectionRequestIdRef.current) return;
+            if (remoteModelNames.length > 0) {
+              githubModels = remoteModelNames.map((name) => ({ name }));
+              fetchedFromApi = true;
+            }
+          } catch (_) {}
+
+          await testGitHubModelsConnection(base, apiKey, model || fallbackModel);
+          if (requestId !== connectionRequestIdRef.current) return;
+
+          applyConnectionStatus(
+            {
+              kind: "ok",
+              text: "GitHub Models 已连接",
+              showAction: false,
+            },
+            updateBannerStatus,
+          );
+          setModels(githubModels);
+
+          if (!preserveTestMessage) {
+            setTestConnectionResult({
+              text: fetchedFromApi
+                ? `连接成功，已获取 ${githubModels.length} 个模型`
+                : "连接成功，已使用默认模型",
+              tone: "ok",
+              showAction: false,
+            });
+          }
+        } catch (error) {
+          if (requestId !== connectionRequestIdRef.current) return;
+          applyConnectionStatus(
+            {
+              kind: "err",
+              text: "GitHub Models 未连接",
+              showAction: false,
+            },
+            updateBannerStatus,
+          );
+          setModels(githubModels);
+          if (!preserveTestMessage) {
+            setTestConnectionResult({
+              text: error.message || String(error),
+              tone: "err",
+              showAction: false,
+            });
+          }
         }
         return;
       }

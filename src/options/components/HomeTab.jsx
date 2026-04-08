@@ -1,16 +1,24 @@
+import { useRef, useState } from "react";
 import {
   LANG_OPTIONS,
   MINIMAX_REGION_CN,
   MINIMAX_REGION_GLOBAL,
   PROVIDER_MINIMAX_CN,
   PROVIDER_MINIMAX_GLOBAL,
+  DEFAULT_GITHUB_MODEL,
+  GITHUB_AUTH_MODE_DEVICE,
+  GITHUB_AUTH_MODE_OPTIONS,
   TRANSLATE_PROVIDER_OPTIONS,
 } from "../../shared/constants.js";
 import {
   getDefaultMiniMaxApiUrlByRegion,
   isMiniMaxProvider,
+  isGitHubModelsProvider,
 } from "../../shared/settings.js";
-import { useRef } from "react";
+import {
+  pollGitHubDeviceToken,
+  requestGitHubDeviceCode,
+} from "../../shared/github-models-api.js";
 import { Card } from "./common/Card.jsx";
 import {
   AutoSaveInputField,
@@ -19,6 +27,7 @@ import {
 } from "./common/AutoSaveField.jsx";
 import { ModelDropdown } from "./ModelDropdown.jsx";
 import { useOutsideClick } from "../hooks/useOutsideClick.js";
+import { tabsCreate } from "../lib/chrome.js";
 import {
   getConnectionResultClass,
   getMiniMaxConfig,
@@ -29,6 +38,9 @@ const FIELD_IDS = Object.freeze({
   provider: "ollamaProvider",
   providerApiUrl: "providerApiUrl",
   minimaxRegionApiKey: "minimaxRegionApiKey",
+  githubAuthMode: "githubAuthMode",
+  githubPat: "githubPat",
+  githubOAuthClientId: "githubOAuthClientId",
   providerModel: "providerModel",
   translateTargetLang: "translateTargetLang",
 });
@@ -63,8 +75,160 @@ function MiniMaxApiKeyField({
   );
 }
 
+function GitHubAuthFields({
+  isGitHub,
+  settings,
+  updateSettings,
+  persistSettings,
+  settingsRef,
+  showAutoSaveStatus,
+  updateConnectionStatus,
+}) {
+  const [deviceLoginStatus, setDeviceLoginStatus] = useState("");
+  const [deviceLoginBusy, setDeviceLoginBusy] = useState(false);
+  const isDeviceMode = settings.githubAuthMode === GITHUB_AUTH_MODE_DEVICE;
+
+  async function startDeviceLogin() {
+    const clientId = String(settingsRef.current.githubOAuthClientId || "").trim();
+    if (!clientId) {
+      setDeviceLoginStatus("请先填写 GitHub OAuth App Client ID。");
+      return;
+    }
+
+    setDeviceLoginBusy(true);
+    setDeviceLoginStatus("正在申请设备验证码…");
+
+    try {
+      const device = await requestGitHubDeviceCode(clientId);
+      const verificationUri = String(device?.verification_uri || "").trim();
+      const userCode = String(device?.user_code || "").trim();
+
+      if (verificationUri) {
+        await tabsCreate(verificationUri);
+      }
+
+      setDeviceLoginStatus(
+        userCode
+          ? `请在 GitHub 页面输入验证码 ${userCode}，授权完成后会自动保存。`
+          : "请在新打开的 GitHub 页面完成授权。",
+      );
+
+      const accessToken = await pollGitHubDeviceToken({
+        clientId,
+        deviceCode: device?.device_code,
+        interval: device?.interval,
+      });
+
+      const nextSettings = {
+        ...settingsRef.current,
+        githubDeviceToken: accessToken,
+      };
+      updateSettings({ githubDeviceToken: accessToken }, "now");
+      await persistSettings(nextSettings, { force: true });
+      setDeviceLoginStatus("设备登录成功，令牌已保存。");
+      await updateConnectionStatus(nextSettings, {
+        preserveTestMessage: false,
+        updateBannerStatus: false,
+        showTestPending: true,
+      });
+    } catch (error) {
+      setDeviceLoginStatus(error?.message || "GitHub 设备登录失败。");
+    } finally {
+      setDeviceLoginBusy(false);
+    }
+  }
+
+  async function clearDeviceLogin() {
+    const nextSettings = {
+      ...settingsRef.current,
+      githubDeviceToken: "",
+    };
+    updateSettings({ githubDeviceToken: "" }, "now");
+    await persistSettings(nextSettings, { force: true, silent: true });
+    setDeviceLoginStatus("已清除设备登录令牌。");
+  }
+
+  return (
+    <ConditionalFields condition={isGitHub}>
+      <AutoSaveSelectField
+        id={FIELD_IDS.githubAuthMode}
+        label="认证方式"
+        value={settings.githubAuthMode}
+        options={GITHUB_AUTH_MODE_OPTIONS}
+        settingKey="githubAuthMode"
+        updateSettings={updateSettings}
+      />
+
+      {isDeviceMode ? (
+        <>
+          <AutoSaveInputField
+            id={FIELD_IDS.githubOAuthClientId}
+            label="GitHub OAuth App Client ID"
+            placeholder="输入已启用 Device Flow 的 GitHub OAuth App Client ID"
+            value={settings.githubOAuthClientId}
+            settingKey="githubOAuthClientId"
+            updateSettings={updateSettings}
+            persistSettings={persistSettings}
+            settingsRef={settingsRef}
+            showAutoSaveStatus={showAutoSaveStatus}
+          />
+
+          <div className="field">
+            <label>设备登录</label>
+            <div className="field-row" style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={deviceLoginBusy}
+                onClick={() => {
+                  void startDeviceLogin();
+                }}
+              >
+                {deviceLoginBusy ? "登录中…" : "开始设备登录"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={deviceLoginBusy || !settings.githubDeviceToken}
+                onClick={() => {
+                  void clearDeviceLogin();
+                }}
+              >
+                清除登录
+              </button>
+            </div>
+            <div
+              className={`field-validation ${settings.githubDeviceToken ? "" : "field-validation--error"}`.trim()}
+              style={{ marginTop: 8 }}
+            >
+              {deviceLoginStatus ||
+                (settings.githubDeviceToken
+                  ? "已保存设备登录令牌。"
+                  : "尚未完成设备登录。")}
+            </div>
+          </div>
+        </>
+      ) : (
+        <AutoSaveInputField
+          id={FIELD_IDS.githubPat}
+          label="GitHub PAT"
+          type="password"
+          placeholder="输入带 Models 权限的 GitHub PAT"
+          value={settings.githubPat}
+          settingKey="githubPat"
+          updateSettings={updateSettings}
+          persistSettings={persistSettings}
+          settingsRef={settingsRef}
+          showAutoSaveStatus={showAutoSaveStatus}
+        />
+      )}
+    </ConditionalFields>
+  );
+}
+
 function ProviderModelField({
   isMiniMax,
+  isGitHub,
   settings,
   updateSettings,
   persistSettings,
@@ -83,6 +247,43 @@ function ProviderModelField({
         placeholder="输入 MiniMax 模型，例如 MiniMax-M2.5-highspeed"
         value={settings.minimaxModel}
         settingKey="minimaxModel"
+        updateSettings={updateSettings}
+        persistSettings={persistSettings}
+        settingsRef={settingsRef}
+        showAutoSaveStatus={showAutoSaveStatus}
+      />
+    );
+  }
+
+  if (isGitHub) {
+    if (models.length > 0) {
+      return (
+        <div className="field">
+          <label id={`${FIELD_IDS.providerModel}-label`}>模型</label>
+          <ModelDropdown
+            models={models}
+            selectedValue={settings.githubModel}
+            disabled={false}
+            isOpen={modelDropdownOpen}
+            onToggle={() => setModelDropdownOpen((v) => !v)}
+            onSelect={(name) => {
+              updateSettings({ githubModel: name }, "now");
+              void persistSettings(settingsRef.current);
+              setModelDropdownOpen(false);
+            }}
+            dropdownRef={modelDropdownRef}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <AutoSaveInputField
+        id={FIELD_IDS.providerModel}
+        label="模型"
+        placeholder={DEFAULT_GITHUB_MODEL}
+        value={settings.githubModel}
+        settingKey="githubModel"
         updateSettings={updateSettings}
         persistSettings={persistSettings}
         settingsRef={settingsRef}
@@ -113,7 +314,9 @@ function ProviderModelField({
 
 function ConnectionTestField({
   isMiniMax,
+  isGitHub,
   isMiniMaxKeyMissing,
+  isGitHubTokenMissing,
   testConnectionClassName,
   testConnectionResult,
   settingsRef,
@@ -126,7 +329,7 @@ function ConnectionTestField({
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={isMiniMaxKeyMissing}
+          disabled={isMiniMaxKeyMissing || isGitHubTokenMissing}
           onClick={async () => {
             await updateConnectionStatus(settingsRef.current, {
               preserveTestMessage: false,
@@ -138,7 +341,7 @@ function ConnectionTestField({
           测试连接
         </button>
         <span className={testConnectionClassName}>{testConnectionResult.text}</span>
-        {!isMiniMax && testConnectionResult.showAction ? (
+        {!isMiniMax && !isGitHub && testConnectionResult.showAction ? (
           <button
             type="button"
             className="btn btn-secondary test-result-action"
@@ -172,11 +375,17 @@ export function HomeTab({
     modelDropdownOpen,
   );
   const isMiniMax = isMiniMaxProvider(settings.ollamaProvider);
+  const isGitHub = isGitHubModelsProvider(settings.ollamaProvider);
   const testConnectionClassName = getConnectionResultClass(
     testConnectionResult.tone,
   );
   const minimaxConfig = getMiniMaxConfig(settings);
   const isMiniMaxKeyMissing = checkMiniMaxKeyMissing(settings);
+  const isGitHubTokenMissing =
+    isGitHub &&
+    (settings.githubAuthMode === GITHUB_AUTH_MODE_DEVICE
+      ? !String(settings.githubDeviceToken || "").trim()
+      : !String(settings.githubPat || "").trim());
   const minimaxKeyMissingHint = `请先填写${minimaxConfig.apiKeyLabel}`;
 
   const handleProviderChange = (event, newProvider) => {
@@ -216,19 +425,21 @@ export function HomeTab({
           onChange={handleProviderChange}
         />
 
-        <AutoSaveInputField
-          id={FIELD_IDS.providerApiUrl}
-          label={isMiniMax ? "MiniMax API 地址" : "Ollama API 地址"}
-          placeholder={
-            isMiniMax ? minimaxConfig.urlPlaceholder : "http://127.0.0.1:11434"
-          }
-          value={isMiniMax ? settings.minimaxApiUrl : settings.ollamaUrl}
-          settingKey={isMiniMax ? "minimaxApiUrl" : "ollamaUrl"}
-          updateSettings={updateSettings}
-          persistSettings={persistSettings}
-          settingsRef={settingsRef}
-          showAutoSaveStatus={showAutoSaveStatus}
-        />
+        {!isGitHub ? (
+          <AutoSaveInputField
+            id={FIELD_IDS.providerApiUrl}
+            label={isMiniMax ? "MiniMax API 地址" : "Ollama API 地址"}
+            placeholder={
+              isMiniMax ? minimaxConfig.urlPlaceholder : "http://127.0.0.1:11434"
+            }
+            value={isMiniMax ? settings.minimaxApiUrl : settings.ollamaUrl}
+            settingKey={isMiniMax ? "minimaxApiUrl" : "ollamaUrl"}
+            updateSettings={updateSettings}
+            persistSettings={persistSettings}
+            settingsRef={settingsRef}
+            showAutoSaveStatus={showAutoSaveStatus}
+          />
+        ) : null}
 
         <MiniMaxApiKeyField
           isMiniMax={isMiniMax}
@@ -241,8 +452,19 @@ export function HomeTab({
           showAutoSaveStatus={showAutoSaveStatus}
         />
 
+        <GitHubAuthFields
+          isGitHub={isGitHub}
+          settings={settings}
+          updateSettings={updateSettings}
+          persistSettings={persistSettings}
+          settingsRef={settingsRef}
+          showAutoSaveStatus={showAutoSaveStatus}
+          updateConnectionStatus={updateConnectionStatus}
+        />
+
         <ProviderModelField
           isMiniMax={isMiniMax}
+          isGitHub={isGitHub}
           settings={settings}
           updateSettings={updateSettings}
           persistSettings={persistSettings}
@@ -256,7 +478,9 @@ export function HomeTab({
 
         <ConnectionTestField
           isMiniMax={isMiniMax}
+          isGitHub={isGitHub}
           isMiniMaxKeyMissing={isMiniMaxKeyMissing}
+          isGitHubTokenMissing={isGitHubTokenMissing}
           testConnectionClassName={testConnectionClassName}
           testConnectionResult={testConnectionResult}
           settingsRef={settingsRef}

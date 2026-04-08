@@ -1,7 +1,11 @@
 import { generateOllamaStreamingResponse } from "./ollama.js";
 import { PROVIDER_OLLAMA } from "../shared/constants.js";
-import { isMiniMaxProvider } from "../shared/settings.js";
+import {
+  isMiniMaxProvider,
+  isGitHubModelsProvider,
+} from "../shared/settings.js";
 import { generateMiniMaxStreamingCompletion } from "../shared/minimax-api.js";
+import { generateGitHubModelsStreamingCompletion } from "../shared/github-models-api.js";
 
 const SENTENCE_STUDY_MAX_TEXT_LENGTH = 1200;
 const MAX_SENTENCE_STUDY_THINKING_CHARS = 900;
@@ -96,6 +100,20 @@ async function runSentenceStudyCompletion(base, model, prompt, runtime = {}) {
   if (isMiniMaxProvider(provider)) {
     streamed = await withTimeout(
       generateMiniMaxStreamingCompletion(
+        base,
+        runtime?.apiKey || "",
+        model,
+        prompt,
+        {
+          onChunk: handleStreamChunk,
+        },
+      ),
+      SENTENCE_STUDY_REQUEST_TIMEOUT_MS,
+      "句型学习请求超时",
+    );
+  } else if (isGitHubModelsProvider(provider)) {
+    streamed = await withTimeout(
+      generateGitHubModelsStreamingCompletion(
         base,
         runtime?.apiKey || "",
         model,

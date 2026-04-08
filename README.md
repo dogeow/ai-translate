@@ -1,14 +1,14 @@
-# Ollama / MiniMax 翻译 - 浏览器扩展
+# Ollama / MiniMax / GitHub Models 翻译 - 浏览器扩展
 
-在网页中翻译选中文字，支持本地 Ollama 与云端 MiniMax，并提供可选的句型学习模式。
+在网页中翻译选中文字，支持本地 Ollama、云端 MiniMax、GitHub Models，并提供可选的句型学习模式。
 
 ## 功能
 
 - **右键翻译**：选中文字后右键「Ollama 翻译选中内容」
 - **页面翻译（可视区域优先）**：左键打开扩展弹窗后点击「开始页面翻译」，或在网页右键选择「Ollama 翻译整个页面（可视区域优先）」，先翻译当前可视区域，滚动后继续翻译新出现内容
 - **快捷键翻译**：`Alt+T` 翻译当前选中内容（可在扩展快捷方式中修改）
-- **多厂家切换**：`Ollama（本地）` 与 `MiniMax（云端）`
-- **模型选择**：Ollama 使用本地模型列表；MiniMax 可在测试连接时尝试从 API 拉取模型列表
+- **多厂家切换**：`Ollama（本地）`、`MiniMax（云端）`、`GitHub Models`
+- **模型选择**：Ollama 使用本地模型列表；MiniMax / GitHub Models 可手动指定模型；GitHub 默认模型为 `openai/gpt-5-mini`
 - **翻译偏好**：默认翻译语言单独放在「翻译偏好」卡片中设置
 - **学习模式**（可选）：翻译后展示句型分析（主语/谓语/状语等）
 
@@ -18,17 +18,25 @@
 - Chrome（开发者模式）
 - 如使用 Ollama：本机已安装 [Ollama](https://ollama.com)，并至少拉取一个模型（例如 `ollama pull qwen2.5:7b`）
 - 如使用 MiniMax：准备可用的 MiniMax API Key
+- 如使用 GitHub Models：
+  - `PAT` 方式：准备带 Models 权限的 GitHub Token
+  - `设备登录` 方式：准备一个已启用 Device Flow 的 GitHub OAuth App Client ID
 
 ## 配置指引（重点）
 
 `npm run dev` 后，打开扩展设置页：
 
-1. 在「翻译引擎」卡片的 **API 厂家** 下拉框中选择厂家（`Ollama` 或 `MiniMax`）。
+1. 在「翻译引擎」卡片的 **API 厂家** 下拉框中选择厂家（`Ollama`、`MiniMax` 或 `GitHub Models`）。
 2. 选择 `MiniMax` 后：
    - **MiniMax API 地址** 默认值：`https://api.minimaxi.com/v1`
    - **MiniMax API Key** 输入框在 API 地址下方
    - 点击 **测试连接** 后，会尝试校验连接并拉取模型列表（如果接口返回可用模型）
    - **模型** 默认值：`MiniMax-M2.5`
+3. 选择 `GitHub Models` 后：
+   - **认证方式** 支持 `PAT 密钥` 与 `设备登录`
+   - `PAT` 模式下直接填写 GitHub Token
+   - `设备登录` 模式下先填写 `GitHub OAuth App Client ID`，再点击 **开始设备登录**
+   - **模型** 默认值：`openai/gpt-5-mini`
 
 ## 学习模式说明
 

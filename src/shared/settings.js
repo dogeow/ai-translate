@@ -9,6 +9,7 @@ import {
   PROVIDER_MINIMAX,
   PROVIDER_MINIMAX_CN,
   PROVIDER_MINIMAX_GLOBAL,
+  PROVIDER_GITHUB_MODELS,
   DEFAULT_TRANSLATE_PROVIDER,
   DEFAULT_OLLAMA_URL,
   DEFAULT_OLLAMA_MODEL,
@@ -22,6 +23,14 @@ import {
   MINIMAX_REGION_CN,
   MINIMAX_REGION_GLOBAL,
   DEFAULT_MINIMAX_MODEL,
+  DEFAULT_GITHUB_MODELS_API_URL,
+  DEFAULT_GITHUB_AUTH_MODE,
+  DEFAULT_GITHUB_PAT,
+  DEFAULT_GITHUB_DEVICE_TOKEN,
+  DEFAULT_GITHUB_OAUTH_CLIENT_ID,
+  DEFAULT_GITHUB_MODEL,
+  GITHUB_AUTH_MODE_PAT,
+  GITHUB_AUTH_MODE_DEVICE,
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_AUTO_TRANSLATE_MODE,
   DEFAULT_HOVER_TRANSLATE_SCOPE,
@@ -44,6 +53,12 @@ export const DEFAULT_SETTINGS = {
   minimaxApiKeyCn: DEFAULT_MINIMAX_API_KEY_CN,
   minimaxApiKeyGlobal: DEFAULT_MINIMAX_API_KEY_GLOBAL,
   minimaxModel: DEFAULT_MINIMAX_MODEL,
+  githubApiUrl: DEFAULT_GITHUB_MODELS_API_URL,
+  githubAuthMode: DEFAULT_GITHUB_AUTH_MODE,
+  githubPat: DEFAULT_GITHUB_PAT,
+  githubDeviceToken: DEFAULT_GITHUB_DEVICE_TOKEN,
+  githubOAuthClientId: DEFAULT_GITHUB_OAUTH_CLIENT_ID,
+  githubModel: DEFAULT_GITHUB_MODEL,
   translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
   autoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
   hoverTranslateScope: DEFAULT_HOVER_TRANSLATE_SCOPE,
@@ -66,6 +81,10 @@ export function isMiniMaxProvider(provider) {
   );
 }
 
+export function isGitHubModelsProvider(provider) {
+  return provider === PROVIDER_GITHUB_MODELS;
+}
+
 /**
  * 从厂家值得到 MiniMax 区域（仅当 isMiniMaxProvider 为 true 时有效）
  * @param {string} provider
@@ -85,6 +104,9 @@ export function getMiniMaxRegionFromProvider(provider) {
  * @returns {string} 规范化后的提供商：'ollama' | 'minimax-cn' | 'minimax-global'
  */
 export function normalizeTranslateProvider(provider, minimaxRegion) {
+  if (provider === PROVIDER_GITHUB_MODELS) {
+    return PROVIDER_GITHUB_MODELS;
+  }
   if (
     provider === PROVIDER_MINIMAX_CN ||
     provider === PROVIDER_MINIMAX_GLOBAL
@@ -97,6 +119,38 @@ export function normalizeTranslateProvider(provider, minimaxRegion) {
       : PROVIDER_MINIMAX_CN;
   }
   return PROVIDER_OLLAMA;
+}
+
+export function normalizeGitHubApiUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return DEFAULT_GITHUB_MODELS_API_URL;
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  return withProtocol.replace(/\/$/, "");
+}
+
+export function normalizeGitHubAuthMode(value) {
+  return value === GITHUB_AUTH_MODE_DEVICE
+    ? GITHUB_AUTH_MODE_DEVICE
+    : GITHUB_AUTH_MODE_PAT;
+}
+
+export function resolveGitHubToken(input = {}) {
+  const authMode = normalizeGitHubAuthMode(input.githubAuthMode);
+  const pat = String(input.githubPat ?? DEFAULT_GITHUB_PAT).trim();
+  const deviceToken = String(
+    input.githubDeviceToken ?? DEFAULT_GITHUB_DEVICE_TOKEN,
+  ).trim();
+
+  if (authMode === GITHUB_AUTH_MODE_DEVICE) {
+    return deviceToken || pat;
+  }
+  return pat || deviceToken;
+}
+
+export function getGitHubTokenLabel(input = {}) {
+  return normalizeGitHubAuthMode(input.githubAuthMode) === GITHUB_AUTH_MODE_DEVICE
+    ? "GitHub 设备登录令牌"
+    : "GitHub PAT";
 }
 
 /**
@@ -297,6 +351,20 @@ export function normalizeAllSettings(settings) {
     minimaxApiKeyGlobal,
     minimaxApiKey: settings.minimaxApiKey,
   });
+  const githubApiUrl = normalizeGitHubApiUrl(settings.githubApiUrl);
+  const githubAuthMode = normalizeGitHubAuthMode(settings.githubAuthMode);
+  const githubPat = String(settings.githubPat ?? DEFAULT_SETTINGS.githubPat).trim();
+  const githubDeviceToken = String(
+    settings.githubDeviceToken ?? DEFAULT_SETTINGS.githubDeviceToken,
+  ).trim();
+  const githubOAuthClientId = String(
+    settings.githubOAuthClientId ?? DEFAULT_SETTINGS.githubOAuthClientId,
+  ).trim();
+  const githubToken = resolveGitHubToken({
+    githubAuthMode,
+    githubPat,
+    githubDeviceToken,
+  });
 
   return {
     ollamaProvider,
@@ -311,6 +379,13 @@ export function normalizeAllSettings(settings) {
     minimaxApiKeyCn,
     minimaxApiKeyGlobal,
     minimaxModel: settings.minimaxModel || DEFAULT_SETTINGS.minimaxModel,
+    githubApiUrl,
+    githubAuthMode,
+    githubPat,
+    githubDeviceToken,
+    githubOAuthClientId,
+    githubToken,
+    githubModel: settings.githubModel || DEFAULT_SETTINGS.githubModel,
     translateTargetLang:
       settings.translateTargetLang || DEFAULT_SETTINGS.translateTargetLang,
     ollamaAutoTranslateMode: normalizeAutoTranslateMode(

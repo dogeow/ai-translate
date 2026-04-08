@@ -2,6 +2,7 @@ import {
   PROVIDER_OLLAMA,
   PROVIDER_MINIMAX_CN,
   PROVIDER_MINIMAX_GLOBAL,
+  PROVIDER_GITHUB_MODELS,
   DEFAULT_TRANSLATE_PROVIDER,
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_OLLAMA_URL,
@@ -11,6 +12,12 @@ import {
   MINIMAX_REGION_CN,
   MINIMAX_REGION_GLOBAL,
   DEFAULT_MINIMAX_MODEL,
+  DEFAULT_GITHUB_MODELS_API_URL,
+  DEFAULT_GITHUB_AUTH_MODE,
+  DEFAULT_GITHUB_PAT,
+  DEFAULT_GITHUB_DEVICE_TOKEN,
+  DEFAULT_GITHUB_OAUTH_CLIENT_ID,
+  DEFAULT_GITHUB_MODEL,
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
   DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
@@ -27,8 +34,13 @@ import {
   getMiniMaxRegionFromProvider,
   isMiniMaxGlobalApiUrl,
   isMiniMaxProvider,
+  isGitHubModelsProvider,
   resolveMiniMaxApiKey,
   getMiniMaxApiKeyLabel,
+  normalizeGitHubApiUrl,
+  normalizeGitHubAuthMode,
+  resolveGitHubToken,
+  getGitHubTokenLabel,
   normalizeAutoTranslateMode,
   normalizeHoverTranslateScope,
   normalizeHoverTranslateDelayMs,
@@ -37,6 +49,7 @@ import {
 } from "../../shared/settings.js";
 import { generateCompletion } from "../../shared/ollama-api.js";
 import { generateMiniMaxCompletion } from "../../shared/minimax-api.js";
+import { generateGitHubModelsCompletion } from "../../shared/github-models-api.js";
 
 // 重新导出
 export { formatModelSize };
@@ -87,6 +100,20 @@ export function getSettingsSnapshot(settings) {
     minimaxApiKeyGlobal,
     minimaxApiKey: settings.minimaxApiKey,
   });
+  const githubApiUrl = normalizeGitHubApiUrl(settings.githubApiUrl);
+  const githubAuthMode = normalizeGitHubAuthMode(settings.githubAuthMode);
+  const githubPat = String(settings.githubPat ?? DEFAULT_GITHUB_PAT).trim();
+  const githubDeviceToken = String(
+    settings.githubDeviceToken ?? DEFAULT_GITHUB_DEVICE_TOKEN,
+  ).trim();
+  const githubOAuthClientId = String(
+    settings.githubOAuthClientId ?? DEFAULT_GITHUB_OAUTH_CLIENT_ID,
+  ).trim();
+  const githubToken = resolveGitHubToken({
+    githubAuthMode,
+    githubPat,
+    githubDeviceToken,
+  });
 
   return {
     ollamaProvider: provider,
@@ -100,6 +127,14 @@ export function getSettingsSnapshot(settings) {
     minimaxApiKeyGlobal,
     minimaxModel:
       String(settings.minimaxModel || "").trim() || DEFAULT_MINIMAX_MODEL,
+    githubApiUrl,
+    githubAuthMode,
+    githubPat,
+    githubDeviceToken,
+    githubOAuthClientId,
+    githubToken,
+    githubModel:
+      String(settings.githubModel || "").trim() || DEFAULT_GITHUB_MODEL,
     translateTargetLang:
       settings.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG,
     ollamaAutoTranslateMode: normalizeAutoTranslateMode(
@@ -134,6 +169,17 @@ export function getConfig(settings) {
       model: snapshot.minimaxModel,
       apiKey,
       apiKeyLabel: getMiniMaxApiKeyLabel(snapshot),
+    };
+  }
+
+  if (isGitHubModelsProvider(snapshot.ollamaProvider)) {
+    const apiKey = resolveGitHubToken(snapshot);
+    return {
+      provider: snapshot.ollamaProvider,
+      base: snapshot.githubApiUrl,
+      model: snapshot.githubModel,
+      apiKey,
+      apiKeyLabel: getGitHubTokenLabel(snapshot),
     };
   }
 
@@ -181,6 +227,20 @@ export function getStoredSettingsShape(stored) {
     minimaxApiKeyGlobal,
     minimaxApiKey: stored.minimaxApiKey,
   });
+  const githubApiUrl = normalizeGitHubApiUrl(stored.githubApiUrl);
+  const githubAuthMode = normalizeGitHubAuthMode(stored.githubAuthMode);
+  const githubPat = String(stored.githubPat ?? DEFAULT_GITHUB_PAT).trim();
+  const githubDeviceToken = String(
+    stored.githubDeviceToken ?? DEFAULT_GITHUB_DEVICE_TOKEN,
+  ).trim();
+  const githubOAuthClientId = String(
+    stored.githubOAuthClientId ?? DEFAULT_GITHUB_OAUTH_CLIENT_ID,
+  ).trim();
+  const githubToken = resolveGitHubToken({
+    githubAuthMode,
+    githubPat,
+    githubDeviceToken,
+  });
 
   return {
     ollamaProvider: normalizedProvider,
@@ -192,6 +252,13 @@ export function getStoredSettingsShape(stored) {
     minimaxApiKeyCn,
     minimaxApiKeyGlobal,
     minimaxModel: stored.minimaxModel || DEFAULT_MINIMAX_MODEL,
+    githubApiUrl,
+    githubAuthMode,
+    githubPat,
+    githubDeviceToken,
+    githubOAuthClientId,
+    githubToken,
+    githubModel: stored.githubModel || DEFAULT_GITHUB_MODEL,
     translateTargetLang:
       stored.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG,
     ollamaAutoTranslateMode: normalizeAutoTranslateMode(
@@ -223,6 +290,14 @@ export function getStoredSettingsShape(stored) {
 export function runGenerateRequest(config, prompt) {
   if (isMiniMaxProvider(config.provider)) {
     return generateMiniMaxCompletion(
+      config.base,
+      config.apiKey,
+      config.model,
+      prompt,
+    );
+  }
+  if (isGitHubModelsProvider(config.provider)) {
+    return generateGitHubModelsCompletion(
       config.base,
       config.apiKey,
       config.model,

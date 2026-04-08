@@ -12,9 +12,12 @@ import {
   normalizeTranslateProvider,
   resolveMiniMaxApiKey,
   isMiniMaxProvider,
+  isGitHubModelsProvider,
+  resolveGitHubToken,
 } from "./shared/settings.js";
 import {
   PROVIDER_OLLAMA,
+  PROVIDER_GITHUB_MODELS,
   DEFAULT_TRANSLATE_PROVIDER,
   DEFAULT_OLLAMA_URL,
   DEFAULT_OLLAMA_MODEL,
@@ -24,6 +27,12 @@ import {
   DEFAULT_MINIMAX_API_KEY_GLOBAL,
   DEFAULT_MINIMAX_REGION,
   DEFAULT_MINIMAX_MODEL,
+  DEFAULT_GITHUB_MODELS_API_URL,
+  DEFAULT_GITHUB_AUTH_MODE,
+  DEFAULT_GITHUB_PAT,
+  DEFAULT_GITHUB_DEVICE_TOKEN,
+  DEFAULT_GITHUB_OAUTH_CLIENT_ID,
+  DEFAULT_GITHUB_MODEL,
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_LEARNING_MODE_ENABLED,
   DEFAULT_APP_ENABLED,
@@ -35,6 +44,11 @@ import {
   generateMiniMaxStreamingCompletion,
   normalizeMiniMaxBaseUrl,
 } from "./shared/minimax-api.js";
+import {
+  generateGitHubModelsCompletion,
+  generateGitHubModelsStreamingCompletion,
+  normalizeGitHubModelsBaseUrl,
+} from "./shared/github-models-api.js";
 import {
   normalizeDisplayText,
   splitThinkingFromText,
@@ -97,11 +111,14 @@ async function runProviderCompletion({
   if (isMiniMaxProvider(provider)) {
     return generateMiniMaxCompletion(base, apiKey, model, prompt);
   }
+  if (isGitHubModelsProvider(provider)) {
+    return generateGitHubModelsCompletion(base, apiKey, model, prompt);
+  }
   return generateOllamaResponse(base, model, prompt);
 }
 
 function toProviderError(provider, error) {
-  if (isMiniMaxProvider(provider)) {
+  if (isMiniMaxProvider(provider) || isGitHubModelsProvider(provider)) {
     return error?.message || String(error);
   }
   return getOllamaErrorMessage(error, { detailed: true });
@@ -118,6 +135,12 @@ async function translatePageBatchWithProvider(texts) {
     minimaxApiKeyCn: DEFAULT_MINIMAX_API_KEY_CN,
     minimaxApiKeyGlobal: DEFAULT_MINIMAX_API_KEY_GLOBAL,
     minimaxModel: DEFAULT_MINIMAX_MODEL,
+    githubApiUrl: DEFAULT_GITHUB_MODELS_API_URL,
+    githubAuthMode: DEFAULT_GITHUB_AUTH_MODE,
+    githubPat: DEFAULT_GITHUB_PAT,
+    githubDeviceToken: DEFAULT_GITHUB_DEVICE_TOKEN,
+    githubOAuthClientId: DEFAULT_GITHUB_OAUTH_CLIENT_ID,
+    githubModel: DEFAULT_GITHUB_MODEL,
     translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
     appEnabled: DEFAULT_APP_ENABLED,
   });
@@ -141,16 +164,23 @@ async function translatePageBatchWithProvider(texts) {
     settings.ollamaProvider,
     settings.minimaxRegion,
   );
+  const isMiniMax = isMiniMaxProvider(provider);
+  const isGitHub = isGitHubModelsProvider(provider);
   const targetLang =
     settings.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG;
-  const selectedModel = isMiniMaxProvider(provider)
+  const selectedModel = isMiniMax
     ? settings.minimaxModel || DEFAULT_MINIMAX_MODEL
-    : settings.ollamaModel;
-  const base = isMiniMaxProvider(provider)
+    : isGitHub
+      ? settings.githubModel || DEFAULT_GITHUB_MODEL
+      : settings.ollamaModel;
+  const base = isMiniMax
     ? normalizeMiniMaxBaseUrl(settings.minimaxApiUrl)
-    : String(settings.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
+    : isGitHub
+      ? normalizeGitHubModelsBaseUrl(settings.githubApiUrl)
+      : String(settings.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
   const minimaxApiKey = resolveMiniMaxApiKey(settings);
-  const apiKey = isMiniMaxProvider(provider) ? minimaxApiKey : "";
+  const githubToken = resolveGitHubToken(settings);
+  const apiKey = isMiniMax ? minimaxApiKey : isGitHub ? githubToken : "";
 
   if (provider === PROVIDER_OLLAMA && !selectedModel) {
     const check = await checkOllamaAndGetModels(settings.ollamaUrl);
@@ -171,6 +201,14 @@ async function translatePageBatchWithProvider(texts) {
       ok: false,
       needModel: false,
       error: `请先填写${getMiniMaxApiKeyLabel(settings)}。`,
+    };
+  }
+
+  if (isGitHub && !apiKey) {
+    return {
+      ok: false,
+      needModel: false,
+      error: "请先填写 GitHub 访问令牌。",
     };
   }
 
@@ -220,6 +258,12 @@ async function translateWithProvider(text, tabId = null, options = {}) {
     minimaxApiKeyCn: DEFAULT_MINIMAX_API_KEY_CN,
     minimaxApiKeyGlobal: DEFAULT_MINIMAX_API_KEY_GLOBAL,
     minimaxModel: DEFAULT_MINIMAX_MODEL,
+    githubApiUrl: DEFAULT_GITHUB_MODELS_API_URL,
+    githubAuthMode: DEFAULT_GITHUB_AUTH_MODE,
+    githubPat: DEFAULT_GITHUB_PAT,
+    githubDeviceToken: DEFAULT_GITHUB_DEVICE_TOKEN,
+    githubOAuthClientId: DEFAULT_GITHUB_OAUTH_CLIENT_ID,
+    githubModel: DEFAULT_GITHUB_MODEL,
     translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
     learningModeEnabled: DEFAULT_LEARNING_MODE_ENABLED,
     appEnabled: DEFAULT_APP_ENABLED,
@@ -238,9 +282,13 @@ async function translateWithProvider(text, tabId = null, options = {}) {
     settings.ollamaProvider,
     settings.minimaxRegion,
   );
-  const selectedModel = isMiniMaxProvider(provider)
+  const isMiniMax = isMiniMaxProvider(provider);
+  const isGitHub = isGitHubModelsProvider(provider);
+  const selectedModel = isMiniMax
     ? settings.minimaxModel || DEFAULT_MINIMAX_MODEL
-    : settings.ollamaModel;
+    : isGitHub
+      ? settings.githubModel || DEFAULT_GITHUB_MODEL
+      : settings.ollamaModel;
   const targetLang =
     settings.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG;
   const learningModeEnabled =
@@ -248,6 +296,7 @@ async function translateWithProvider(text, tabId = null, options = {}) {
       ? learningModeOverride
       : !!settings.learningModeEnabled;
   const minimaxApiKey = resolveMiniMaxApiKey(settings);
+  const githubToken = resolveGitHubToken(settings);
 
   if (!settings.appEnabled) {
     console.log(
@@ -311,9 +360,28 @@ async function translateWithProvider(text, tabId = null, options = {}) {
     return errorResult;
   }
 
-  const base = isMiniMaxProvider(provider)
+  if (isGitHub && !githubToken) {
+    const errorResult = buildErrorResult({
+      original: text,
+      targetLang,
+      error: "请先填写 GitHub 访问令牌。",
+      model: selectedModel || null,
+      needModel: false,
+      learningModeEnabled,
+      requestId: resolvedRequestId,
+      triggerSource,
+    });
+    if (persistResult) {
+      await persistTranslateResult(errorResult);
+    }
+    return errorResult;
+  }
+
+  const base = isMiniMax
     ? normalizeMiniMaxBaseUrl(settings.minimaxApiUrl)
-    : settings.ollamaUrl.replace(/\/$/, "");
+    : isGitHub
+      ? normalizeGitHubModelsBaseUrl(settings.githubApiUrl)
+      : settings.ollamaUrl.replace(/\/$/, "");
   const prompt = buildTranslatePrompt(text, targetLang);
 
   let translation = "";
@@ -326,7 +394,11 @@ async function translateWithProvider(text, tabId = null, options = {}) {
   let latestTranslateResult = null;
   let stopPendingUpdates = false;
   const MIN_SENTENCE_STUDY_THINK_PREVIEW_MS = 260;
-  const sentenceStudyApiKey = isMiniMaxProvider(provider) ? minimaxApiKey : "";
+  const sentenceStudyApiKey = isMiniMax
+    ? minimaxApiKey
+    : isGitHub
+      ? githubToken
+      : "";
   let sentenceStudyPromise = null;
 
   async function sendPendingProgress(force = false) {
@@ -399,7 +471,7 @@ async function translateWithProvider(text, tabId = null, options = {}) {
   }
 
   try {
-    if (isMiniMaxProvider(provider)) {
+    if (isMiniMax) {
       const streamed = await generateMiniMaxStreamingCompletion(
         base,
         minimaxApiKey,
@@ -421,6 +493,30 @@ async function translateWithProvider(text, tabId = null, options = {}) {
       thinking = mergeThinking(
         streamed.thinking || thinking,
         parsedMiniMaxFinal.thinking,
+      );
+      await sendPendingProgress(true);
+    } else if (isGitHub) {
+      const streamed = await generateGitHubModelsStreamingCompletion(
+        base,
+        githubToken,
+        selectedModel,
+        prompt,
+        {
+          onChunk: (chunk) => {
+            const parsed = splitThinkingFromText(chunk.response || "");
+            translation = parsed.translation;
+            thinking = mergeThinking(chunk.thinking || "", parsed.thinking);
+            void sendPendingProgress();
+          },
+        },
+      );
+      const parsedGitHubFinal = splitThinkingFromText(
+        streamed.response || translation,
+      );
+      translation = parsedGitHubFinal.translation;
+      thinking = mergeThinking(
+        streamed.thinking || thinking,
+        parsedGitHubFinal.thinking,
       );
       await sendPendingProgress(true);
     } else {
@@ -448,7 +544,7 @@ async function translateWithProvider(text, tabId = null, options = {}) {
       await sendPendingProgress(true);
     }
   } catch (e) {
-    error = isMiniMaxProvider(provider)
+    error = isMiniMax || isGitHub
       ? e.message || String(e)
       : getOllamaErrorMessage(e, { detailed: true });
   }

@@ -1,6 +1,12 @@
 import { useRef, useState } from "react";
-import { DEFAULT_TRANSLATE_TARGET_LANG } from "../../shared/constants.js";
-import { isMiniMaxProvider } from "../../shared/settings.js";
+import {
+  DEFAULT_TRANSLATE_TARGET_LANG,
+  PROVIDER_OLLAMA,
+} from "../../shared/constants.js";
+import {
+  isMiniMaxProvider,
+  isGitHubModelsProvider,
+} from "../../shared/settings.js";
 import { isOllama403Error } from "../../shared/ollama-errors.js";
 import { getConfig, runGenerateRequest } from "../lib/utils.js";
 
@@ -82,9 +88,11 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
 
   function formatErrorMessage(error, provider) {
     return (error.message || String(error)) === "Failed to fetch"
-      ? provider === PROVIDER_MINIMAX
-        ? "MiniMax 连接失败"
-        : "Ollama 连接失败"
+      ? provider === PROVIDER_OLLAMA
+        ? "Ollama 连接失败"
+        : isMiniMaxProvider(provider)
+          ? "MiniMax 连接失败"
+          : "GitHub Models 连接失败"
       : error.message || String(error);
   }
 
@@ -96,6 +104,9 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
     }
     if (isMiniMaxProvider(config.provider) && !config.apiKey) {
       return `请先填写${config.apiKeyLabel || "MiniMax API Key"}`;
+    }
+    if (isGitHubModelsProvider(config.provider) && !config.apiKey) {
+      return `请先填写${config.apiKeyLabel || "GitHub 访问令牌"}`;
     }
     return "";
   }

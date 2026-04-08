@@ -8,12 +8,14 @@ export const PROVIDER_OLLAMA = "ollama";
 export const PROVIDER_MINIMAX = "minimax"; // legacy
 export const PROVIDER_MINIMAX_CN = "minimax-cn";
 export const PROVIDER_MINIMAX_GLOBAL = "minimax-global";
+export const PROVIDER_GITHUB_MODELS = "github-models";
 export const DEFAULT_TRANSLATE_PROVIDER = PROVIDER_OLLAMA;
 
 export const TRANSLATE_PROVIDER_OPTIONS = [
   { value: PROVIDER_OLLAMA, label: "Ollama（本地）" },
   { value: PROVIDER_MINIMAX_CN, label: "MiniMax（国内）" },
   { value: PROVIDER_MINIMAX_GLOBAL, label: "MiniMax（海外）" },
+  { value: PROVIDER_GITHUB_MODELS, label: "GitHub Models" },
 ];
 
 // Ollama 连接配置
@@ -37,6 +39,20 @@ export const MINIMAX_REGION_OPTIONS = [
 export const DEFAULT_MINIMAX_API_KEY = DEFAULT_MINIMAX_API_KEY_CN;
 export const DEFAULT_MINIMAX_MODEL = "MiniMax-M2.5-highspeed";
 export const MINIMAX_MODEL_OPTIONS = [DEFAULT_MINIMAX_MODEL];
+
+// GitHub Models 连接配置
+export const DEFAULT_GITHUB_MODELS_API_URL = "https://models.github.ai";
+export const GITHUB_AUTH_MODE_PAT = "pat";
+export const GITHUB_AUTH_MODE_DEVICE = "device";
+export const DEFAULT_GITHUB_AUTH_MODE = GITHUB_AUTH_MODE_PAT;
+export const DEFAULT_GITHUB_PAT = "";
+export const DEFAULT_GITHUB_DEVICE_TOKEN = "";
+export const DEFAULT_GITHUB_OAUTH_CLIENT_ID = "";
+export const DEFAULT_GITHUB_MODEL = "openai/gpt-5-mini";
+export const GITHUB_AUTH_MODE_OPTIONS = [
+  { value: GITHUB_AUTH_MODE_PAT, label: "PAT 密钥" },
+  { value: GITHUB_AUTH_MODE_DEVICE, label: "设备登录" },
+];
 
 // 翻译配置
 export const DEFAULT_TRANSLATE_TARGET_LANG = "Chinese";
