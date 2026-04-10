@@ -1,53 +1,20 @@
-import {
-  checkOllamaAndGetModels,
-  generateOllamaResponse,
-  generateOllamaStreamingResponse,
-} from "./ollama.js";
+import { checkOllamaAndGetModels } from "./ollama.js";
 import {
   analyzeSentenceStudy,
   hydrateSentenceStudyTranslations,
 } from "./sentenceStudy.js";
 import {
-  getMiniMaxApiKeyLabel,
-  normalizeTranslateProvider,
-  resolveMiniMaxApiKey,
-  isMiniMaxProvider,
-  isGitHubModelsProvider,
-  resolveGitHubToken,
-} from "../shared/settings.js";
+  SYNC_SETTINGS_DEFAULTS,
+  resolveProviderRuntime,
+  buildMissingCredentialError,
+} from "./translationSettings.js";
 import {
-  PROVIDER_OLLAMA,
-  DEFAULT_TRANSLATE_PROVIDER,
-  DEFAULT_OLLAMA_URL,
-  DEFAULT_OLLAMA_MODEL,
-  DEFAULT_MINIMAX_API_URL,
-  DEFAULT_MINIMAX_API_KEY,
-  DEFAULT_MINIMAX_API_KEY_CN,
-  DEFAULT_MINIMAX_API_KEY_GLOBAL,
-  DEFAULT_MINIMAX_REGION,
-  DEFAULT_MINIMAX_MODEL,
-  DEFAULT_GITHUB_MODELS_API_URL,
-  DEFAULT_GITHUB_AUTH_MODE,
-  DEFAULT_GITHUB_PAT,
-  DEFAULT_GITHUB_DEVICE_TOKEN,
-  DEFAULT_GITHUB_OAUTH_CLIENT_ID,
-  DEFAULT_GITHUB_MODEL,
-  DEFAULT_TRANSLATE_TARGET_LANG,
-  DEFAULT_LEARNING_MODE_ENABLED,
-  DEFAULT_APP_ENABLED,
-} from "../shared/constants.js";
-import { getOllamaErrorMessage } from "../shared/ollama-errors.js";
+  runProviderCompletion,
+  runProviderStreaming,
+  toProviderError,
+} from "./translationProviders.js";
+import { PROVIDER_OLLAMA } from "../shared/constants.js";
 import { filterTranslationModels } from "../shared/model-utils.js";
-import {
-  generateMiniMaxCompletion,
-  generateMiniMaxStreamingCompletion,
-  normalizeMiniMaxBaseUrl,
-} from "../shared/minimax-api.js";
-import {
-  generateGitHubModelsCompletion,
-  generateGitHubModelsStreamingCompletion,
-  normalizeGitHubModelsBaseUrl,
-} from "../shared/github-models-api.js";
 import {
   normalizeDisplayText,
   splitThinkingFromText,
@@ -69,27 +36,6 @@ import {
 const MIN_THINK_PREVIEW_MS = 320;
 const latestTranslateRequestIdsByTab = new Map();
 
-const SYNC_SETTINGS_DEFAULTS = {
-  ollamaProvider: DEFAULT_TRANSLATE_PROVIDER,
-  ollamaUrl: DEFAULT_OLLAMA_URL,
-  ollamaModel: DEFAULT_OLLAMA_MODEL,
-  minimaxApiUrl: DEFAULT_MINIMAX_API_URL,
-  minimaxRegion: DEFAULT_MINIMAX_REGION,
-  minimaxApiKey: DEFAULT_MINIMAX_API_KEY,
-  minimaxApiKeyCn: DEFAULT_MINIMAX_API_KEY_CN,
-  minimaxApiKeyGlobal: DEFAULT_MINIMAX_API_KEY_GLOBAL,
-  minimaxModel: DEFAULT_MINIMAX_MODEL,
-  githubApiUrl: DEFAULT_GITHUB_MODELS_API_URL,
-  githubAuthMode: DEFAULT_GITHUB_AUTH_MODE,
-  githubPat: DEFAULT_GITHUB_PAT,
-  githubDeviceToken: DEFAULT_GITHUB_DEVICE_TOKEN,
-  githubOAuthClientId: DEFAULT_GITHUB_OAUTH_CLIENT_ID,
-  githubModel: DEFAULT_GITHUB_MODEL,
-  translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
-  learningModeEnabled: DEFAULT_LEARNING_MODE_ENABLED,
-  appEnabled: DEFAULT_APP_ENABLED,
-};
-
 function registerLatestTranslateRequest(tabId, requestId) {
   if (!tabId || !requestId) return;
   latestTranslateRequestIdsByTab.set(tabId, requestId);
@@ -100,94 +46,56 @@ function isLatestTranslateRequest(tabId, requestId) {
   return latestTranslateRequestIdsByTab.get(tabId) === requestId;
 }
 
-function resolveProviderRuntime(settings) {
-  const provider = normalizeTranslateProvider(
-    settings.ollamaProvider,
-    settings.minimaxRegion,
-  );
-  const isMiniMax = isMiniMaxProvider(provider);
-  const isGitHub = isGitHubModelsProvider(provider);
-  const selectedModel = isMiniMax
-    ? settings.minimaxModel || DEFAULT_MINIMAX_MODEL
-    : isGitHub
-      ? settings.githubModel || DEFAULT_GITHUB_MODEL
-      : settings.ollamaModel;
-  const base = isMiniMax
-    ? normalizeMiniMaxBaseUrl(settings.minimaxApiUrl)
-    : isGitHub
-      ? normalizeGitHubModelsBaseUrl(settings.githubApiUrl)
-      : String(settings.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
-  const minimaxApiKey = resolveMiniMaxApiKey(settings);
-  const githubToken = resolveGitHubToken(settings);
-  const apiKey = isMiniMax ? minimaxApiKey : isGitHub ? githubToken : "";
-
-  return {
-    provider,
-    isMiniMax,
-    isGitHub,
-    selectedModel,
-    base,
-    minimaxApiKey,
-    githubToken,
-    apiKey,
-    targetLang: settings.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG,
-  };
+async function buildNoModelResult(settings, text, providerRuntime, options) {
+  const {
+    requestId,
+    triggerSource,
+    learningModeEnabled,
+    persistResult = true,
+  } = options;
+  const check = await checkOllamaAndGetModels(settings.ollamaUrl);
+  const errorResult = buildErrorResult({
+    original: text,
+    targetLang: providerRuntime.targetLang,
+    error: check.error ? (check.error === "403" ? "403" : "connection") : "no_model",
+    models: check.models,
+    needModel: true,
+    learningModeEnabled,
+    requestId,
+    triggerSource,
+  });
+  if (persistResult) {
+    await persistTranslateResult(errorResult);
+  }
+  return errorResult;
 }
 
-async function runProviderCompletion({ provider, base, model, apiKey, prompt }) {
-  if (isMiniMaxProvider(provider)) {
-    return generateMiniMaxCompletion(base, apiKey, model, prompt);
-  }
-  if (isGitHubModelsProvider(provider)) {
-    return generateGitHubModelsCompletion(base, apiKey, model, prompt);
-  }
-  return generateOllamaResponse(base, model, prompt);
-}
-
-async function runProviderStreaming({
-  provider,
-  base,
-  model,
-  apiKey,
-  prompt,
-  onChunk,
-}) {
-  if (isMiniMaxProvider(provider)) {
-    return generateMiniMaxStreamingCompletion(base, apiKey, model, prompt, {
-      onChunk,
-    });
-  }
-  if (isGitHubModelsProvider(provider)) {
-    return generateGitHubModelsStreamingCompletion(base, apiKey, model, prompt, {
-      onChunk,
-    });
-  }
-  return generateOllamaStreamingResponse(base, model, prompt, { onChunk });
-}
-
-function toProviderError(provider, error) {
-  if (isMiniMaxProvider(provider) || isGitHubModelsProvider(provider)) {
-    return error?.message || String(error);
-  }
-  return getOllamaErrorMessage(error, { detailed: true });
-}
-
-function buildMissingCredentialError(providerRuntime, settings) {
-  if (providerRuntime.provider === PROVIDER_OLLAMA) return "";
-  if (providerRuntime.isMiniMax && !providerRuntime.apiKey) {
-    return `请先填写${getMiniMaxApiKeyLabel(settings)}。`;
-  }
-  if (providerRuntime.isGitHub && !providerRuntime.apiKey) {
-    return "请先填写 GitHub 访问令牌。";
-  }
-  return "";
+function buildCredentialErrorResult(text, providerRuntime, credentialError, options) {
+  const {
+    requestId,
+    triggerSource,
+    learningModeEnabled,
+  } = options;
+  return buildErrorResult({
+    original: text,
+    targetLang: providerRuntime.targetLang,
+    error: credentialError,
+    model: providerRuntime.selectedModel || null,
+    needModel: false,
+    learningModeEnabled,
+    requestId,
+    triggerSource,
+  });
 }
 
 export async function translatePageBatchWithProvider(texts) {
   const settings = await chrome.storage.sync.get(SYNC_SETTINGS_DEFAULTS);
   const MAX_TEXTS_PER_BATCH = 32;
   const normalizedTexts = Array.isArray(texts)
-    ? texts.map((text) => String(text || "").trim()).filter(Boolean).slice(0, MAX_TEXTS_PER_BATCH)
+    ? texts
+        .map((text) => String(text || "").trim())
+        .filter(Boolean)
+        .slice(0, MAX_TEXTS_PER_BATCH)
     : [];
   if (normalizedTexts.length === 0) {
     return { ok: false, error: "empty_texts" };
@@ -197,7 +105,10 @@ export async function translatePageBatchWithProvider(texts) {
   }
 
   const providerRuntime = resolveProviderRuntime(settings);
-  if (providerRuntime.provider === PROVIDER_OLLAMA && !providerRuntime.selectedModel) {
+  if (
+    providerRuntime.provider === PROVIDER_OLLAMA &&
+    !providerRuntime.selectedModel
+  ) {
     const check = await checkOllamaAndGetModels(settings.ollamaUrl);
     return {
       ok: false,
@@ -216,9 +127,9 @@ export async function translatePageBatchWithProvider(texts) {
     normalizedTexts,
     providerRuntime.targetLang,
   );
-
   let translations = [];
   let errorMessage = "";
+
   try {
     const batchRaw = await runProviderCompletion({
       provider: providerRuntime.provider,
@@ -282,36 +193,30 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
     );
   }
 
-  if (providerRuntime.provider === PROVIDER_OLLAMA && !providerRuntime.selectedModel) {
-    const check = await checkOllamaAndGetModels(settings.ollamaUrl);
-    const errorResult = buildErrorResult({
-      original: text,
-      targetLang: providerRuntime.targetLang,
-      error: check.error ? (check.error === "403" ? "403" : "connection") : "no_model",
-      models: check.models,
-      needModel: true,
-      learningModeEnabled,
+  if (
+    providerRuntime.provider === PROVIDER_OLLAMA &&
+    !providerRuntime.selectedModel
+  ) {
+    return buildNoModelResult(settings, text, providerRuntime, {
       requestId: resolvedRequestId,
       triggerSource,
+      learningModeEnabled,
+      persistResult,
     });
-    if (persistResult) {
-      await persistTranslateResult(errorResult);
-    }
-    return errorResult;
   }
 
   const credentialError = buildMissingCredentialError(providerRuntime, settings);
   if (credentialError) {
-    const errorResult = buildErrorResult({
-      original: text,
-      targetLang: providerRuntime.targetLang,
-      error: credentialError,
-      model: providerRuntime.selectedModel || null,
-      needModel: false,
-      learningModeEnabled,
-      requestId: resolvedRequestId,
-      triggerSource,
-    });
+    const errorResult = buildCredentialErrorResult(
+      text,
+      providerRuntime,
+      credentialError,
+      {
+        requestId: resolvedRequestId,
+        triggerSource,
+        learningModeEnabled,
+      },
+    );
     if (persistResult) {
       await persistTranslateResult(errorResult);
     }
@@ -364,7 +269,9 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
 
   const pushSentenceStudyThinking = (thinkingText) => {
     const normalizedThinking = normalizeDisplayText(thinkingText);
-    if (!normalizedThinking || normalizedThinking === latestSentenceStudyThinking) return;
+    if (!normalizedThinking || normalizedThinking === latestSentenceStudyThinking) {
+      return;
+    }
     latestSentenceStudyThinking = normalizedThinking;
     if (!firstSentenceStudyThinkingAt) {
       firstSentenceStudyThinkingAt = Date.now();
