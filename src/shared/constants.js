@@ -42,17 +42,17 @@ export const MINIMAX_MODEL_OPTIONS = [DEFAULT_MINIMAX_MODEL];
 
 // GitHub Models 连接配置
 export const DEFAULT_GITHUB_MODELS_API_URL = "https://models.github.ai";
-export const GITHUB_AUTH_MODE_PAT = "pat";
 export const GITHUB_AUTH_MODE_DEVICE = "device";
-export const DEFAULT_GITHUB_AUTH_MODE = GITHUB_AUTH_MODE_PAT;
-export const DEFAULT_GITHUB_PAT = "";
+// PAT 模式已移除：仅保留设备登录（Copilot 订阅 + Device Flow）
+export const DEFAULT_GITHUB_AUTH_MODE = GITHUB_AUTH_MODE_DEVICE;
 export const DEFAULT_GITHUB_DEVICE_TOKEN = "";
 export const DEFAULT_GITHUB_OAUTH_CLIENT_ID = "";
-export const DEFAULT_GITHUB_MODEL = "openai/gpt-5-mini";
-export const GITHUB_AUTH_MODE_OPTIONS = [
-  { value: GITHUB_AUTH_MODE_PAT, label: "PAT 密钥" },
-  { value: GITHUB_AUTH_MODE_DEVICE, label: "设备登录" },
-];
+export const DEFAULT_GITHUB_MODEL = "openai/gpt-4.1";
+// 仅向用户暴露真正稳定且 PAT/Device 都能访问、配额合理的模型
+export const GITHUB_MODEL_WHITELIST = Object.freeze([
+  "openai/gpt-4.1",
+  "openai/gpt-4o",
+]);
 
 // 翻译配置
 export const DEFAULT_TRANSLATE_TARGET_LANG = "Chinese";

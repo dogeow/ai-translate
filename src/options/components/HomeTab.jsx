@@ -6,8 +6,6 @@ import {
   PROVIDER_MINIMAX_CN,
   PROVIDER_MINIMAX_GLOBAL,
   DEFAULT_GITHUB_MODEL,
-  GITHUB_AUTH_MODE_DEVICE,
-  GITHUB_AUTH_MODE_OPTIONS,
   TRANSLATE_PROVIDER_OPTIONS,
 } from "../../shared/constants.js";
 import {
@@ -38,8 +36,6 @@ const FIELD_IDS = Object.freeze({
   provider: "ollamaProvider",
   providerApiUrl: "providerApiUrl",
   minimaxRegionApiKey: "minimaxRegionApiKey",
-  githubAuthMode: "githubAuthMode",
-  githubPat: "githubPat",
   githubOAuthClientId: "githubOAuthClientId",
   providerModel: "providerModel",
   translateTargetLang: "translateTargetLang",
@@ -86,7 +82,6 @@ function GitHubAuthFields({
 }) {
   const [deviceLoginStatus, setDeviceLoginStatus] = useState("");
   const [deviceLoginBusy, setDeviceLoginBusy] = useState(false);
-  const isDeviceMode = settings.githubAuthMode === GITHUB_AUTH_MODE_DEVICE;
 
   async function startDeviceLogin() {
     const clientId = String(settingsRef.current.githubOAuthClientId || "").trim();
@@ -150,78 +145,52 @@ function GitHubAuthFields({
 
   return (
     <ConditionalFields condition={isGitHub}>
-      <AutoSaveSelectField
-        id={FIELD_IDS.githubAuthMode}
-        label="认证方式"
-        value={settings.githubAuthMode}
-        options={GITHUB_AUTH_MODE_OPTIONS}
-        settingKey="githubAuthMode"
+      <AutoSaveInputField
+        id={FIELD_IDS.githubOAuthClientId}
+        label="GitHub OAuth App Client ID"
+        placeholder="输入已启用 Device Flow 的 GitHub OAuth App Client ID"
+        value={settings.githubOAuthClientId}
+        settingKey="githubOAuthClientId"
         updateSettings={updateSettings}
+        persistSettings={persistSettings}
+        settingsRef={settingsRef}
+        showAutoSaveStatus={showAutoSaveStatus}
       />
 
-      {isDeviceMode ? (
-        <>
-          <AutoSaveInputField
-            id={FIELD_IDS.githubOAuthClientId}
-            label="GitHub OAuth App Client ID"
-            placeholder="输入已启用 Device Flow 的 GitHub OAuth App Client ID"
-            value={settings.githubOAuthClientId}
-            settingKey="githubOAuthClientId"
-            updateSettings={updateSettings}
-            persistSettings={persistSettings}
-            settingsRef={settingsRef}
-            showAutoSaveStatus={showAutoSaveStatus}
-          />
-
-          <div className="field">
-            <label>设备登录</label>
-            <div className="field-row" style={{ marginTop: 10 }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={deviceLoginBusy}
-                onClick={() => {
-                  void startDeviceLogin();
-                }}
-              >
-                {deviceLoginBusy ? "登录中…" : "开始设备登录"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={deviceLoginBusy || !settings.githubDeviceToken}
-                onClick={() => {
-                  void clearDeviceLogin();
-                }}
-              >
-                清除登录
-              </button>
-            </div>
-            <div
-              className={`field-validation ${settings.githubDeviceToken ? "" : "field-validation--error"}`.trim()}
-              style={{ marginTop: 8 }}
-            >
-              {deviceLoginStatus ||
-                (settings.githubDeviceToken
-                  ? "已保存设备登录令牌。"
-                  : "尚未完成设备登录。")}
-            </div>
-          </div>
-        </>
-      ) : (
-        <AutoSaveInputField
-          id={FIELD_IDS.githubPat}
-          label="GitHub PAT"
-          type="password"
-          placeholder="输入带 Models 权限的 GitHub PAT"
-          value={settings.githubPat}
-          settingKey="githubPat"
-          updateSettings={updateSettings}
-          persistSettings={persistSettings}
-          settingsRef={settingsRef}
-          showAutoSaveStatus={showAutoSaveStatus}
-        />
-      )}
+      <div className="field">
+        <label>设备登录</label>
+        <div className="field-row" style={{ marginTop: 10 }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={deviceLoginBusy}
+            onClick={() => {
+              void startDeviceLogin();
+            }}
+          >
+            {deviceLoginBusy ? "登录中…" : "开始设备登录"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={deviceLoginBusy || !settings.githubDeviceToken}
+            onClick={() => {
+              void clearDeviceLogin();
+            }}
+          >
+            清除登录
+          </button>
+        </div>
+        <div
+          className={`field-validation ${settings.githubDeviceToken ? "" : "field-validation--error"}`.trim()}
+          style={{ marginTop: 8 }}
+        >
+          {deviceLoginStatus ||
+            (settings.githubDeviceToken
+              ? "已保存设备登录令牌。"
+              : "尚未完成设备登录。")}
+        </div>
+      </div>
     </ConditionalFields>
   );
 }
@@ -382,10 +351,7 @@ export function HomeTab({
   const minimaxConfig = getMiniMaxConfig(settings);
   const isMiniMaxKeyMissing = checkMiniMaxKeyMissing(settings);
   const isGitHubTokenMissing =
-    isGitHub &&
-    (settings.githubAuthMode === GITHUB_AUTH_MODE_DEVICE
-      ? !String(settings.githubDeviceToken || "").trim()
-      : !String(settings.githubPat || "").trim());
+    isGitHub && !String(settings.githubDeviceToken || "").trim();
   const minimaxKeyMissingHint = `请先填写${minimaxConfig.apiKeyLabel}`;
 
   const handleProviderChange = (event, newProvider) => {

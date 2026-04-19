@@ -25,11 +25,9 @@ import {
   DEFAULT_MINIMAX_MODEL,
   DEFAULT_GITHUB_MODELS_API_URL,
   DEFAULT_GITHUB_AUTH_MODE,
-  DEFAULT_GITHUB_PAT,
   DEFAULT_GITHUB_DEVICE_TOKEN,
   DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   DEFAULT_GITHUB_MODEL,
-  GITHUB_AUTH_MODE_PAT,
   GITHUB_AUTH_MODE_DEVICE,
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_AUTO_TRANSLATE_MODE,
@@ -55,7 +53,6 @@ export const DEFAULT_SETTINGS = {
   minimaxModel: DEFAULT_MINIMAX_MODEL,
   githubApiUrl: DEFAULT_GITHUB_MODELS_API_URL,
   githubAuthMode: DEFAULT_GITHUB_AUTH_MODE,
-  githubPat: DEFAULT_GITHUB_PAT,
   githubDeviceToken: DEFAULT_GITHUB_DEVICE_TOKEN,
   githubOAuthClientId: DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   githubModel: DEFAULT_GITHUB_MODEL,
@@ -128,29 +125,17 @@ export function normalizeGitHubApiUrl(value) {
   return withProtocol.replace(/\/$/, "");
 }
 
-export function normalizeGitHubAuthMode(value) {
-  return value === GITHUB_AUTH_MODE_DEVICE
-    ? GITHUB_AUTH_MODE_DEVICE
-    : GITHUB_AUTH_MODE_PAT;
+export function normalizeGitHubAuthMode(_value) {
+  // 仅支持设备登录
+  return GITHUB_AUTH_MODE_DEVICE;
 }
 
 export function resolveGitHubToken(input = {}) {
-  const authMode = normalizeGitHubAuthMode(input.githubAuthMode);
-  const pat = String(input.githubPat ?? DEFAULT_GITHUB_PAT).trim();
-  const deviceToken = String(
-    input.githubDeviceToken ?? DEFAULT_GITHUB_DEVICE_TOKEN,
-  ).trim();
-
-  if (authMode === GITHUB_AUTH_MODE_DEVICE) {
-    return deviceToken || pat;
-  }
-  return pat || deviceToken;
+  return String(input.githubDeviceToken ?? DEFAULT_GITHUB_DEVICE_TOKEN).trim();
 }
 
-export function getGitHubTokenLabel(input = {}) {
-  return normalizeGitHubAuthMode(input.githubAuthMode) === GITHUB_AUTH_MODE_DEVICE
-    ? "GitHub 设备登录令牌"
-    : "GitHub PAT";
+export function getGitHubTokenLabel() {
+  return "GitHub 设备登录令牌";
 }
 
 /**
@@ -353,7 +338,6 @@ export function normalizeAllSettings(settings) {
   });
   const githubApiUrl = normalizeGitHubApiUrl(settings.githubApiUrl);
   const githubAuthMode = normalizeGitHubAuthMode(settings.githubAuthMode);
-  const githubPat = String(settings.githubPat ?? DEFAULT_SETTINGS.githubPat).trim();
   const githubDeviceToken = String(
     settings.githubDeviceToken ?? DEFAULT_SETTINGS.githubDeviceToken,
   ).trim();
@@ -362,7 +346,6 @@ export function normalizeAllSettings(settings) {
   ).trim();
   const githubToken = resolveGitHubToken({
     githubAuthMode,
-    githubPat,
     githubDeviceToken,
   });
 
@@ -381,7 +364,6 @@ export function normalizeAllSettings(settings) {
     minimaxModel: settings.minimaxModel || DEFAULT_SETTINGS.minimaxModel,
     githubApiUrl,
     githubAuthMode,
-    githubPat,
     githubDeviceToken,
     githubOAuthClientId,
     githubToken,

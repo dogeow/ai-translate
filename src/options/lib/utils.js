@@ -14,7 +14,6 @@ import {
   DEFAULT_MINIMAX_MODEL,
   DEFAULT_GITHUB_MODELS_API_URL,
   DEFAULT_GITHUB_AUTH_MODE,
-  DEFAULT_GITHUB_PAT,
   DEFAULT_GITHUB_DEVICE_TOKEN,
   DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   DEFAULT_GITHUB_MODEL,
@@ -102,7 +101,6 @@ export function getSettingsSnapshot(settings) {
   });
   const githubApiUrl = normalizeGitHubApiUrl(settings.githubApiUrl);
   const githubAuthMode = normalizeGitHubAuthMode(settings.githubAuthMode);
-  const githubPat = String(settings.githubPat ?? DEFAULT_GITHUB_PAT).trim();
   const githubDeviceToken = String(
     settings.githubDeviceToken ?? DEFAULT_GITHUB_DEVICE_TOKEN,
   ).trim();
@@ -111,7 +109,6 @@ export function getSettingsSnapshot(settings) {
   ).trim();
   const githubToken = resolveGitHubToken({
     githubAuthMode,
-    githubPat,
     githubDeviceToken,
   });
 
@@ -129,7 +126,6 @@ export function getSettingsSnapshot(settings) {
       String(settings.minimaxModel || "").trim() || DEFAULT_MINIMAX_MODEL,
     githubApiUrl,
     githubAuthMode,
-    githubPat,
     githubDeviceToken,
     githubOAuthClientId,
     githubToken,
@@ -229,7 +225,6 @@ export function getStoredSettingsShape(stored) {
   });
   const githubApiUrl = normalizeGitHubApiUrl(stored.githubApiUrl);
   const githubAuthMode = normalizeGitHubAuthMode(stored.githubAuthMode);
-  const githubPat = String(stored.githubPat ?? DEFAULT_GITHUB_PAT).trim();
   const githubDeviceToken = String(
     stored.githubDeviceToken ?? DEFAULT_GITHUB_DEVICE_TOKEN,
   ).trim();
@@ -238,7 +233,6 @@ export function getStoredSettingsShape(stored) {
   ).trim();
   const githubToken = resolveGitHubToken({
     githubAuthMode,
-    githubPat,
     githubDeviceToken,
   });
 
@@ -254,7 +248,6 @@ export function getStoredSettingsShape(stored) {
     minimaxModel: stored.minimaxModel || DEFAULT_MINIMAX_MODEL,
     githubApiUrl,
     githubAuthMode,
-    githubPat,
     githubDeviceToken,
     githubOAuthClientId,
     githubToken,

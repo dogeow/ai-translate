@@ -17,7 +17,7 @@ import { useUpdateCheck } from "./hooks/useUpdateCheck.js";
 import { useTranslateTest } from "./hooks/useTranslateTest.js";
 import { TRANSLATE_RESULT_KEY } from "../shared/constants.js";
 import { commandsGetAll, storageLocalGet } from "./lib/chrome.js";
-import { detectPlatform } from "./lib/utils.js";
+import { detectPlatform, getConfig } from "./lib/utils.js";
 
 export function OptionsApp() {
   const [view, setView] = useState(
@@ -168,6 +168,10 @@ export function OptionsApp() {
                 setTestSourceLang={translateTest.setTestSourceLang}
                 testTargetLang={translateTest.testTargetLang}
                 setTestTargetLang={translateTest.setTestTargetLang}
+                testModelOverride={translateTest.testModelOverride}
+                setTestModelOverride={translateTest.setTestModelOverride}
+                models={models}
+                defaultModel={getConfig(settings).model}
                 detectLangResult={translateTest.detectLangResult}
                 testTranslateHint={translateTest.testTranslateHint}
                 testTranslateResult={translateTest.testTranslateResult}

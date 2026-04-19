@@ -14,10 +14,7 @@ import {
   isGitHubModelsProvider,
 } from "../../shared/settings.js";
 import { filterTranslationModels } from "../../shared/model-utils.js";
-import {
-  fetchGitHubModels,
-  testGitHubModelsConnection,
-} from "../../shared/github-models-api.js";
+import { fetchGitHubModels } from "../../shared/github-models-api.js";
 
 /**
  * 管理翻译提供商连接状态的 hook
@@ -229,17 +226,14 @@ export function useConnectionStatus({
         }
 
         try {
-          try {
-            const remoteModelNames = await fetchGitHubModels(base, apiKey);
-            if (requestId !== connectionRequestIdRef.current) return;
-            if (remoteModelNames.length > 0) {
-              githubModels = remoteModelNames.map((name) => ({ name }));
-              fetchedFromApi = true;
-            }
-          } catch (_) {}
-
-          await testGitHubModelsConnection(base, apiKey, model || fallbackModel);
+          const remoteModelNames = await fetchGitHubModels(base, apiKey, {
+            forceRefresh: showTestPending,
+          });
           if (requestId !== connectionRequestIdRef.current) return;
+          if (remoteModelNames.length > 0) {
+            githubModels = remoteModelNames.map((name) => ({ name }));
+            fetchedFromApi = true;
+          }
 
           applyConnectionStatus(
             {

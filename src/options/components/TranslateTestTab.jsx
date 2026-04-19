@@ -17,6 +17,10 @@ export function TranslateTestTab({
   setTestSourceLang,
   testTargetLang,
   setTestTargetLang,
+  testModelOverride,
+  setTestModelOverride,
+  models,
+  defaultModel,
   detectLangResult,
   testTranslateHint,
   testTranslateResult,
@@ -26,10 +30,37 @@ export function TranslateTestTab({
   const testTranslateClassName = getTranslateResultClass(
     testTranslateResult.tone,
   );
+  const modelOptions = Array.isArray(models) ? models : [];
+  const hasModelOptions = modelOptions.length > 0;
+  const selectedModel = String(testModelOverride || defaultModel || "");
 
   return (
     <div className="card card-translate-test">
       <h2>翻译测试</h2>
+      {hasModelOptions ? (
+        <div className="field translate-test-actions">
+          <label
+            htmlFor="ollamaTestModel"
+            className="translate-test-actions__label"
+          >
+            模型
+          </label>
+          <div className="translate-test-actions__row">
+            <select
+              id="ollamaTestModel"
+              className="select translate-test-actions__select"
+              value={selectedModel}
+              onChange={(event) => setTestModelOverride(event.target.value)}
+            >
+              {modelOptions.map((model) => (
+                <option key={model.name} value={model.name}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ) : null}
       <div className="field">
         <label htmlFor="ollamaTestInput">要翻译的文本</label>
         <textarea

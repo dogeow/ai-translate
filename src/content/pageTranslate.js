@@ -33,9 +33,12 @@ function normalizeText(text) {
     .trim();
 }
 
+function hasRenderableRect(rect) {
+  return !!rect && rect.width >= 1 && rect.height >= 1;
+}
+
 function rectIntersectsViewport(rect) {
-  if (!rect) return false;
-  if (rect.width < 1 || rect.height < 1) return false;
+  if (!hasRenderableRect(rect)) return false;
   return (
     rect.bottom > 0 &&
     rect.right > 0 &&
@@ -44,7 +47,7 @@ function rectIntersectsViewport(rect) {
   );
 }
 
-function isElementVisible(element) {
+function isElementRenderable(element) {
   if (!element || !(element instanceof HTMLElement)) return false;
   let current = element;
   while (current && current instanceof HTMLElement) {
@@ -61,7 +64,21 @@ function isElementVisible(element) {
     current = current.parentElement;
   }
 
+  return hasRenderableRect(element.getBoundingClientRect());
+}
+
+function isElementInViewport(element) {
+  if (!element || !(element instanceof HTMLElement)) return false;
   return rectIntersectsViewport(element.getBoundingClientRect());
+}
+
+function computeOffscreenDistance(rect) {
+  if (!rect) return Number.MAX_SAFE_INTEGER;
+  if (rect.bottom <= 0) {
+    // 已滚过去的内容排在后面，优先处理当前屏幕之后的内容
+    return window.innerHeight + Math.abs(rect.bottom);
+  }
+  return Math.max(0, rect.top - window.innerHeight);
 }
 
 function isEditable(element) {
@@ -179,7 +196,8 @@ export function createVisualPageTranslator({
     });
   }
 
-  function isNodeEligible(node) {
+  function isNodeEligible(node, options = {}) {
+    const { allowOffscreen = false } = options;
     if (!node || node.nodeType !== Node.TEXT_NODE) return false;
     const parent = node.parentElement;
     if (!parent) return false;
@@ -189,13 +207,15 @@ export function createVisualPageTranslator({
     if (IGNORE_TAGS.has(parent.tagName)) return false;
     if (isEditable(parent)) return false;
     if (typeof isUiElement === "function" && isUiElement(parent)) return false;
-    if (!isElementVisible(parent)) return false;
+    if (!isElementRenderable(parent)) return false;
+    if (!allowOffscreen && !isElementInViewport(parent)) return false;
 
     const text = normalizeText(node.textContent);
     if (!text || text.length < 2) return false;
     if (!SIGNIFICANT_CHAR_RE.test(text)) return false;
-    if (typeof shouldSkipText === "function" && shouldSkipText(text))
+    if (typeof shouldSkipText === "function" && shouldSkipText(text)) {
       return false;
+    }
 
     return true;
   }
@@ -222,37 +242,65 @@ export function createVisualPageTranslator({
     pendingParentCount.set(parent, currentCount - 1);
   }
 
-  function collectVisibleTextNodes() {
+  function collectCandidateTextNodes() {
     const root = document.body;
     if (!root) return [];
 
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
-        return isNodeEligible(node)
+        return isNodeEligible(node, { allowOffscreen: true })
           ? NodeFilter.FILTER_ACCEPT
           : NodeFilter.FILTER_REJECT;
       },
     });
 
-    const nodes = [];
+    const visibleNodes = [];
+    const offscreenNodes = [];
+    let visibleChars = 0;
     let current = walker.nextNode();
+
     while (current) {
       const text = normalizeText(current.textContent);
       if (!text) {
         translatedNodes.add(current);
       } else {
-        const rect = current.parentElement?.getBoundingClientRect?.() || null;
-        nodes.push({
+        const parent = current.parentElement;
+        const rect = parent?.getBoundingClientRect?.() || null;
+        const item = {
           node: current,
           text,
           top: rect?.top ?? 0,
           priority: computeNodePriority(text, rect),
-        });
+          distance: computeOffscreenDistance(rect),
+        };
+
+        if (isElementInViewport(parent)) {
+          visibleNodes.push(item);
+          visibleChars += text.length;
+        } else {
+          offscreenNodes.push(item);
+        }
       }
-      if (nodes.length >= PAGE_TRANSLATE_MAX_SCAN_NODES) break;
+
+      if (visibleNodes.length + offscreenNodes.length >= PAGE_TRANSLATE_MAX_SCAN_NODES) {
+        break;
+      }
       current = walker.nextNode();
     }
-    nodes.sort((a, b) => b.priority - a.priority || a.top - b.top);
+
+    visibleNodes.sort((a, b) => b.priority - a.priority || a.top - b.top);
+    offscreenNodes.sort((a, b) => a.distance - b.distance || a.top - b.top);
+
+    // 优先当前屏幕；如果当前屏内容不足一批，则自动继续收集屏幕外内容凑满 batchChars
+    const nodes = [...visibleNodes];
+    let totalChars = visibleChars;
+    for (const item of offscreenNodes) {
+      if (nodes.length >= PAGE_TRANSLATE_MAX_SCAN_NODES) break;
+      if (totalChars >= batchChars && visibleNodes.length > 0) break;
+      nodes.push(item);
+      totalChars += item.text.length;
+    }
+
     return nodes;
   }
 
@@ -356,8 +404,8 @@ export function createVisualPageTranslator({
   function scanVisibleAndPump() {
     if (!active) return;
 
-    const visibleNodes = collectVisibleTextNodes();
-    for (const item of visibleNodes) {
+    const candidateNodes = collectCandidateTextNodes();
+    for (const item of candidateNodes) {
       if (queue.length >= PAGE_TRANSLATE_MAX_QUEUE_SIZE) break;
       const { node, text } = item;
       pendingNodes.add(node);
@@ -450,10 +498,10 @@ export function createVisualPageTranslator({
       active = true;
       ensureMutationObserver();
       if (typeof onStatusMessage === "function") {
-        onStatusMessage("已开始页面翻译：先翻译可视区域，滚动后继续翻译。");
+        onStatusMessage("已开始页面翻译：优先当前可视区域，并自动继续凑满每批字符数。");
       }
     } else if (typeof onStatusMessage === "function") {
-      onStatusMessage("继续翻译当前可视区域内容。");
+      onStatusMessage("继续页面翻译，并自动向后收集页面内容。");
     }
 
     scheduleScan(true);

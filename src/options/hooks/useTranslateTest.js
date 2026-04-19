@@ -65,6 +65,8 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
   const [testTargetLang, setTestTargetLang] = useState(
     DEFAULT_TRANSLATE_TARGET_LANG,
   );
+  // 翻译测试面板里允许临时切换模型，不写回设置
+  const [testModelOverride, setTestModelOverride] = useState("");
   const [detectLangResult, setDetectLangResult] = useState({
     text: "",
     isError: false,
@@ -84,6 +86,15 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
       text: "Ollama 已运行，但拒绝扩展请求（403）",
       showAction: true,
     });
+  }
+
+  function buildTestConfig() {
+    const config = getConfig(settingsRef.current);
+    const override = String(testModelOverride || "").trim();
+    if (override) {
+      return { ...config, model: override };
+    }
+    return config;
   }
 
   function formatErrorMessage(error, provider) {
@@ -112,7 +123,8 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
   }
 
   function handleProviderError(config, error) {
-    if (!isMiniMaxProvider(config.provider) && isOllama403Error(error)) {
+    // 仅 Ollama 时才弹 403 横幅，其他厂家的 403 应直接展示原始错误
+    if (config.provider === PROVIDER_OLLAMA && isOllama403Error(error)) {
       show403();
       return true;
     }
@@ -127,7 +139,7 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
       return;
     }
 
-    const config = getConfig(settingsRef.current);
+    const config = buildTestConfig();
     const validationError = getConfigValidationError(config);
     if (validationError) {
       setDetectLangResult({ text: validationError, isError: true });
@@ -170,7 +182,7 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
       return;
     }
 
-    const config = getConfig(settingsRef.current);
+    const config = buildTestConfig();
     const validationError = getConfigValidationError(config);
     if (validationError) {
       setTestTranslateHint({ text: validationError, isError: true });
@@ -214,6 +226,8 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
     setTestSourceLang,
     testTargetLang,
     setTestTargetLang,
+    testModelOverride,
+    setTestModelOverride,
     detectLangResult,
     testTranslateHint,
     testTranslateResult,
