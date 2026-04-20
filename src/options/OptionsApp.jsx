@@ -8,6 +8,7 @@ import { PickModeTab } from "./components/PickModeTab.jsx";
 import { PageTranslateTab } from "./components/PageTranslateTab.jsx";
 import { TranslateTestTab } from "./components/TranslateTestTab.jsx";
 import { ShortcutsTab } from "./components/ShortcutsTab.jsx";
+import { TranslationCacheTab } from "./components/TranslationCacheTab.jsx";
 import { AiLogsTab } from "./components/AiLogsTab.jsx";
 import { LearningTab } from "./components/LearningTab.jsx";
 import { AboutTab } from "./components/AboutTab.jsx";
@@ -214,6 +215,14 @@ export function OptionsApp() {
               key="shortcuts"
             >
               <ShortcutsTab shortcuts={shortcuts} />
+            </div>
+
+            <div
+              className="options-tabs__panel"
+              hidden={activeTab !== "translation-cache"}
+              key="translation-cache"
+            >
+              <TranslationCacheTab />
             </div>
 
             <div

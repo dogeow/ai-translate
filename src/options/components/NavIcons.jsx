@@ -155,6 +155,24 @@ export function IconLogs() {
   );
 }
 
+export function IconCache() {
+  return (
+    <svg
+      className="nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 7a8 3 0 1 1-16 0a8 3 0 1 1 16 0" />
+      <path d="M4 7v5c0 1.657 3.582 3 8 3s8-1.343 8-3V7" />
+      <path d="M4 12v5c0 1.657 3.582 3 8 3s8-1.343 8-3v-5" />
+    </svg>
+  );
+}
+
 export function IconBrand() {
   return (
     <svg

@@ -53,6 +53,31 @@ function isEditableElement(element) {
   );
 }
 
+const INTERACTIVE_SELECTOR = [
+  "a",
+  "button",
+  "summary",
+  "label",
+  '[role="button"]',
+  '[role="link"]',
+  '[role="menuitem"]',
+  '[role="option"]',
+  '[role="switch"]',
+  '[role="tab"]',
+  '[role="treeitem"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  "[data-no-translate]",
+].join(", ");
+
+export function isInteractiveElement(element) {
+  return !!(
+    element &&
+    element.closest &&
+    element.closest(INTERACTIVE_SELECTOR)
+  );
+}
+
 function getNodeId(node) {
   if (!node) return 0;
   let id = nodeIds.get(node);
@@ -121,6 +146,9 @@ export function getCurrentElementAndText(lastMouseX, lastMouseY) {
     const offset = range.startOffset;
     const element =
       node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    if (isInteractiveElement(element)) {
+      return { element: null, text: "" };
+    }
     let text = "";
     if (node.nodeType === Node.TEXT_NODE) {
       text = getWordAtOffset(node.textContent || "", offset);
@@ -167,7 +195,9 @@ export function getHoverTranslateTarget(clientX, clientY, scope = "word") {
 
   const node = range.startContainer;
   const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-  if (!element || isEditableElement(element)) return null;
+  if (!element || isEditableElement(element) || isInteractiveElement(element)) {
+    return null;
+  }
 
   if (scope === "paragraph") {
     const container = getParagraphContainer(element);

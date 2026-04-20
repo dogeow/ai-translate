@@ -114,6 +114,8 @@ export const DEFAULT_TRANSLATE_PENDING_UPDATE_INTERVAL_MS = 80;
 
 // 存储键名
 export const TRANSLATE_RESULT_KEY = "ollamaTranslateResult";
+export const TRANSLATION_CACHE_STORAGE_KEY = "ollamaTranslationCache";
+export const TRANSLATION_CACHE_MAX_ENTRIES = 200;
 export const AI_REQUEST_LOG_STORAGE_KEY = "ollamaAiRequestLogs";
 export const AI_REQUEST_LOG_MAX_ENTRIES = 200;
 export const SHORTCUTS_URL = "chrome://extensions/shortcuts";

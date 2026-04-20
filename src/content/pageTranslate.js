@@ -26,6 +26,22 @@ const PAGE_TRANSLATE_RETRY_DELAY_RATE_LIMIT_MS = 60000;
 const THINK_TAG_RE = /<\/?think\b[^>]*>/i;
 const RATE_LIMIT_ERROR_RE =
   /(?:\b429\b|rate[ -]?limit|too many requests|usage limit|quota)/i;
+const INTERACTIVE_SELECTOR = [
+  "a",
+  "button",
+  "summary",
+  "label",
+  '[role="button"]',
+  '[role="link"]',
+  '[role="menuitem"]',
+  '[role="option"]',
+  '[role="switch"]',
+  '[role="tab"]',
+  '[role="treeitem"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  "[data-no-translate]",
+].join(", ");
 
 function normalizeText(text) {
   return String(text || "")
@@ -88,6 +104,14 @@ function isEditable(element) {
     element.closest(
       'input, textarea, select, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]',
     )
+  );
+}
+
+function isInteractive(element) {
+  return !!(
+    element &&
+    element.closest &&
+    element.closest(INTERACTIVE_SELECTOR)
   );
 }
 
@@ -206,6 +230,7 @@ export function createVisualPageTranslator({
     if (retryAt > Date.now()) return false;
     if (IGNORE_TAGS.has(parent.tagName)) return false;
     if (isEditable(parent)) return false;
+    if (isInteractive(parent)) return false;
     if (typeof isUiElement === "function" && isUiElement(parent)) return false;
     if (!isElementRenderable(parent)) return false;
     if (!allowOffscreen && !isElementInViewport(parent)) return false;

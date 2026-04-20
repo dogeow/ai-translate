@@ -32,6 +32,7 @@ import {
   createTranslateRequestId,
   buildErrorResult,
 } from "../shared/utils/messaging.js";
+import { appendTranslationCache } from "../shared/translation-cache.js";
 
 const MIN_THINK_PREVIEW_MS = 320;
 const latestTranslateRequestIdsByTab = new Map();
@@ -372,6 +373,17 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
   const shouldCommitResult = isLatestTranslateRequest(tabId, resolvedRequestId);
   if (persistResult && shouldCommitResult) {
     await persistTranslateResult(result);
+  }
+  if (!error && result.translation) {
+    await appendTranslationCache({
+      original: text,
+      translation: result.translation,
+      targetLang: providerRuntime.targetLang,
+      provider: providerRuntime.provider,
+      model: providerRuntime.selectedModel,
+      triggerSource,
+      updatedAt: new Date().toISOString(),
+    }).catch(() => {});
   }
 
   if (result.sentenceStudyPending && sentenceStudyPromise) {
