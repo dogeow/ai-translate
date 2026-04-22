@@ -36,6 +36,7 @@ import {
   DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
   DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
   DEFAULT_LEARNING_MODE_ENABLED,
+  DEFAULT_APP_ENABLED,
 } from "./constants.js";
 
 /**
@@ -64,6 +65,15 @@ export const DEFAULT_SETTINGS = {
   pageTranslateBatchChars: DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
   learningModeEnabled: DEFAULT_LEARNING_MODE_ENABLED,
 };
+
+export const POPUP_SETTINGS_STORAGE_DEFAULTS = Object.freeze({
+  ollamaProvider: DEFAULT_SETTINGS.provider,
+  ollamaAutoTranslateMode: DEFAULT_SETTINGS.autoTranslateMode,
+  ollamaAutoTranslateSelection: false,
+  ollamaHoverTranslateScope: DEFAULT_SETTINGS.hoverTranslateScope,
+  minimaxRegion: DEFAULT_SETTINGS.minimaxRegion,
+  appEnabled: DEFAULT_APP_ENABLED,
+});
 
 /**
  * 是否为 MiniMax 系厂家（含国内/海外及旧版 minimax）
@@ -387,5 +397,23 @@ export function normalizeAllSettings(settings) {
       settings.ollamaPageTranslateBatchChars,
     ),
     learningModeEnabled: !!settings.learningModeEnabled,
+  };
+}
+
+export function getPopupSettingsState(stored = {}) {
+  const input = {
+    ...POPUP_SETTINGS_STORAGE_DEFAULTS,
+    ...stored,
+  };
+  const normalized = normalizeAllSettings({
+    ...input,
+    ollamaAutoTranslateMode: stored.ollamaAutoTranslateMode,
+  });
+
+  return {
+    provider: normalized.ollamaProvider,
+    autoTranslateMode: normalized.ollamaAutoTranslateMode,
+    hoverTranslateScope: normalized.ollamaHoverTranslateScope,
+    appEnabled: input.appEnabled !== false,
   };
 }

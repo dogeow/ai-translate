@@ -1,115 +1,73 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTemporaryMessage } from "../../shared/hooks/useTemporaryMessage.js";
 import {
-  DEFAULT_TRANSLATE_PROVIDER,
-  DEFAULT_AUTO_TRANSLATE_MODE,
-  DEFAULT_HOVER_TRANSLATE_SCOPE,
-} from "../../options/lib/constants.js";
-import {
-  normalizeTranslateProvider,
+  POPUP_SETTINGS_STORAGE_DEFAULTS,
+  getPopupSettingsState,
   normalizeAutoTranslateMode,
   normalizeHoverTranslateScope,
 } from "../../shared/settings.js";
+
+const POPUP_SETTINGS_WATCH_KEYS = new Set([
+  "appEnabled",
+  "ollamaProvider",
+  "minimaxRegion",
+  "ollamaAutoTranslateMode",
+  "ollamaAutoTranslateSelection",
+  "ollamaHoverTranslateScope",
+]);
 
 /**
  * 管理弹出窗口设置的自定义 Hook
  * 处理设置的读取、更新和同步
  */
 export function usePopupSettings() {
-  const [provider, setProvider] = useState(DEFAULT_TRANSLATE_PROVIDER);
+  const [provider, setProvider] = useState(
+    () => getPopupSettingsState().provider,
+  );
   const [autoTranslateMode, setAutoTranslateMode] = useState(
-    DEFAULT_AUTO_TRANSLATE_MODE,
+    () => getPopupSettingsState().autoTranslateMode,
   );
   const [hoverTranslateScope, setHoverTranslateScope] = useState(
-    DEFAULT_HOVER_TRANSLATE_SCOPE,
+    () => getPopupSettingsState().hoverTranslateScope,
   );
-  const [appEnabled, setAppEnabled] = useState(true);
+  const [appEnabled, setAppEnabled] = useState(
+    () => getPopupSettingsState().appEnabled,
+  );
   const [isSaving, setIsSaving] = useState(false);
+
+  const applyPopupSettingsState = useCallback((value) => {
+    const nextState = getPopupSettingsState(value);
+    setProvider(nextState.provider);
+    setAutoTranslateMode(nextState.autoTranslateMode);
+    setHoverTranslateScope(nextState.hoverTranslateScope);
+    setAppEnabled(nextState.appEnabled);
+  }, []);
 
   // 初始加载设置
   useEffect(() => {
     chrome.storage.sync.get(
-      {
-        ollamaProvider: DEFAULT_TRANSLATE_PROVIDER,
-        ollamaAutoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
-        ollamaAutoTranslateSelection: false,
-        ollamaHoverTranslateScope: DEFAULT_HOVER_TRANSLATE_SCOPE,
-        appEnabled: true,
-        minimaxRegion: undefined,
-      },
-      (value) => {
-        setProvider(
-          normalizeTranslateProvider(value.ollamaProvider, value.minimaxRegion),
-        );
-        setAutoTranslateMode(
-          normalizeAutoTranslateMode(
-            value.ollamaAutoTranslateMode,
-            value.ollamaAutoTranslateSelection,
-          ),
-        );
-        setHoverTranslateScope(
-          normalizeHoverTranslateScope(value.ollamaHoverTranslateScope),
-        );
-        setAppEnabled(value.appEnabled !== false);
-      },
+      POPUP_SETTINGS_STORAGE_DEFAULTS,
+      applyPopupSettingsState,
     );
-  }, []);
+  }, [applyPopupSettingsState]);
 
   // 监听存储变化
   useEffect(() => {
     function handleStorageChanged(changes, areaName) {
       if (areaName !== "sync") return;
-
-      if ("appEnabled" in changes) {
-        setAppEnabled(changes.appEnabled?.newValue !== false);
+      if (!Object.keys(changes).some((key) => POPUP_SETTINGS_WATCH_KEYS.has(key))) {
+        return;
       }
 
-      if ("ollamaProvider" in changes) {
-        chrome.storage.sync.get(
-          {
-            ollamaProvider: DEFAULT_TRANSLATE_PROVIDER,
-            minimaxRegion: undefined,
-          },
-          (v) => {
-            setProvider(
-              normalizeTranslateProvider(v.ollamaProvider, v.minimaxRegion),
-            );
-          },
-        );
-      }
-
-      if (
-        "ollamaAutoTranslateMode" in changes ||
-        "ollamaAutoTranslateSelection" in changes
-      ) {
-        chrome.storage.sync.get(
-          {
-            ollamaAutoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
-            ollamaAutoTranslateSelection: false,
-          },
-          (value) => {
-            setAutoTranslateMode(
-              normalizeAutoTranslateMode(
-                value.ollamaAutoTranslateMode,
-                value.ollamaAutoTranslateSelection,
-              ),
-            );
-          },
-        );
-      }
-
-      if ("ollamaHoverTranslateScope" in changes) {
-        setHoverTranslateScope(
-          normalizeHoverTranslateScope(
-            changes.ollamaHoverTranslateScope.newValue,
-          ),
-        );
-      }
+      chrome.storage.sync.get(
+        POPUP_SETTINGS_STORAGE_DEFAULTS,
+        applyPopupSettingsState,
+      );
     }
 
     chrome.storage.onChanged.addListener(handleStorageChanged);
     return () => chrome.storage.onChanged.removeListener(handleStorageChanged);
-  }, []);
+  }, [applyPopupSettingsState]);
 
   // 同步设置到存储
   const syncSettings = useCallback((updates) => {
@@ -122,7 +80,9 @@ export function usePopupSettings() {
   // 更新提供商
   const updateProvider = useCallback(
     (nextProvider) => {
-      const normalized = normalizeTranslateProvider(nextProvider);
+      const normalized = getPopupSettingsState({
+        ollamaProvider: nextProvider,
+      }).provider;
       setProvider(normalized);
       syncSettings({ ollamaProvider: normalized });
     },
@@ -132,8 +92,9 @@ export function usePopupSettings() {
   // 更新自动翻译模式
   const updateAutoTranslateMode = useCallback(
     (mode) => {
-      setAutoTranslateMode(mode);
-      syncSettings({ ollamaAutoTranslateMode: mode });
+      const normalized = normalizeAutoTranslateMode(mode);
+      setAutoTranslateMode(normalized);
+      syncSettings({ ollamaAutoTranslateMode: normalized });
     },
     [syncSettings],
   );
@@ -141,8 +102,9 @@ export function usePopupSettings() {
   // 更新悬停范围
   const updateHoverTranslateScope = useCallback(
     (scope) => {
-      setHoverTranslateScope(scope);
-      syncSettings({ ollamaHoverTranslateScope: scope });
+      const normalized = normalizeHoverTranslateScope(scope);
+      setHoverTranslateScope(normalized);
+      syncSettings({ ollamaHoverTranslateScope: normalized });
     },
     [syncSettings],
   );
