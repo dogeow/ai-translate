@@ -4,10 +4,11 @@ import {
   hydrateSentenceStudyTranslations,
 } from "./sentenceStudy.js";
 import {
-  SYNC_SETTINGS_DEFAULTS,
+  normalizeRuntimeSettings,
   resolveProviderRuntime,
   buildMissingCredentialError,
 } from "./translationSettings.js";
+import { migrateSettingsIfNeeded } from "../shared/settings.js";
 import {
   runProviderCompletion,
   runProviderStreaming,
@@ -90,7 +91,11 @@ function buildCredentialErrorResult(text, providerRuntime, credentialError, opti
 }
 
 export async function translatePageBatchWithProvider(texts) {
-  const settings = await chrome.storage.sync.get(SYNC_SETTINGS_DEFAULTS);
+  const { settings: storedSettings } = await migrateSettingsIfNeeded(
+    () => chrome.storage.sync.get(null),
+    (updates) => chrome.storage.sync.set(updates),
+  );
+  const settings = normalizeRuntimeSettings(storedSettings);
   const MAX_TEXTS_PER_BATCH = 32;
   const normalizedTexts = Array.isArray(texts)
     ? texts
@@ -160,7 +165,11 @@ export async function translatePageBatchWithProvider(texts) {
 }
 
 export async function translateWithProvider(text, tabId = null, options = {}) {
-  const settings = await chrome.storage.sync.get(SYNC_SETTINGS_DEFAULTS);
+  const { settings: storedSettings } = await migrateSettingsIfNeeded(
+    () => chrome.storage.sync.get(null),
+    (updates) => chrome.storage.sync.set(updates),
+  );
+  const settings = normalizeRuntimeSettings(storedSettings);
   const {
     showPending = false,
     requestId = undefined,

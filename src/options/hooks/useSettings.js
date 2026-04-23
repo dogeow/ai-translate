@@ -6,6 +6,7 @@ import {
   getStoredSettingsShape,
 } from "../lib/utils.js";
 import { storageSyncGet, storageSyncSet } from "../lib/chrome.js";
+import { migrateSettingsIfNeeded } from "../../shared/settings.js";
 
 /**
  * 管理扩展设置的 hook
@@ -85,7 +86,10 @@ export function useSettings() {
    * @returns {Promise<object>} 加载后的设置
    */
   async function loadSettings() {
-    const storedSettings = await storageSyncGet(null);
+    const { settings: storedSettings } = await migrateSettingsIfNeeded(
+      () => storageSyncGet(null),
+      (updates) => storageSyncSet(updates),
+    );
 
     const nextSettings = getStoredSettingsShape(storedSettings);
     settingsRef.current = nextSettings;

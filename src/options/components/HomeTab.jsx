@@ -33,7 +33,7 @@ import {
 } from "../lib/homeTabUtils.js";
 
 const FIELD_IDS = Object.freeze({
-  provider: "ollamaProvider",
+  provider: "provider",
   providerApiUrl: "providerApiUrl",
   minimaxRegionApiKey: "minimaxRegionApiKey",
   githubOAuthClientId: "githubOAuthClientId",
@@ -343,8 +343,8 @@ export function HomeTab({
     () => setModelDropdownOpen(false),
     modelDropdownOpen,
   );
-  const isMiniMax = isMiniMaxProvider(settings.ollamaProvider);
-  const isGitHub = isGitHubModelsProvider(settings.ollamaProvider);
+  const isMiniMax = isMiniMaxProvider(settings.provider);
+  const isGitHub = isGitHubModelsProvider(settings.provider);
   const testConnectionClassName = getConnectionResultClass(
     testConnectionResult.tone,
   );
@@ -357,7 +357,7 @@ export function HomeTab({
   const handleProviderChange = (event, newProvider) => {
     const nextSettings = {
       ...settingsRef.current,
-      ollamaProvider: newProvider,
+      provider: newProvider,
     };
     if (
       newProvider === PROVIDER_MINIMAX_CN ||
@@ -384,9 +384,9 @@ export function HomeTab({
         <AutoSaveSelectField
           id={FIELD_IDS.provider}
           label="API 厂家"
-          value={settings.ollamaProvider}
+          value={settings.provider}
           options={TRANSLATE_PROVIDER_OPTIONS}
-          settingKey="ollamaProvider"
+          settingKey="provider"
           updateSettings={updateSettings}
           onChange={handleProviderChange}
         />

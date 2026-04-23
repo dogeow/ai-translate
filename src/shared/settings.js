@@ -66,14 +66,117 @@ export const DEFAULT_SETTINGS = {
   learningModeEnabled: DEFAULT_LEARNING_MODE_ENABLED,
 };
 
+export const CANONICAL_SETTINGS_KEY_MAP = Object.freeze({
+  provider: "ollamaProvider",
+  autoTranslateMode: "ollamaAutoTranslateMode",
+  hoverTranslateScope: "ollamaHoverTranslateScope",
+  hoverTranslateDelayMs: "ollamaHoverTranslateDelayMs",
+  pageTranslateConcurrency: "ollamaPageTranslateConcurrency",
+  pageTranslateBatchChars: "ollamaPageTranslateBatchChars",
+});
+
+export const CANONICAL_SETTINGS_KEYS = Object.freeze(
+  Object.keys(CANONICAL_SETTINGS_KEY_MAP),
+);
+
 export const POPUP_SETTINGS_STORAGE_DEFAULTS = Object.freeze({
-  ollamaProvider: DEFAULT_SETTINGS.provider,
-  ollamaAutoTranslateMode: DEFAULT_SETTINGS.autoTranslateMode,
-  ollamaAutoTranslateSelection: false,
-  ollamaHoverTranslateScope: DEFAULT_SETTINGS.hoverTranslateScope,
+  provider: DEFAULT_SETTINGS.provider,
+  autoTranslateMode: DEFAULT_SETTINGS.autoTranslateMode,
+  hoverTranslateScope: DEFAULT_SETTINGS.hoverTranslateScope,
   minimaxRegion: DEFAULT_SETTINGS.minimaxRegion,
   appEnabled: DEFAULT_APP_ENABLED,
 });
+
+const CANONICAL_PROVIDER_VALUES = new Set([
+  PROVIDER_OLLAMA,
+  PROVIDER_MINIMAX_CN,
+  PROVIDER_MINIMAX_GLOBAL,
+  PROVIDER_GITHUB_MODELS,
+]);
+
+function hasOwnSetting(input, key) {
+  return !!input && Object.prototype.hasOwnProperty.call(input, key);
+}
+
+function readSettingValue(input, key, options = {}) {
+  const { allowLegacy = false } = options;
+  if (hasOwnSetting(input, key)) {
+    return input[key];
+  }
+  if (!allowLegacy) {
+    return undefined;
+  }
+  const legacyKey = CANONICAL_SETTINGS_KEY_MAP[key];
+  if (legacyKey && hasOwnSetting(input, legacyKey)) {
+    return input[legacyKey];
+  }
+  return undefined;
+}
+
+function pickStoredOrDefault(input, key, defaultValue, options = {}) {
+  const value = readSettingValue(input, key, options);
+  return value ?? defaultValue;
+}
+
+function hasLegacySetting(input, key) {
+  const legacyKey = CANONICAL_SETTINGS_KEY_MAP[key];
+  if (legacyKey && hasOwnSetting(input, legacyKey)) {
+    return true;
+  }
+  return key === "autoTranslateMode" && hasOwnSetting(input, "ollamaAutoTranslateSelection");
+}
+
+function isValidCanonicalSetting(key, value) {
+  if (value == null) return false;
+
+  if (key === "provider") {
+    return CANONICAL_PROVIDER_VALUES.has(String(value || "").trim());
+  }
+
+  if (key === "autoTranslateMode") {
+    return value === "selection" || value === "hover" || value === "hotkey";
+  }
+
+  if (key === "hoverTranslateScope") {
+    return value === "word" || value === "paragraph";
+  }
+
+  if (key === "hoverTranslateDelayMs") {
+    const number = Number(value);
+    return Number.isFinite(number) && normalizeHoverTranslateDelayMs(value) === number;
+  }
+
+  if (key === "pageTranslateConcurrency") {
+    const number = Number(value);
+    return Number.isFinite(number) && normalizePageTranslateConcurrency(value) === number;
+  }
+
+  if (key === "pageTranslateBatchChars") {
+    const number = Number(value);
+    return Number.isFinite(number) && normalizePageTranslateBatchChars(value) === number;
+  }
+
+  return true;
+}
+
+function buildLegacyPreferredInput(stored = {}) {
+  const input = { ...stored };
+
+  CANONICAL_SETTINGS_KEYS.forEach((key) => {
+    if (!hasOwnSetting(input, key)) {
+      return;
+    }
+    if (!hasLegacySetting(input, key)) {
+      return;
+    }
+    if (isValidCanonicalSetting(key, input[key])) {
+      return;
+    }
+    delete input[key];
+  });
+
+  return input;
+}
 
 /**
  * 是否为 MiniMax 系厂家（含国内/海外及旧版 minimax）
@@ -187,12 +290,21 @@ export function isMiniMaxGlobalApiUrl(value) {
   }
 }
 
-function resolveMiniMaxRegionFromInput(input = {}) {
-  const provider = input.ollamaProvider;
+function resolveMiniMaxRegionFromInput(input = {}, options = {}) {
+  const provider = pickStoredOrDefault(
+    input,
+    "provider",
+    DEFAULT_SETTINGS.provider,
+    options,
+  );
   if (provider === PROVIDER_MINIMAX_GLOBAL) return MINIMAX_REGION_GLOBAL;
-  if (provider === PROVIDER_MINIMAX_CN || provider === PROVIDER_MINIMAX) {
-    return input.minimaxRegion
-      ? normalizeMiniMaxRegion(input.minimaxRegion)
+  if (provider === PROVIDER_MINIMAX_CN) return MINIMAX_REGION_CN;
+  if (provider === PROVIDER_MINIMAX) {
+    if (input.minimaxRegion) {
+      return normalizeMiniMaxRegion(input.minimaxRegion);
+    }
+    return isMiniMaxGlobalApiUrl(input.minimaxApiUrl)
+      ? MINIMAX_REGION_GLOBAL
       : MINIMAX_REGION_CN;
   }
   if (input.minimaxRegion) {
@@ -314,17 +426,28 @@ export function normalizePageTranslateBatchChars(value) {
  * @param {object} settings - 原始设置对象
  * @returns {object} 规范化后的设置对象
  */
-export function normalizeAllSettings(settings) {
-  const rawProvider = settings.ollamaProvider;
-  const ollamaProvider = normalizeTranslateProvider(
+function normalizeSettings(settings = {}, options = {}) {
+  const { allowLegacy = false } = options;
+  const rawProvider = pickStoredOrDefault(
+    settings,
+    "provider",
+    DEFAULT_SETTINGS.provider,
+    { allowLegacy },
+  );
+  const inferredMiniMaxRegion = resolveMiniMaxRegionFromInput(settings, {
+    allowLegacy,
+  });
+  const provider = normalizeTranslateProvider(
     rawProvider,
-    settings.minimaxRegion,
+    inferredMiniMaxRegion,
   );
   const minimaxRegion = resolveMiniMaxRegionFromInput({
     ...settings,
-    ollamaProvider,
-  });
-  const minimaxApiUrlRaw = String(settings.minimaxApiUrl || "").trim();
+    provider,
+  }, { allowLegacy });
+  const minimaxApiUrlRaw = String(
+    settings?.minimaxApiUrl ?? DEFAULT_SETTINGS.minimaxApiUrl,
+  ).trim();
   const minimaxApiUrl = minimaxApiUrlRaw
     ? normalizeMiniMaxApiUrl(minimaxApiUrlRaw)
     : getDefaultMiniMaxApiUrlByRegion(minimaxRegion);
@@ -339,7 +462,7 @@ export function normalizeAllSettings(settings) {
       DEFAULT_SETTINGS.minimaxApiKeyGlobal,
   ).trim();
   const minimaxApiKey = resolveMiniMaxApiKey({
-    ollamaProvider,
+    provider,
     minimaxRegion,
     minimaxApiUrl,
     minimaxApiKeyCn,
@@ -360,60 +483,123 @@ export function normalizeAllSettings(settings) {
   });
 
   return {
-    ollamaProvider,
-    ollamaUrl: (settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl).replace(
-      /\/$/,
-      "",
-    ),
-    ollamaModel: settings.ollamaModel || DEFAULT_SETTINGS.ollamaModel,
+    provider,
+    ollamaUrl: String(
+      settings?.ollamaUrl ?? DEFAULT_SETTINGS.ollamaUrl,
+    ).replace(/\/$/, ""),
+    ollamaModel:
+      settings?.ollamaModel || DEFAULT_SETTINGS.ollamaModel,
     minimaxApiUrl,
     minimaxRegion,
     minimaxApiKey,
     minimaxApiKeyCn,
     minimaxApiKeyGlobal,
-    minimaxModel: settings.minimaxModel || DEFAULT_SETTINGS.minimaxModel,
+    minimaxModel:
+      settings?.minimaxModel || DEFAULT_SETTINGS.minimaxModel,
     githubApiUrl,
     githubAuthMode,
     githubDeviceToken,
     githubOAuthClientId,
     githubToken,
-    githubModel: settings.githubModel || DEFAULT_SETTINGS.githubModel,
+    githubModel: settings?.githubModel || DEFAULT_SETTINGS.githubModel,
     translateTargetLang:
-      settings.translateTargetLang || DEFAULT_SETTINGS.translateTargetLang,
-    ollamaAutoTranslateMode: normalizeAutoTranslateMode(
-      settings.ollamaAutoTranslateMode,
-      settings.ollamaAutoTranslateSelection,
+      settings?.translateTargetLang || DEFAULT_SETTINGS.translateTargetLang,
+    autoTranslateMode: normalizeAutoTranslateMode(
+      readSettingValue(settings, "autoTranslateMode", { allowLegacy }),
+      allowLegacy ? settings?.ollamaAutoTranslateSelection : false,
     ),
-    ollamaHoverTranslateScope: normalizeHoverTranslateScope(
-      settings.ollamaHoverTranslateScope,
+    hoverTranslateScope: normalizeHoverTranslateScope(
+      readSettingValue(settings, "hoverTranslateScope", { allowLegacy }),
     ),
-    ollamaHoverTranslateDelayMs: normalizeHoverTranslateDelayMs(
-      settings.ollamaHoverTranslateDelayMs,
+    hoverTranslateDelayMs: normalizeHoverTranslateDelayMs(
+      readSettingValue(settings, "hoverTranslateDelayMs", { allowLegacy }),
     ),
-    ollamaPageTranslateConcurrency: normalizePageTranslateConcurrency(
-      settings.ollamaPageTranslateConcurrency,
+    pageTranslateConcurrency: normalizePageTranslateConcurrency(
+      readSettingValue(settings, "pageTranslateConcurrency", { allowLegacy }),
     ),
-    ollamaPageTranslateBatchChars: normalizePageTranslateBatchChars(
-      settings.ollamaPageTranslateBatchChars,
+    pageTranslateBatchChars: normalizePageTranslateBatchChars(
+      readSettingValue(settings, "pageTranslateBatchChars", { allowLegacy }),
     ),
-    learningModeEnabled: !!settings.learningModeEnabled,
+    learningModeEnabled: !!settings?.learningModeEnabled,
+  };
+}
+
+export function normalizeAllSettings(settings = {}) {
+  return normalizeSettings(settings, { allowLegacy: false });
+}
+
+function normalizeLegacySettings(settings = {}) {
+  return normalizeSettings(settings, { allowLegacy: true });
+}
+
+export function buildSettingsMigration(stored = {}) {
+  const canonicalNormalized = normalizeAllSettings(stored);
+  const legacyNormalized = normalizeLegacySettings(
+    buildLegacyPreferredInput(stored),
+  );
+  const nextSettings = {};
+
+  CANONICAL_SETTINGS_KEYS.forEach((key) => {
+    const normalizedValue = canonicalNormalized[key];
+    const hasCanonical = hasOwnSetting(stored, key);
+    const hasLegacy = hasLegacySetting(stored, key);
+    const shouldPreferLegacy =
+      hasLegacy &&
+      (!hasCanonical || !isValidCanonicalSetting(key, stored[key]));
+    const targetValue = shouldPreferLegacy
+      ? legacyNormalized[key]
+      : normalizedValue;
+    const canonicalNeedsNormalize =
+      hasCanonical && stored[key] !== targetValue;
+    const legacyNeedsMigration =
+      hasLegacy && (!hasCanonical || stored[key] !== targetValue);
+
+    if (canonicalNeedsNormalize || legacyNeedsMigration) {
+      nextSettings[key] = targetValue;
+    }
+  });
+
+  return {
+    shouldMigrate: Object.keys(nextSettings).length > 0,
+    nextSettings,
+  };
+}
+
+export async function migrateSettingsIfNeeded(readSettings, writeSettings) {
+  const stored = await readSettings();
+  const migration = buildSettingsMigration(stored);
+  const settings = migration.shouldMigrate
+    ? { ...stored, ...migration.nextSettings }
+    : stored;
+
+  if (migration.shouldMigrate) {
+    try {
+      await writeSettings(migration.nextSettings);
+    } catch (error) {
+      return {
+        ...migration,
+        settings,
+        writeFailed: true,
+        error,
+      };
+    }
+  }
+
+  return {
+    ...migration,
+    settings,
+    writeFailed: false,
+    error: null,
   };
 }
 
 export function getPopupSettingsState(stored = {}) {
-  const input = {
-    ...POPUP_SETTINGS_STORAGE_DEFAULTS,
-    ...stored,
-  };
-  const normalized = normalizeAllSettings({
-    ...input,
-    ollamaAutoTranslateMode: stored.ollamaAutoTranslateMode,
-  });
+  const normalized = normalizeAllSettings(stored);
 
   return {
-    provider: normalized.ollamaProvider,
-    autoTranslateMode: normalized.ollamaAutoTranslateMode,
-    hoverTranslateScope: normalized.ollamaHoverTranslateScope,
-    appEnabled: input.appEnabled !== false,
+    provider: normalized.provider,
+    autoTranslateMode: normalized.autoTranslateMode,
+    hoverTranslateScope: normalized.hoverTranslateScope,
+    appEnabled: stored.appEnabled !== false,
   };
 }

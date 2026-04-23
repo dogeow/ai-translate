@@ -23,24 +23,19 @@ export function PickModeTab({
       <RadioGroup
         name="autoTranslateMode"
         label="自动翻译模式"
-        value={settings.ollamaAutoTranslateMode}
-        onChange={(value) =>
-          updateSettings({ ollamaAutoTranslateMode: value }, "now")
-        }
+        value={settings.autoTranslateMode}
+        onChange={(value) => updateSettings({ autoTranslateMode: value }, "now")}
         options={AUTO_TRANSLATE_MODE_OPTIONS}
       />
 
-      {settings.ollamaAutoTranslateMode === "hover" ? (
+      {settings.autoTranslateMode === "hover" ? (
         <>
           <SelectField
             id="hoverTranslateScope"
             label="悬停翻译范围"
-            value={settings.ollamaHoverTranslateScope}
+            value={settings.hoverTranslateScope}
             onChange={(event) =>
-              updateSettings(
-                { ollamaHoverTranslateScope: event.target.value },
-                "now",
-              )
+              updateSettings({ hoverTranslateScope: event.target.value }, "now")
             }
             options={HOVER_TRANSLATE_SCOPE_OPTIONS}
           />
@@ -51,8 +46,8 @@ export function PickModeTab({
           <SettingNumberInput
             id="hoverTranslateDelayMs"
             label="悬停延迟"
-            settingKey="ollamaHoverTranslateDelayMs"
-            value={settings.ollamaHoverTranslateDelayMs}
+            settingKey="hoverTranslateDelayMs"
+            value={settings.hoverTranslateDelayMs}
             updateSettings={updateSettings}
             persistSettings={persistSettings}
             settingsRef={settingsRef}

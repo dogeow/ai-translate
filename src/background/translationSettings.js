@@ -1,5 +1,6 @@
 import {
   getMiniMaxApiKeyLabel,
+  normalizeAllSettings,
   normalizeTranslateProvider,
   resolveMiniMaxApiKey,
   isMiniMaxProvider,
@@ -30,7 +31,7 @@ import { normalizeMiniMaxBaseUrl } from "../shared/minimax-api.js";
 import { normalizeGitHubModelsBaseUrl } from "../shared/github-models-api.js";
 
 export const SYNC_SETTINGS_DEFAULTS = {
-  ollamaProvider: DEFAULT_TRANSLATE_PROVIDER,
+  provider: DEFAULT_TRANSLATE_PROVIDER,
   ollamaUrl: DEFAULT_OLLAMA_URL,
   ollamaModel: DEFAULT_OLLAMA_MODEL,
   minimaxApiUrl: DEFAULT_MINIMAX_API_URL,
@@ -49,25 +50,36 @@ export const SYNC_SETTINGS_DEFAULTS = {
   appEnabled: DEFAULT_APP_ENABLED,
 };
 
+export function normalizeRuntimeSettings(settings = {}) {
+  const normalized = normalizeAllSettings(settings);
+  return {
+    ...normalized,
+    learningModeEnabled:
+      settings.learningModeEnabled ?? normalized.learningModeEnabled,
+    appEnabled: settings.appEnabled !== false,
+  };
+}
+
 export function resolveProviderRuntime(settings) {
+  const normalized = normalizeRuntimeSettings(settings);
   const provider = normalizeTranslateProvider(
-    settings.ollamaProvider,
-    settings.minimaxRegion,
+    normalized.provider,
+    normalized.minimaxRegion,
   );
   const isMiniMax = isMiniMaxProvider(provider);
   const isGitHub = isGitHubModelsProvider(provider);
   const selectedModel = isMiniMax
-    ? settings.minimaxModel || DEFAULT_MINIMAX_MODEL
+    ? normalized.minimaxModel || DEFAULT_MINIMAX_MODEL
     : isGitHub
-      ? settings.githubModel || DEFAULT_GITHUB_MODEL
-      : settings.ollamaModel;
+      ? normalized.githubModel || DEFAULT_GITHUB_MODEL
+      : normalized.ollamaModel;
   const base = isMiniMax
-    ? normalizeMiniMaxBaseUrl(settings.minimaxApiUrl)
+    ? normalizeMiniMaxBaseUrl(normalized.minimaxApiUrl)
     : isGitHub
-      ? normalizeGitHubModelsBaseUrl(settings.githubApiUrl)
-      : String(settings.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
-  const minimaxApiKey = resolveMiniMaxApiKey(settings);
-  const githubToken = resolveGitHubToken(settings);
+      ? normalizeGitHubModelsBaseUrl(normalized.githubApiUrl)
+      : String(normalized.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
+  const minimaxApiKey = resolveMiniMaxApiKey(normalized);
+  const githubToken = resolveGitHubToken(normalized);
   const apiKey = isMiniMax ? minimaxApiKey : isGitHub ? githubToken : "";
 
   return {
@@ -79,7 +91,8 @@ export function resolveProviderRuntime(settings) {
     minimaxApiKey,
     githubToken,
     apiKey,
-    targetLang: settings.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG,
+    targetLang:
+      normalized.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG,
   };
 }
 

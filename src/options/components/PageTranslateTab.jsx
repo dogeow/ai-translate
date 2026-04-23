@@ -21,8 +21,8 @@ export function PageTranslateTab({
       <SettingNumberInput
         id="pageTranslateConcurrency"
         label="页面翻译并发"
-        settingKey="ollamaPageTranslateConcurrency"
-        value={settings.ollamaPageTranslateConcurrency}
+        settingKey="pageTranslateConcurrency"
+        value={settings.pageTranslateConcurrency}
         updateSettings={updateSettings}
         persistSettings={persistSettings}
         settingsRef={settingsRef}
@@ -38,8 +38,8 @@ export function PageTranslateTab({
       <SettingNumberInput
         id="pageTranslateBatchChars"
         label="页面翻译批量字符数"
-        settingKey="ollamaPageTranslateBatchChars"
-        value={settings.ollamaPageTranslateBatchChars}
+        settingKey="pageTranslateBatchChars"
+        value={settings.pageTranslateBatchChars}
         updateSettings={updateSettings}
         persistSettings={persistSettings}
         settingsRef={settingsRef}

@@ -15,6 +15,8 @@ import {
   DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
 } from "../shared/constants.js";
 import {
+  migrateSettingsIfNeeded,
+  normalizeAllSettings,
   normalizeAutoTranslateMode,
   normalizeHoverTranslateScope,
   normalizeHoverTranslateDelayMs,
@@ -27,6 +29,24 @@ import {
   sendMessageSafe,
 } from "./runtimeShared.js";
 import { BUTTON_ID, SHORTCUT_HINT_ID, TIP_ID } from "./constants.js";
+
+function getAllSyncSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(null, resolve);
+  });
+}
+
+function setAllSyncSettings(updates) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.set(updates, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
 
 export function initContentRuntime() {
   const state = {
@@ -88,23 +108,23 @@ export function initContentRuntime() {
   });
 
   function applyAutoTranslateSettings(cfg) {
+    const normalized = normalizeAllSettings(cfg);
     state.autoTranslateMode = normalizeAutoTranslateMode(
-      cfg.ollamaAutoTranslateMode,
-      cfg.ollamaAutoTranslateSelection,
+      normalized.autoTranslateMode,
     );
     state.translateTargetLang =
-      cfg.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG;
+      normalized.translateTargetLang ?? DEFAULT_TRANSLATE_TARGET_LANG;
     state.hoverTranslateScope = normalizeHoverTranslateScope(
-      cfg.ollamaHoverTranslateScope,
+      normalized.hoverTranslateScope,
     );
     state.hoverTranslateDelayMs = normalizeHoverTranslateDelayMs(
-      cfg.ollamaHoverTranslateDelayMs,
+      normalized.hoverTranslateDelayMs,
     );
     state.pageTranslateConcurrency = normalizePageTranslateConcurrency(
-      cfg.ollamaPageTranslateConcurrency,
+      normalized.pageTranslateConcurrency,
     );
     state.pageTranslateBatchChars = normalizePageTranslateBatchChars(
-      cfg.ollamaPageTranslateBatchChars,
+      normalized.pageTranslateBatchChars,
     );
     pageTranslator.updateOptions({
       maxConcurrent: state.pageTranslateConcurrency,
@@ -117,45 +137,36 @@ export function initContentRuntime() {
     });
   }
 
-  chrome.storage.sync.get(
-    {
-      ollamaAutoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
-      ollamaAutoTranslateSelection: false,
-      translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
-      ollamaHoverTranslateScope: DEFAULT_HOVER_TRANSLATE_SCOPE,
-      ollamaHoverTranslateDelayMs: DEFAULT_HOVER_TRANSLATE_DELAY_MS,
-      ollamaPageTranslateConcurrency: DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
-      ollamaPageTranslateBatchChars: DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
-    },
-    applyAutoTranslateSettings,
-  );
+  async function loadAutoTranslateSettings() {
+    const { settings } = await migrateSettingsIfNeeded(
+      getAllSyncSettings,
+      setAllSyncSettings,
+    );
+    applyAutoTranslateSettings(settings);
+  }
+
+  void loadAutoTranslateSettings();
 
   function onStorageChanged(changes, area) {
     if (area !== "sync") return;
     if (
+      !("autoTranslateMode" in changes) &&
       !("ollamaAutoTranslateMode" in changes) &&
       !("ollamaAutoTranslateSelection" in changes) &&
       !("translateTargetLang" in changes) &&
+      !("hoverTranslateScope" in changes) &&
       !("ollamaHoverTranslateScope" in changes) &&
+      !("hoverTranslateDelayMs" in changes) &&
       !("ollamaHoverTranslateDelayMs" in changes) &&
+      !("pageTranslateConcurrency" in changes) &&
       !("ollamaPageTranslateConcurrency" in changes) &&
-      !("ollamaPageTranslateBatchChars" in changes)
+      !("pageTranslateBatchChars" in changes)
+      && !("ollamaPageTranslateBatchChars" in changes)
     ) {
       return;
     }
 
-    chrome.storage.sync.get(
-      {
-        ollamaAutoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
-        ollamaAutoTranslateSelection: false,
-        translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
-        ollamaHoverTranslateScope: DEFAULT_HOVER_TRANSLATE_SCOPE,
-        ollamaHoverTranslateDelayMs: DEFAULT_HOVER_TRANSLATE_DELAY_MS,
-        ollamaPageTranslateConcurrency: DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
-        ollamaPageTranslateBatchChars: DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
-      },
-      applyAutoTranslateSettings,
-    );
+    void loadAutoTranslateSettings();
   }
 
   chrome.storage.onChanged.addListener(onStorageChanged);

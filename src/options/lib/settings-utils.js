@@ -43,24 +43,6 @@ function normalizeModelInput(value, fallback) {
   return trimmed || fallback;
 }
 
-function toStoredSettingsInput(settings = {}) {
-  return {
-    ...settings,
-    ollamaProvider: settings.ollamaProvider ?? settings.provider,
-    ollamaAutoTranslateMode:
-      settings.ollamaAutoTranslateMode ?? settings.autoTranslateMode,
-    ollamaHoverTranslateScope:
-      settings.ollamaHoverTranslateScope ?? settings.hoverTranslateScope,
-    ollamaHoverTranslateDelayMs:
-      settings.ollamaHoverTranslateDelayMs ?? settings.hoverTranslateDelayMs,
-    ollamaPageTranslateConcurrency:
-      settings.ollamaPageTranslateConcurrency ??
-      settings.pageTranslateConcurrency,
-    ollamaPageTranslateBatchChars:
-      settings.ollamaPageTranslateBatchChars ?? settings.pageTranslateBatchChars,
-  };
-}
-
 export function getSettingsSnapshot(settings = {}) {
   const normalized = normalizeAllSettings(settings);
   return {
@@ -80,17 +62,15 @@ export function getSettingsSnapshot(settings = {}) {
       settings.githubModel,
       DEFAULT_SETTINGS.githubModel,
     ),
-    ollamaAutoTranslateSelection:
-      normalized.ollamaAutoTranslateMode === "selection",
   };
 }
 
 export function getConfig(settings = {}) {
   const snapshot = getSettingsSnapshot(settings);
-  if (isMiniMaxProvider(snapshot.ollamaProvider)) {
+  if (isMiniMaxProvider(snapshot.provider)) {
     const apiKey = resolveMiniMaxApiKey(snapshot);
     return {
-      provider: snapshot.ollamaProvider,
+      provider: snapshot.provider,
       base: snapshot.minimaxApiUrl,
       model: snapshot.minimaxModel,
       apiKey,
@@ -98,10 +78,10 @@ export function getConfig(settings = {}) {
     };
   }
 
-  if (isGitHubModelsProvider(snapshot.ollamaProvider)) {
+  if (isGitHubModelsProvider(snapshot.provider)) {
     const apiKey = resolveGitHubToken(snapshot);
     return {
-      provider: snapshot.ollamaProvider,
+      provider: snapshot.provider,
       base: snapshot.githubApiUrl,
       model: snapshot.githubModel,
       apiKey,
@@ -137,20 +117,14 @@ export function getStoredSettingsShape(stored = {}) {
       stored.githubModel,
       DEFAULT_SETTINGS.githubModel,
     ),
-    ollamaHoverTranslateDelayMs: String(
-      normalized.ollamaHoverTranslateDelayMs,
-    ),
-    ollamaPageTranslateConcurrency: String(
-      normalized.ollamaPageTranslateConcurrency,
-    ),
-    ollamaPageTranslateBatchChars: String(
-      normalized.ollamaPageTranslateBatchChars,
-    ),
+    hoverTranslateDelayMs: String(normalized.hoverTranslateDelayMs),
+    pageTranslateConcurrency: String(normalized.pageTranslateConcurrency),
+    pageTranslateBatchChars: String(normalized.pageTranslateBatchChars),
   };
 }
 
 export function getInitialSettings() {
-  return getStoredSettingsShape(toStoredSettingsInput(DEFAULT_SETTINGS));
+  return getStoredSettingsShape(DEFAULT_SETTINGS);
 }
 
 export function runGenerateRequest(config, prompt) {

@@ -3,11 +3,10 @@
  */
 
 import {
-  normalizeAutoTranslateMode,
-  normalizeHoverTranslateScope,
+  getPopupSettingsState,
+  migrateSettingsIfNeeded,
 } from "../settings.js";
 import {
-  DEFAULT_APP_ENABLED,
   AUTO_TRANSLATE_MODE_OPTIONS,
   HOVER_TRANSLATE_SCOPE_OPTIONS,
 } from "../constants.js";
@@ -29,24 +28,16 @@ export const MENU_HOVER_SCOPE_PARAGRAPH =
  * Read menu-related settings from Chrome storage
  * @returns {Promise<{autoTranslateMode: string, hoverTranslateScope: string, appEnabled: boolean}>}
  */
-export async function readMenuSettings() {
-  const stored = await chrome.storage.sync.get({
-    ollamaAutoTranslateMode: "hotkey",
-    ollamaAutoTranslateSelection: false,
-    ollamaHoverTranslateScope: "word",
-    appEnabled: DEFAULT_APP_ENABLED,
-  });
+export function getMenuSettingsState(stored = {}) {
+  return getPopupSettingsState(stored);
+}
 
-  return {
-    autoTranslateMode: normalizeAutoTranslateMode(
-      stored.ollamaAutoTranslateMode,
-      stored.ollamaAutoTranslateSelection,
-    ),
-    hoverTranslateScope: normalizeHoverTranslateScope(
-      stored.ollamaHoverTranslateScope,
-    ),
-    appEnabled: stored.appEnabled !== false,
-  };
+export async function readMenuSettings() {
+  const { settings } = await migrateSettingsIfNeeded(
+    () => chrome.storage.sync.get(null),
+    (updates) => chrome.storage.sync.set(updates),
+  );
+  return getMenuSettingsState(settings);
 }
 
 /**

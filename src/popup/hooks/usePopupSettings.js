@@ -1,20 +1,41 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTemporaryMessage } from "../../shared/hooks/useTemporaryMessage.js";
 import {
-  POPUP_SETTINGS_STORAGE_DEFAULTS,
   getPopupSettingsState,
+  migrateSettingsIfNeeded,
   normalizeAutoTranslateMode,
   normalizeHoverTranslateScope,
 } from "../../shared/settings.js";
 
 const POPUP_SETTINGS_WATCH_KEYS = new Set([
   "appEnabled",
+  "provider",
   "ollamaProvider",
   "minimaxRegion",
+  "autoTranslateMode",
   "ollamaAutoTranslateMode",
   "ollamaAutoTranslateSelection",
+  "hoverTranslateScope",
   "ollamaHoverTranslateScope",
 ]);
+
+function getAllSyncSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(null, resolve);
+  });
+}
+
+function setAllSyncSettings(updates) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.set(updates, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
 
 /**
  * 管理弹出窗口设置的自定义 Hook
@@ -43,13 +64,18 @@ export function usePopupSettings() {
     setAppEnabled(nextState.appEnabled);
   }, []);
 
+  const reloadPopupSettings = useCallback(async () => {
+    const { settings } = await migrateSettingsIfNeeded(
+      getAllSyncSettings,
+      setAllSyncSettings,
+    );
+    applyPopupSettingsState(settings);
+  }, [applyPopupSettingsState]);
+
   // 初始加载设置
   useEffect(() => {
-    chrome.storage.sync.get(
-      POPUP_SETTINGS_STORAGE_DEFAULTS,
-      applyPopupSettingsState,
-    );
-  }, [applyPopupSettingsState]);
+    void reloadPopupSettings();
+  }, [reloadPopupSettings]);
 
   // 监听存储变化
   useEffect(() => {
@@ -59,15 +85,12 @@ export function usePopupSettings() {
         return;
       }
 
-      chrome.storage.sync.get(
-        POPUP_SETTINGS_STORAGE_DEFAULTS,
-        applyPopupSettingsState,
-      );
+      void reloadPopupSettings();
     }
 
     chrome.storage.onChanged.addListener(handleStorageChanged);
     return () => chrome.storage.onChanged.removeListener(handleStorageChanged);
-  }, [applyPopupSettingsState]);
+  }, [reloadPopupSettings]);
 
   // 同步设置到存储
   const syncSettings = useCallback((updates) => {
@@ -81,10 +104,10 @@ export function usePopupSettings() {
   const updateProvider = useCallback(
     (nextProvider) => {
       const normalized = getPopupSettingsState({
-        ollamaProvider: nextProvider,
+        provider: nextProvider,
       }).provider;
       setProvider(normalized);
-      syncSettings({ ollamaProvider: normalized });
+      syncSettings({ provider: normalized });
     },
     [syncSettings],
   );
@@ -94,7 +117,7 @@ export function usePopupSettings() {
     (mode) => {
       const normalized = normalizeAutoTranslateMode(mode);
       setAutoTranslateMode(normalized);
-      syncSettings({ ollamaAutoTranslateMode: normalized });
+      syncSettings({ autoTranslateMode: normalized });
     },
     [syncSettings],
   );
@@ -104,7 +127,7 @@ export function usePopupSettings() {
     (scope) => {
       const normalized = normalizeHoverTranslateScope(scope);
       setHoverTranslateScope(normalized);
-      syncSettings({ ollamaHoverTranslateScope: normalized });
+      syncSettings({ hoverTranslateScope: normalized });
     },
     [syncSettings],
   );

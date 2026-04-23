@@ -21,6 +21,7 @@ import {
   UPDATE_CHECK_ALARM_NAME,
 } from "./shared/utils/updateManager.js";
 import { isRateLimitError } from "./shared/utils/textProcessing.js";
+import { migrateSettingsIfNeeded } from "./shared/settings.js";
 import {
   translatePageBatchWithProvider,
   translateWithProvider,
@@ -28,16 +29,24 @@ import {
 
 const LOG_PREFIX = "[Ollama 翻译]";
 
-chrome.runtime.onInstalled.addListener(() => {
-  void createContextMenus();
+async function initializeExtensionRuntime() {
+  const migration = await migrateSettingsIfNeeded(
+    () => chrome.storage.sync.get(null),
+    (updates) => chrome.storage.sync.set(updates),
+  );
+  if (!migration.shouldMigrate || migration.writeFailed) {
+    await createContextMenus();
+  }
   void ensureUpdateCheckAlarm();
   void checkForExtensionUpdate();
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  void initializeExtensionRuntime();
 });
 
 chrome.runtime.onStartup?.addListener(() => {
-  void createContextMenus();
-  void ensureUpdateCheckAlarm();
-  void checkForExtensionUpdate();
+  void initializeExtensionRuntime();
 });
 
 chrome.alarms?.onAlarm.addListener((alarm) => {
@@ -109,15 +118,15 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 const AUTO_MODE_MENU_MAP = {
-  [MENU_AUTO_MODE_HOTKEY]: { key: "ollamaAutoTranslateMode", value: "hotkey" },
+  [MENU_AUTO_MODE_HOTKEY]: { key: "autoTranslateMode", value: "hotkey" },
   [MENU_AUTO_MODE_SELECTION]: {
-    key: "ollamaAutoTranslateMode",
+    key: "autoTranslateMode",
     value: "selection",
   },
-  [MENU_AUTO_MODE_HOVER]: { key: "ollamaAutoTranslateMode", value: "hover" },
-  [MENU_HOVER_SCOPE_WORD]: { key: "ollamaHoverTranslateScope", value: "word" },
+  [MENU_AUTO_MODE_HOVER]: { key: "autoTranslateMode", value: "hover" },
+  [MENU_HOVER_SCOPE_WORD]: { key: "hoverTranslateScope", value: "word" },
   [MENU_HOVER_SCOPE_PARAGRAPH]: {
-    key: "ollamaHoverTranslateScope",
+    key: "hoverTranslateScope",
     value: "paragraph",
   },
 };
@@ -126,7 +135,6 @@ chrome.contextMenus.onClicked.addListener(async (info, clickedTab) => {
   const menuConfig = AUTO_MODE_MENU_MAP[info.menuItemId];
   if (menuConfig) {
     await chrome.storage.sync.set({ [menuConfig.key]: menuConfig.value });
-    void createContextMenus();
     return;
   }
 
@@ -177,8 +185,10 @@ chrome.contextMenus.onClicked.addListener(async (info, clickedTab) => {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== "sync") return;
   if (
+    !("autoTranslateMode" in changes) &&
     !("ollamaAutoTranslateMode" in changes) &&
     !("ollamaAutoTranslateSelection" in changes) &&
+    !("hoverTranslateScope" in changes) &&
     !("ollamaHoverTranslateScope" in changes) &&
     !("appEnabled" in changes)
   ) {

@@ -35,8 +35,8 @@ export function getConnectionResultClass(tone) {
  * 计算 MiniMax 相关的配置（区域由厂家 minimax-cn / minimax-global 决定）
  */
 export function getMiniMaxConfig(settings) {
-  const region = isMiniMaxProvider(settings.ollamaProvider)
-    ? getMiniMaxRegionFromProvider(settings.ollamaProvider)
+  const region = isMiniMaxProvider(settings.provider)
+    ? getMiniMaxRegionFromProvider(settings.provider)
     : normalizeMiniMaxRegion(settings.minimaxRegion);
   const isGlobal = region === MINIMAX_REGION_GLOBAL;
 
@@ -59,7 +59,7 @@ export function getMiniMaxConfig(settings) {
  * 检查 MiniMax API Key 是否缺失
  */
 export function isMiniMaxKeyMissing(settings) {
-  if (!isMiniMaxProvider(settings.ollamaProvider)) return false;
+  if (!isMiniMaxProvider(settings.provider)) return false;
 
   const config = getMiniMaxConfig(settings);
   return !String(config.apiKeyValue || "").trim();
@@ -101,7 +101,7 @@ export function handleProviderChange(
     settingsRef,
     updateConnectionStatus,
   );
-  handler({ ollamaProvider: newProvider });
+  handler({ provider: newProvider });
 }
 
 /**
@@ -121,7 +121,7 @@ export function handleMinimaxRegionChange(
 
   const nextSettings = {
     ...settingsRef.current,
-    ollamaProvider:
+    provider:
       normalizedRegion === MINIMAX_REGION_GLOBAL
         ? PROVIDER_MINIMAX_GLOBAL
         : PROVIDER_MINIMAX_CN,

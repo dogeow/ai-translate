@@ -98,6 +98,8 @@ Content Script ──sendMessage──▶ background.js ──▶ Ollama / MiniM
 
 - 所有设置读写通过 `chrome.storage.sync`
 - 默认值集中定义在 `src/shared/settings.js` 的 `DEFAULT_SETTINGS`
+- 通用设置键统一使用 canonical 命名：`provider`、`autoTranslateMode`、`hoverTranslateScope`、`hoverTranslateDelayMs`、`pageTranslateConcurrency`、`pageTranslateBatchChars`
+- 旧版 `ollama*` 通用键仅在 `src/shared/settings.js` 的迁移逻辑中保留兼容，不应在新代码中继续读写
 - 全局常量（Provider 名称、URL、Key）定义在 `src/shared/constants.js`
 
 ### 翻译 Provider
@@ -151,8 +153,9 @@ tools/sync-version.mjs 在每次 dev/build/version 命令前自动同步到 src/
 
 1. 在 `src/shared/constants.js` 添加 `DEFAULT_XXX` 常量
 2. 在 `src/shared/settings.js` 的 `DEFAULT_SETTINGS` 中添加字段
-3. 在 `src/options/components/` 对应 Tab 组件中添加 UI
-4. 在 `src/options/hooks/useSettings.js` 中处理读写
+3. 如果是通用设置项，优先沿用 canonical 存储命名，不要再新增 `ollama*` 前缀的通用键
+4. 在 `src/options/components/` 对应 Tab 组件中添加 UI
+5. 在 `src/options/hooks/useSettings.js` 中处理读写
 
 ### 添加新的翻译触发方式
 
