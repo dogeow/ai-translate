@@ -4,6 +4,7 @@
  */
 import { hideButton } from "./button.js";
 import { showShortcutHint } from "./shortcutHint.js";
+import { hideTip } from "./tip.js";
 import { createPageTranslateBridge } from "./pageTranslateBridge.js";
 import { createInteractionController } from "./interactionController.js";
 import {
@@ -13,6 +14,7 @@ import {
   DEFAULT_HOVER_TRANSLATE_DELAY_MS,
   DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
   DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
+  DEFAULT_APP_ENABLED,
 } from "../shared/constants.js";
 import {
   migrateSettingsIfNeeded,
@@ -50,6 +52,7 @@ function setAllSyncSettings(updates) {
 
 export function initContentRuntime() {
   const state = {
+    appEnabled: DEFAULT_APP_ENABLED,
     lastTipRect: null,
     lastMouseX: 0,
     lastMouseY: 0,
@@ -109,6 +112,7 @@ export function initContentRuntime() {
 
   function applyAutoTranslateSettings(cfg) {
     const normalized = normalizeAllSettings(cfg);
+    state.appEnabled = cfg?.appEnabled !== false;
     state.autoTranslateMode = normalizeAutoTranslateMode(
       normalized.autoTranslateMode,
     );
@@ -130,11 +134,17 @@ export function initContentRuntime() {
       maxConcurrent: state.pageTranslateConcurrency,
       batchChars: state.pageTranslateBatchChars,
     });
-    if (state.autoTranslateMode !== "hotkey") hideButton();
     interactionController.clearSelectionAutoTranslateTimer();
     interactionController.clearHoverAutoTranslateTimer({
       preserveLastResolved: true,
     });
+    if (!state.appEnabled) {
+      pageTranslator.stop();
+      hideButton();
+      hideTip();
+      return;
+    }
+    if (state.autoTranslateMode !== "hotkey") hideButton();
   }
 
   async function loadAutoTranslateSettings() {
@@ -150,6 +160,7 @@ export function initContentRuntime() {
   function onStorageChanged(changes, area) {
     if (area !== "sync") return;
     if (
+      !("appEnabled" in changes) &&
       !("autoTranslateMode" in changes) &&
       !("ollamaAutoTranslateMode" in changes) &&
       !("ollamaAutoTranslateSelection" in changes) &&
@@ -160,8 +171,8 @@ export function initContentRuntime() {
       !("ollamaHoverTranslateDelayMs" in changes) &&
       !("pageTranslateConcurrency" in changes) &&
       !("ollamaPageTranslateConcurrency" in changes) &&
-      !("pageTranslateBatchChars" in changes)
-      && !("ollamaPageTranslateBatchChars" in changes)
+      !("pageTranslateBatchChars" in changes) &&
+      !("ollamaPageTranslateBatchChars" in changes)
     ) {
       return;
     }

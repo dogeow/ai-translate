@@ -27,6 +27,10 @@ export function createInteractionController({
   pageTranslator,
   shouldSkipHoverTranslate,
 }) {
+  function isInteractionEnabled() {
+    return state.appEnabled !== false;
+  }
+
   function clearSelectionAutoTranslateTimer() {
     if (state.selectionAutoTranslateTimerId !== null) {
       clearTimeout(state.selectionAutoTranslateTimerId);
@@ -71,6 +75,11 @@ export function createInteractionController({
   function onButtonClick(e) {
     e.preventDefault();
     e.stopPropagation();
+    if (!isInteractionEnabled()) {
+      hideButton();
+      hideTip();
+      return;
+    }
     const text = getButtonOrSelectionText();
     state.lastTipRect = getSelectionRect();
     hideButton();
@@ -98,6 +107,21 @@ export function createInteractionController({
   });
 
   function onRuntimeMessage(msg, _sender, sendResponse) {
+    if (!isInteractionEnabled()) {
+      if (msg.action === "startVisualPageTranslate") {
+        pageTranslator.stop();
+        sendResponse({ ok: false, active: false, disabled: true });
+        return true;
+      }
+
+      if (msg.action === "getTextToTranslate") {
+        sendResponse({ text: "", source: "" });
+        return true;
+      }
+
+      return;
+    }
+
     if (
       msg.requestId &&
       state.dismissedTipRequestId &&
@@ -233,6 +257,10 @@ export function createInteractionController({
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
   function onSelectionChange() {
+    if (!isInteractionEnabled()) {
+      hideButton();
+      return;
+    }
     const text = getSelectionText();
     if (!text) {
       hideButton();
@@ -246,6 +274,7 @@ export function createInteractionController({
   }
 
   function onMouseUp(e) {
+    if (!isInteractionEnabled()) return;
     if (e.button !== 0) return;
     const clickCount = e.detail || 1;
     const clientX = e.clientX;
@@ -304,6 +333,7 @@ export function createInteractionController({
     state.lastMouseX = e.clientX;
     state.lastMouseY = e.clientY;
 
+    if (!isInteractionEnabled()) return;
     if (state.autoTranslateMode !== "hover") return;
     if (e.buttons !== 0 || getSelectionText() || isExtensionUiTarget(e.target)) {
       resetHoverResolvedKeyIfLeaving("");
@@ -412,6 +442,10 @@ export function createInteractionController({
   }
 
   function onSelectionChangedEvent() {
+    if (!isInteractionEnabled()) {
+      hideButton();
+      return;
+    }
     if (state.autoTranslateMode === "hover") {
       clearHoverAutoTranslateTimer({ preserveLastResolved: true });
     }
