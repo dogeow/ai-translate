@@ -82,8 +82,8 @@ export const AUTO_TRANSLATE_MODE_OPTIONS = [
   {
     value: "hover",
     title: "悬停自动翻译",
-    shortTitle: "悬停取词", // popup 简洁版
-    description: "鼠标移动到文本上后自动取词或取整段，无需双击或按快捷键。",
+    shortTitle: "悬停翻译", // popup 简洁版
+    description: "鼠标移动到文本上后自动翻译单词或整段，无需双击或按快捷键。",
     hint: "鼠标停留在文本上时自动触发翻译。",
   },
 ];

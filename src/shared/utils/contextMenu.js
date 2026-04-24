@@ -103,7 +103,7 @@ export async function createContextMenus() {
 
   chrome.contextMenus.create({
     id: MENU_HOVER_SCOPE_PARENT,
-    title: "悬停取词范围",
+    title: "悬停翻译范围",
     contexts: ["action"],
   });
 

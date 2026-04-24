@@ -7,6 +7,7 @@ import {
 import {
   getCurrentElementAndText,
   getHoverTranslateTarget,
+  inspectHoverTranslatePoint,
   getSelectionText,
   getSelectionRect,
   getElementFullText,
@@ -27,6 +28,33 @@ export function createInteractionController({
   pageTranslator,
   shouldSkipHoverTranslate,
 }) {
+  let lastHoverDiagnosticSignature = "";
+  let lastHoverDiagnosticAt = 0;
+
+  function logHoverDiagnostic(probe, label = "悬停诊断") {
+    if (!probe) return;
+    const signature = JSON.stringify([
+      probe.decision,
+      probe.scope,
+      probe.key || "",
+      probe.word || "",
+      probe.hitElement?.tag || "",
+      probe.anchorElement?.tag || "",
+      probe.textNodeHit === undefined ? "" : String(probe.textNodeHit),
+      probe.wordHit === undefined ? "" : String(probe.wordHit),
+    ]);
+    const now = Date.now();
+    if (
+      signature === lastHoverDiagnosticSignature &&
+      now - lastHoverDiagnosticAt < 1000
+    ) {
+      return;
+    }
+    lastHoverDiagnosticSignature = signature;
+    lastHoverDiagnosticAt = now;
+    logDebug(label, probe);
+  }
+
   function clearSelectionAutoTranslateTimer() {
     if (state.selectionAutoTranslateTimerId !== null) {
       clearTimeout(state.selectionAutoTranslateTimerId);
@@ -316,15 +344,35 @@ export function createInteractionController({
       e.clientY,
       state.hoverTranslateScope,
     );
+    const hoverProbe = inspectHoverTranslatePoint(
+      e.clientX,
+      e.clientY,
+      state.hoverTranslateScope,
+    );
     const key = hoverTarget?.key || "";
     const hoverText = (hoverTarget?.text || "").trim();
     if (!key || !hoverText) {
+      logHoverDiagnostic(hoverProbe);
       resetHoverResolvedKeyIfLeaving("");
       clearHoverAutoTranslateTimer({ preserveLastResolved: true });
       return;
     }
 
+    if (hoverProbe) {
+      hoverProbe.key = hoverProbe.key || key;
+      hoverProbe.text = hoverProbe.text || hoverText;
+    }
+
     if (shouldSkipHoverTranslate(hoverText)) {
+      logHoverDiagnostic(
+        {
+          ...hoverProbe,
+          decision: "skip-text",
+          key,
+          text: hoverText,
+        },
+        "悬停跳过",
+      );
       if (state.hoverAutoTranslateTimerId !== null) {
         clearTimeout(state.hoverAutoTranslateTimerId);
         state.hoverAutoTranslateTimerId = null;
@@ -361,8 +409,17 @@ export function createInteractionController({
 
     state.hoverPendingKey = key;
     const requestId = `hover:${Date.now()}:${++state.hoverRequestSeq}`;
+    logHoverDiagnostic(
+      {
+        ...hoverProbe,
+        decision: hoverProbe?.decision || "accept-word",
+        key,
+        text: hoverText,
+      },
+      "悬停命中",
+    );
     logDebug(
-      `悬停触发：text="${hoverText.substring(0, 20)}...", requestId=${requestId}`,
+      `悬停触发：text="${hoverText.substring(0, 20)}...", requestId=${requestId}, scope=${state.hoverTranslateScope}, key=${key}`,
     );
     state.hoverAutoTranslateTimerId = window.setTimeout(() => {
       state.hoverAutoTranslateTimerId = null;
@@ -390,7 +447,13 @@ export function createInteractionController({
         height: 0,
       };
 
-      logDebug(`发送悬停翻译请求：${requestId}`);
+      logDebug("发送悬停翻译请求", {
+        requestId,
+        scope: state.hoverTranslateScope,
+        key,
+        text: hoverText,
+        probe: hoverProbe,
+      });
       sendMessageSafe(
         {
           action: "translate",

@@ -10,6 +10,7 @@ export function getButtonElement() {
     injectStyles();
     btn = document.createElement("button");
     btn.id = BUTTON_ID;
+    btn.style.display = "none";
     btn.textContent = "翻译";
     document.body.appendChild(btn);
   }

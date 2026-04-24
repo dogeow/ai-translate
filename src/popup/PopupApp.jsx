@@ -130,7 +130,7 @@ export function PopupApp() {
         />
       </Panel>
       {popupSettings.autoTranslateMode === "hover" && (
-        <Panel title="悬停取词范围" isSubtle>
+        <Panel title="悬停翻译范围" isSubtle>
           <ChoiceGrid
             options={HOVER_SCOPE_OPTIONS}
             value={popupSettings.hoverTranslateScope}

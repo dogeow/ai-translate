@@ -12,6 +12,39 @@ const BLOCK_DISPLAY_VALUES = new Set([
 const nodeIds = new WeakMap();
 let nextNodeId = 1;
 
+function previewText(text, maxLength = 48) {
+  const value = String(text || "").replace(/\s+/g, " ").trim();
+  if (!value) return "";
+  return value.length > maxLength
+    ? `${value.slice(0, maxLength)}...`
+    : value;
+}
+
+function debugRect(rect) {
+  if (!rect) return null;
+  return {
+    left: Math.round(rect.left * 10) / 10,
+    top: Math.round(rect.top * 10) / 10,
+    right: Math.round(rect.right * 10) / 10,
+    bottom: Math.round(rect.bottom * 10) / 10,
+    width: Math.round(rect.width * 10) / 10,
+    height: Math.round(rect.height * 10) / 10,
+  };
+}
+
+function debugElement(element) {
+  if (!element) return null;
+  return {
+    tag: element.tagName || "",
+    id: element.id || "",
+    className:
+      typeof element.className === "string"
+        ? element.className.slice(0, 80)
+        : "",
+    text: previewText(element.textContent || ""),
+  };
+}
+
 function getPointRange(clientX, clientY) {
   if (typeof document.caretRangeFromPoint === "function") {
     try {
@@ -41,6 +74,53 @@ function toRect(rect) {
     width: rect.width,
     height: rect.height,
   };
+}
+
+function rectContainsPoint(rect, clientX, clientY, padding = 1) {
+  if (!rect) return false;
+  return (
+    clientX >= rect.left - padding &&
+    clientX <= rect.right + padding &&
+    clientY >= rect.top - padding &&
+    clientY <= rect.bottom + padding
+  );
+}
+
+function rangeContainsPoint(range, clientX, clientY, padding = 1) {
+  if (!range) return false;
+  const rects = Array.from(range.getClientRects()).filter(
+    (rect) => rect.width > 0 || rect.height > 0,
+  );
+  if (rects.length === 0) {
+    return rectContainsPoint(
+      range.getBoundingClientRect(),
+      clientX,
+      clientY,
+      padding,
+    );
+  }
+  return rects.some((rect) =>
+    rectContainsPoint(rect, clientX, clientY, padding)
+  );
+}
+
+function textNodeContainsPoint(node, clientX, clientY, padding = 0) {
+  if (!node || node.nodeType !== Node.TEXT_NODE) return false;
+  const text = String(node.textContent || "");
+  if (!text.trim()) return false;
+
+  const textRange = document.createRange();
+  textRange.selectNodeContents(node);
+  return rangeContainsPoint(textRange, clientX, clientY, padding);
+}
+
+function getTextNodeRect(node) {
+  if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+  const text = String(node.textContent || "");
+  if (!text.trim()) return null;
+  const textRange = document.createRange();
+  textRange.selectNodeContents(node);
+  return textRange.getBoundingClientRect();
 }
 
 function isEditableElement(element) {
@@ -200,6 +280,10 @@ export function getHoverTranslateTarget(clientX, clientY, scope = "word") {
   }
 
   if (scope === "paragraph") {
+    if (node.nodeType !== Node.TEXT_NODE) return null;
+    if (!textNodeContainsPoint(node, clientX, clientY)) {
+      return null;
+    }
     const container = getParagraphContainer(element);
     const text = getElementFullText(container);
     if (!text) return null;
@@ -212,12 +296,18 @@ export function getHoverTranslateTarget(clientX, clientY, scope = "word") {
   }
 
   if (node.nodeType !== Node.TEXT_NODE) return null;
+  if (!textNodeContainsPoint(node, clientX, clientY)) {
+    return null;
+  }
   const info = getWordInfoAtOffset(node.textContent || "", range.startOffset);
   if (!info.word) return null;
 
   const wordRange = document.createRange();
   wordRange.setStart(node, info.start);
   wordRange.setEnd(node, info.end);
+  if (!rangeContainsPoint(wordRange, clientX, clientY)) {
+    return null;
+  }
   const wordRect = wordRange.getBoundingClientRect();
   const rect =
     wordRect.width > 0 || wordRect.height > 0
@@ -230,6 +320,101 @@ export function getHoverTranslateTarget(clientX, clientY, scope = "word") {
     rect,
     key: `word:${getNodeId(node)}:${info.start}:${info.end}`,
   };
+}
+
+export function inspectHoverTranslatePoint(clientX, clientY, scope = "word") {
+  const hitElement = document.elementFromPoint(clientX, clientY);
+  const result = {
+    clientX,
+    clientY,
+    scope,
+    hitElement: debugElement(hitElement),
+    decision: "unknown",
+  };
+
+  const range = getPointRange(clientX, clientY);
+  if (!range) {
+    result.decision = "no-range";
+    return result;
+  }
+
+  const node = range.startContainer;
+  const offset = range.startOffset;
+  const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+
+  result.rangeOffset = offset;
+  result.nodeType = node.nodeType;
+  result.nodeText =
+    node.nodeType === Node.TEXT_NODE
+      ? previewText(node.textContent || "")
+      : node.nodeName || "";
+  result.anchorElement = debugElement(element);
+
+  if (!element) {
+    result.decision = "no-element";
+    return result;
+  }
+
+  if (isEditableElement(element)) {
+    result.decision = "editable";
+    return result;
+  }
+
+  if (isInteractiveElement(element)) {
+    result.decision = "interactive";
+    return result;
+  }
+
+  if (scope === "paragraph") {
+    if (node.nodeType !== Node.TEXT_NODE) {
+      result.decision = "paragraph-not-text-node";
+      return result;
+    }
+    result.textNodeRect = debugRect(getTextNodeRect(node));
+    result.textNodeHit = textNodeContainsPoint(node, clientX, clientY);
+    if (!result.textNodeHit) {
+      result.decision = "miss-paragraph-text";
+      return result;
+    }
+    const container = getParagraphContainer(element);
+    const text = getElementFullText(container);
+    result.container = debugElement(container);
+    result.containerRect = debugRect(container?.getBoundingClientRect?.());
+    result.text = previewText(text);
+    result.textLength = text.length;
+    result.decision = text ? "accept-paragraph" : "empty-paragraph";
+    return result;
+  }
+
+  if (node.nodeType !== Node.TEXT_NODE) {
+    result.decision = "not-text-node";
+    return result;
+  }
+
+  result.textNodeRect = debugRect(getTextNodeRect(node));
+  result.textNodeHit = textNodeContainsPoint(node, clientX, clientY);
+  if (!result.textNodeHit) {
+    result.decision = "miss-text-node";
+    return result;
+  }
+
+  const info = getWordInfoAtOffset(node.textContent || "", offset);
+  result.word = info.word;
+  result.wordStart = info.start;
+  result.wordEnd = info.end;
+  if (!info.word) {
+    result.decision = "empty-word";
+    return result;
+  }
+
+  const wordRange = document.createRange();
+  wordRange.setStart(node, info.start);
+  wordRange.setEnd(node, info.end);
+  result.wordRect = debugRect(wordRange.getBoundingClientRect());
+  result.wordHit = rangeContainsPoint(wordRange, clientX, clientY);
+  result.key = `word:${getNodeId(node)}:${info.start}:${info.end}`;
+  result.decision = result.wordHit ? "accept-word" : "miss-word-range";
+  return result;
 }
 
 export function getSelectionText() {
