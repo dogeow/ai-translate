@@ -4,6 +4,7 @@ import {
   PROVIDER_OLLAMA,
 } from "../../shared/constants.js";
 import {
+  getGitHubDeviceLoginPrompt,
   isMiniMaxProvider,
   isGitHubModelsProvider,
 } from "../../shared/settings.js";
@@ -103,7 +104,7 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
         ? "Ollama 连接失败"
         : isMiniMaxProvider(provider)
           ? "MiniMax 连接失败"
-          : "GitHub Models 连接失败"
+          : "GitHub Copilot 连接失败"
       : error.message || String(error);
   }
 
@@ -117,7 +118,7 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
       return `请先填写${config.apiKeyLabel || "MiniMax API Key"}`;
     }
     if (isGitHubModelsProvider(config.provider) && !config.apiKey) {
-      return `请先填写${config.apiKeyLabel || "GitHub 访问令牌"}`;
+      return getGitHubDeviceLoginPrompt(settingsRef.current);
     }
     return "";
   }

@@ -15,7 +15,7 @@ export const TRANSLATE_PROVIDER_OPTIONS = [
   { value: PROVIDER_OLLAMA, label: "Ollama（本地）" },
   { value: PROVIDER_MINIMAX_CN, label: "MiniMax（国内）" },
   { value: PROVIDER_MINIMAX_GLOBAL, label: "MiniMax（海外）" },
-  { value: PROVIDER_GITHUB_MODELS, label: "GitHub Models" },
+  { value: PROVIDER_GITHUB_MODELS, label: "GitHub Copilot" },
 ];
 
 // Ollama 连接配置
@@ -40,7 +40,7 @@ export const DEFAULT_MINIMAX_API_KEY = DEFAULT_MINIMAX_API_KEY_CN;
 export const DEFAULT_MINIMAX_MODEL = "MiniMax-M2.5-highspeed";
 export const MINIMAX_MODEL_OPTIONS = [DEFAULT_MINIMAX_MODEL];
 
-// GitHub Models 连接配置
+// GitHub Copilot 连接配置（底层仍使用 GitHub Models API）
 export const DEFAULT_GITHUB_MODELS_API_URL = "https://models.github.ai";
 export const GITHUB_AUTH_MODE_DEVICE = "device";
 // PAT 模式已移除：仅保留设备登录（Copilot 订阅 + Device Flow）
@@ -48,7 +48,7 @@ export const DEFAULT_GITHUB_AUTH_MODE = GITHUB_AUTH_MODE_DEVICE;
 export const DEFAULT_GITHUB_DEVICE_TOKEN = "";
 export const DEFAULT_GITHUB_OAUTH_CLIENT_ID = "";
 export const DEFAULT_GITHUB_MODEL = "openai/gpt-4.1";
-// 仅向用户暴露真正稳定且 PAT/Device 都能访问、配额合理的模型
+// 仅向用户暴露真正稳定且设备登录可访问、配额相对合理的模型
 export const GITHUB_MODEL_WHITELIST = Object.freeze([
   "openai/gpt-4.1",
   "openai/gpt-4o",

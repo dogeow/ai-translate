@@ -80,7 +80,8 @@ npm start             # 构建后预览
 npm version patch     # 升版本号（自动同步到 manifest.json）
 ```
 
-构建产物在 `dist/chrome/` 和 `dist/firefox/`，Chrome 加载时选 `dist/chrome/`。
+构建产物在 `dist/chromium/` 和 `dist/firefox/`，Chrome 加载时选 `dist/chromium/`。
+如果本地还留有 `dist/chrome/`，那通常是旧产物目录，不会被当前 `extension build` 更新。
 
 ---
 

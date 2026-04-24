@@ -251,6 +251,13 @@ export function getGitHubTokenLabel() {
   return "GitHub 设备登录令牌";
 }
 
+export function getGitHubDeviceLoginPrompt(input = {}) {
+  const clientId = String(input.githubOAuthClientId ?? "").trim();
+  return clientId
+    ? "请先完成 GitHub Copilot 设备登录。"
+    : "请先填写 GitHub OAuth App Client ID，并完成 GitHub Copilot 设备登录。";
+}
+
 /**
  * 规范化 MiniMax API 地址
  * @param {string} value - API 地址

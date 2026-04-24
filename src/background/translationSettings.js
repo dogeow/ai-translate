@@ -6,6 +6,7 @@ import {
   isMiniMaxProvider,
   isGitHubModelsProvider,
   resolveGitHubToken,
+  getGitHubDeviceLoginPrompt,
 } from "../shared/settings.js";
 import {
   PROVIDER_OLLAMA,
@@ -102,7 +103,7 @@ export function buildMissingCredentialError(providerRuntime, settings) {
     return `请先填写${getMiniMaxApiKeyLabel(settings)}。`;
   }
   if (providerRuntime.isGitHub && !providerRuntime.apiKey) {
-    return "请先填写 GitHub 访问令牌。";
+    return getGitHubDeviceLoginPrompt(settings);
   }
   return "";
 }

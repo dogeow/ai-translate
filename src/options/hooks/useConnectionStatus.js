@@ -11,6 +11,7 @@ import {
 import {
   isMiniMaxGlobalApiUrl,
   isMiniMaxProvider,
+  getGitHubDeviceLoginPrompt,
   isGitHubModelsProvider,
 } from "../../shared/settings.js";
 import { filterTranslationModels } from "../../shared/model-utils.js";
@@ -95,7 +96,7 @@ export function useConnectionStatus({
       const providerLabel = isMiniMaxProvider(provider)
         ? "MiniMax"
         : isGitHubModelsProvider(provider)
-          ? "GitHub Models"
+          ? "GitHub Copilot"
           : "Ollama";
       applyConnectionStatus(
         {
@@ -209,7 +210,7 @@ export function useConnectionStatus({
           applyConnectionStatus(
             {
               kind: "err",
-              text: `${apiKeyLabel || "GitHub 访问令牌"} 未填写`,
+              text: `${apiKeyLabel || "GitHub Copilot 设备登录令牌"} 未填写`,
               showAction: false,
             },
             updateBannerStatus,
@@ -217,7 +218,7 @@ export function useConnectionStatus({
           setModels(githubModels);
           if (!preserveTestMessage) {
             setTestConnectionResult({
-              text: `请先填写${apiKeyLabel || "GitHub 访问令牌"}`,
+              text: getGitHubDeviceLoginPrompt(nextSettings),
               tone: "err",
               showAction: false,
             });
@@ -238,7 +239,7 @@ export function useConnectionStatus({
           applyConnectionStatus(
             {
               kind: "ok",
-              text: "GitHub Models 已连接",
+              text: "GitHub Copilot 已连接",
               showAction: false,
             },
             updateBannerStatus,
@@ -259,7 +260,7 @@ export function useConnectionStatus({
           applyConnectionStatus(
             {
               kind: "err",
-              text: "GitHub Models 未连接",
+              text: "GitHub Copilot 未连接",
               showAction: false,
             },
             updateBannerStatus,

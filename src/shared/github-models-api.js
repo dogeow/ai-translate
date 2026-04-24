@@ -3,6 +3,7 @@ import {
   DEFAULT_GITHUB_MODEL,
   GITHUB_MODEL_WHITELIST,
 } from "./constants.js";
+import { getGitHubDeviceLoginPrompt } from "./settings.js";
 import {
   createAiRequestLog,
   logAiRequestError,
@@ -35,7 +36,7 @@ function buildGitHubModelsErrorMessage(status, responseText, retryAfter = "") {
     (status === 403 || status === 404) &&
     /no[_ ]access|not authorized|forbidden/.test(lower)
   ) {
-    return `当前 GitHub 登录令牌无权访问该模型（HTTP ${status}）。请重新执行设备登录，或切换到其他可用模型。`;
+    return `当前 GitHub Copilot 登录状态无权访问该模型（HTTP ${status}）。请重新执行设备登录，或切换到其他可用模型。`;
   }
 
   if (status === 429) {
@@ -43,14 +44,14 @@ function buildGitHubModelsErrorMessage(status, responseText, retryAfter = "") {
     const waitHint = Number.isFinite(waitSeconds) && waitSeconds > 0
       ? `请在 ${waitSeconds} 秒后重试`
       : "请稍后再试";
-    return `GitHub Models 当前触发了速率限制（HTTP 429）。${waitHint}；这是账号级共享额度，gpt-4.1 和 gpt-4o 也会共同受限。`;
+    return `GitHub Copilot 当前触发了速率限制（HTTP 429）。${waitHint}；这是账号级共享额度，gpt-4.1 和 gpt-4o 也会共同受限。`;
   }
 
   if (status >= 500) {
-    return `GitHub Models 服务暂时不可用（HTTP ${status}）。请稍后再试，或切换到其他可用模型。`;
+    return `GitHub Copilot 服务暂时不可用（HTTP ${status}）。请稍后再试，或切换到其他可用模型。`;
   }
 
-  return buildHttpErrorMessage(status, "GitHub Models", responseText);
+  return buildHttpErrorMessage(status, "GitHub Copilot", responseText);
 }
 
 function shouldRetryGitHubModelsRequest(status, responseText = "") {
@@ -67,7 +68,7 @@ function shouldRetryGitHubModelsRequest(status, responseText = "") {
 function shouldFallbackGitHubModel(model, status, responseText = "") {
   const normalizedModel = String(model || "").trim().toLowerCase();
   const lower = String(responseText || "").toLowerCase();
-  // 403/404 + "no access"/"no_access" 表示当前令牌无权访问该模型（如 PAT 不支持 gpt-5 系列）
+  // 403/404 + "no access"/"no_access" 表示当前登录状态无权访问该模型
   const noAccess =
     (status === 403 || status === 404) &&
     /no[_ ]access|not authorized|forbidden/.test(lower);
@@ -140,7 +141,7 @@ function parseChoicePayload(payload) {
 function getGitHubModelsHeaders(token) {
   const bearer = String(token || "").trim();
   if (!bearer) {
-    throw new Error("请先填写 GitHub 访问令牌。");
+    throw new Error(getGitHubDeviceLoginPrompt());
   }
 
   return {
@@ -248,7 +249,7 @@ async function sendGitHubModelsChatRequest(base, token, body) {
     }
   }
 
-  throw lastError || new Error("GitHub Models 请求失败");
+  throw lastError || new Error("GitHub Copilot 请求失败");
 }
 
 async function requestGitHubModelsChatCompletion(base, token, body) {
@@ -295,7 +296,7 @@ export async function generateGitHubModelsCompletion(base, token, model, prompt)
     const { response, thinking } = parseChoicePayload(payload);
     const text = String(response || "").trim();
     if (!text) {
-      throw new Error("GitHub Models 未返回可用内容。");
+      throw new Error("GitHub Copilot 未返回可用内容。");
     }
     logAiRequestSuccess(trace, {
       status,
@@ -369,7 +370,7 @@ export async function generateGitHubModelsStreamingCompletion(
     const finalResponse = String(responseText || "").trim();
     const finalThinking = String(thinkingText || "").trim();
     if (!finalResponse) {
-      throw new Error("GitHub Models 未返回可用内容。");
+      throw new Error("GitHub Copilot 未返回可用内容。");
     }
     logAiRequestSuccess(trace, {
       status,
@@ -442,7 +443,7 @@ export async function fetchGitHubModels(base, token, options = {}) {
 export async function testGitHubModelsConnection(base, token) {
   const models = await fetchGitHubModels(base, token, { forceRefresh: true });
   if (!Array.isArray(models) || models.length === 0) {
-    throw new Error("GitHub Models 未返回可用模型。");
+    throw new Error("GitHub Copilot 未返回可用模型。");
   }
   return "ok";
 }
