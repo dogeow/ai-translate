@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-**ollama-translate** 是一个 Chrome/Firefox 浏览器扩展，支持：
+**ai-translate** 是一个 Chrome/Firefox 浏览器扩展，支持：
 
 - 选中文字右键翻译、快捷键翻译（Alt+T）
 - 整页翻译（可视区域优先，滚动后继续）
@@ -166,5 +166,5 @@ tools/sync-version.mjs 在每次 dev/build/version 命令前自动同步到 src/
 ### 调试
 
 - **Background**：Chrome DevTools → 扩展 Service Worker「检查视图」
-- **Content Script**：普通页面 DevTools Console（过滤 ollama-translate）
+- **Content Script**：普通页面 DevTools Console（过滤 ai-translate）
 - **Popup/Options**：右键扩展图标 → 审查弹出窗口

@@ -1,7 +1,7 @@
 export const UPDATE_MANIFEST_URL =
-  "https://raw.githubusercontent.com/dogeow/ollama-translate/main/latest.json";
+  "https://raw.githubusercontent.com/dogeow/ai-translate/main/latest.json";
 export const UPDATE_RELEASES_PAGE_URL =
-  "https://github.com/dogeow/ollama-translate/releases";
+  "https://github.com/dogeow/ai-translate/releases";
 export const UPDATE_STATE_KEY = "extensionUpdateState";
 export const UPDATE_CHECK_ALARM_NAME = "extensionUpdateCheck";
 export const UPDATE_CHECK_PERIOD_MINUTES = 720;

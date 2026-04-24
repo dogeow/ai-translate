@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ollama 翻译",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Ollama 翻译扩展",
   "action": {
     "default_icon": {
@@ -25,19 +25,30 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["storage", "contextMenus", "tabs", "scripting", "activeTab", "alarms"],
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "tabs",
+    "scripting",
+    "activeTab",
+    "alarms"
+  ],
   "host_permissions": [
     "<all_urls>",
     "http://localhost:11434/*",
     "http://127.0.0.1:11434/*",
     "https://github.com/*",
     "https://models.github.ai/*",
-    "https://raw.githubusercontent.com/dogeow/ollama-translate/*"
+    "https://raw.githubusercontent.com/dogeow/ai-translate/*"
   ],
   "commands": {
     "translate-selection": {

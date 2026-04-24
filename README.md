@@ -68,7 +68,7 @@ npm start
 
 版本清单 URL 已内置为：
 
-`https://raw.githubusercontent.com/dogeow/ollama-translate/main/latest.json`
+`https://raw.githubusercontent.com/dogeow/ai-translate/main/latest.json`
 
 发布新版本时，同步更新仓库根目录的 `latest.json` 即可。后台会定期检查该文件；如果发现更高版本，弹窗和设置页的「关于」页签都会提示用户打开更新页面。
 

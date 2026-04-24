@@ -12,8 +12,8 @@ import {
 } from "../constants.js";
 
 // Context menu IDs
-export const MENU_TRANSLATE_SELECTION = "ollama-translate";
-export const MENU_TRANSLATE_PAGE = "ollama-translate-page";
+export const MENU_TRANSLATE_SELECTION = "ai-translate";
+export const MENU_TRANSLATE_PAGE = "ai-translate-page";
 export const MENU_OPEN_OPTIONS = "ollama-open-options";
 export const MENU_AUTO_MODE_PARENT = "ollama-auto-translate-mode";
 export const MENU_AUTO_MODE_HOTKEY = "ollama-auto-translate-mode-hotkey";

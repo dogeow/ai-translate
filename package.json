@@ -1,8 +1,8 @@
 {
-  "name": "ollama-translate",
-  "version": "0.0.1",
+  "name": "ai-translate",
+  "version": "0.0.2",
   "type": "module",
-  "description": "Ollama 翻译",
+  "description": "AI 翻译",
   "scripts": {
     "version:sync": "node tools/sync-version.mjs",
     "predev": "node tools/sync-version.mjs",
