@@ -22,10 +22,7 @@ import { fetchGitHubModels } from "../../shared/github-models-api.js";
  * 处理 Ollama / MiniMax 连接检测、模型列表获取和 403 错误弹窗
  */
 export function useConnectionStatus({
-  settingsRef,
-  updateSettings,
-  persistSettings,
-}) {
+} = {}) {
   const [connectionStatus, setConnectionStatus] = useState({
     kind: "pending",
     text: "检测中…",
@@ -352,7 +349,7 @@ export function useConnectionStatus({
         }
       }
     },
-    [settingsRef, updateSettings, persistSettings],
+    [],
   );
 
   return {

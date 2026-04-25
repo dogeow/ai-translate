@@ -55,6 +55,12 @@ export function usePopupSettings() {
     () => getPopupSettingsState().appEnabled,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const {
+    message: saveStatusText,
+    isError: saveStatusIsError,
+    showSuccess,
+    showError,
+  } = useTemporaryMessage(1400);
 
   const applyPopupSettingsState = useCallback((value) => {
     const nextState = getPopupSettingsState(value);
@@ -97,8 +103,15 @@ export function usePopupSettings() {
     setIsSaving(true);
     chrome.storage.sync.set(updates, () => {
       setIsSaving(false);
+      if (chrome.runtime.lastError) {
+        console.error("Save popup settings failed:", chrome.runtime.lastError);
+        showError("保存失败");
+        void reloadPopupSettings();
+        return;
+      }
+      showSuccess("已保存", 900);
     });
-  }, []);
+  }, [reloadPopupSettings, showError, showSuccess]);
 
   // 更新提供商
   const updateProvider = useCallback(
@@ -147,6 +160,8 @@ export function usePopupSettings() {
     hoverTranslateScope,
     appEnabled,
     isSaving,
+    saveStatusText,
+    saveStatusIsError,
     updateProvider,
     updateAutoTranslateMode,
     updateHoverTranslateScope,

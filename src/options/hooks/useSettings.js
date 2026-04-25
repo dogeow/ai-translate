@@ -85,7 +85,7 @@ export function useSettings() {
    * 从 chrome.storage.sync 加载设置
    * @returns {Promise<object>} 加载后的设置
    */
-  async function loadSettings() {
+  const loadSettings = useCallback(async () => {
     const { settings: storedSettings } = await migrateSettingsIfNeeded(
       () => storageSyncGet(null),
       (updates) => storageSyncSet(updates),
@@ -98,7 +98,7 @@ export function useSettings() {
       getSettingsSnapshot(nextSettings),
     );
     return nextSettings;
-  }
+  }, []);
 
   return {
     settings,

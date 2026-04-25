@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function useTransientStatus(timeoutMs = 1800) {
   const [status, setStatus] = useState({ text: "", isError: false });
@@ -10,13 +10,13 @@ export function useTransientStatus(timeoutMs = 1800) {
     };
   }, []);
 
-  function showStatus(text, isError = false) {
+  const showStatus = useCallback((text, isError = false) => {
     setStatus({ text, isError });
     window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       setStatus({ text: "", isError: false });
     }, timeoutMs);
-  }
+  }, [timeoutMs]);
 
   return { status, setStatus, showStatus };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createDefaultUpdateState, UPDATE_STATE_KEY } from "../../shared/update.js";
 import {
   runtimeSendMessage,
@@ -14,13 +14,13 @@ export function useUpdateCheck() {
   const currentVersion = chrome.runtime.getManifest().version;
   const [updateState, setUpdateState] = useState(createDefaultUpdateState(currentVersion));
 
-  async function loadUpdateState() {
+  const loadUpdateState = useCallback(async () => {
     const storedUpdateState = await storageLocalGet(UPDATE_STATE_KEY);
     setUpdateState({
       ...createDefaultUpdateState(currentVersion),
       ...(storedUpdateState || {}),
     });
-  }
+  }, [currentVersion]);
 
   useEffect(() => {
     function handleStorageChanged(changes, areaName) {
@@ -34,7 +34,7 @@ export function useUpdateCheck() {
     return storageOnChanged(handleStorageChanged);
   }, [currentVersion]);
 
-  async function runExtensionUpdateCheck() {
+  const runExtensionUpdateCheck = useCallback(async () => {
     setUpdateState((previous) => ({
       ...previous,
       status: "checking",
@@ -63,12 +63,12 @@ export function useUpdateCheck() {
         error: error.message || String(error),
       }));
     }
-  }
+  }, [currentVersion]);
 
-  async function openUpdatePage() {
+  const openUpdatePage = useCallback(async () => {
     if (!updateState.updateUrl) return;
     await tabsCreate(updateState.updateUrl);
-  }
+  }, [updateState.updateUrl]);
 
   return {
     currentVersion,

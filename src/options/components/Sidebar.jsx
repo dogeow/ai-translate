@@ -1,27 +1,62 @@
 import {
-  IconHome,
-  IconCursor,
-  IconPage,
-  IconTranslate,
-  IconKeyboard,
-  IconCache,
-  IconLogs,
-  IconBook,
-  IconInfo,
   IconBrand,
 } from "./NavIcons.jsx";
+import {
+  OPTIONS_NAV_ITEMS,
+  OPTIONS_TAB_ORDER,
+  getOptionsTabButtonId,
+  getOptionsTabPanelId,
+} from "./optionsNavigation.js";
 
-const NAV_ITEMS = [
-  { id: "home", label: "首页", Icon: IconHome },
-  { id: "pick-mode", label: "取词方式", Icon: IconCursor },
-  { id: "page-translate", label: "页面翻译", Icon: IconPage },
-  { id: "translate", label: "翻译测试", Icon: IconTranslate },
-  { id: "shortcuts", label: "快捷键", Icon: IconKeyboard },
-  { id: "translation-cache", label: "翻译缓存", Icon: IconCache },
-  { id: "logs", label: "请求日志", Icon: IconLogs },
-  { id: "learning", label: "学习模式", Icon: IconBook },
-  { id: "about", label: "关于", Icon: IconInfo },
-];
+function focusAndSelectTab(nextIndex, currentTarget, onTabChange) {
+  const nextTabId = OPTIONS_TAB_ORDER[nextIndex];
+  if (!nextTabId) return;
+
+  onTabChange(nextTabId);
+  const tabButtons = currentTarget
+    .closest('[role="tablist"]')
+    ?.querySelectorAll('[role="tab"]');
+  tabButtons?.[nextIndex]?.focus();
+}
+
+function createTabKeyDownHandler(index, onTabChange) {
+  return (event) => {
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        event.preventDefault();
+        focusAndSelectTab(
+          (index + 1) % OPTIONS_TAB_ORDER.length,
+          event.currentTarget,
+          onTabChange,
+        );
+        break;
+      case "ArrowUp":
+      case "ArrowLeft":
+        event.preventDefault();
+        focusAndSelectTab(
+          (index - 1 + OPTIONS_TAB_ORDER.length) % OPTIONS_TAB_ORDER.length,
+          event.currentTarget,
+          onTabChange,
+        );
+        break;
+      case "Home":
+        event.preventDefault();
+        focusAndSelectTab(0, event.currentTarget, onTabChange);
+        break;
+      case "End":
+        event.preventDefault();
+        focusAndSelectTab(
+          OPTIONS_TAB_ORDER.length - 1,
+          event.currentTarget,
+          onTabChange,
+        );
+        break;
+      default:
+        break;
+    }
+  };
+}
 
 export function Sidebar({ activeTab, onTabChange, currentVersion }) {
   return (
@@ -32,15 +67,24 @@ export function Sidebar({ activeTab, onTabChange, currentVersion }) {
         </div>
         <span className="sidebar-brand__text">Ollama 翻译</span>
       </div>
-      <nav className="sidebar-nav">
-        {NAV_ITEMS.map(({ id, label, Icon }) => (
+      <nav
+        className="sidebar-nav"
+        role="tablist"
+        aria-label="设置"
+        aria-orientation="vertical"
+      >
+        {OPTIONS_NAV_ITEMS.map(({ id, label, Icon }, index) => (
           <button
             key={id}
             type="button"
             className="sidebar-nav-item"
+            id={getOptionsTabButtonId(id)}
             role="tab"
             aria-selected={activeTab === id}
+            aria-controls={getOptionsTabPanelId(id)}
+            tabIndex={activeTab === id ? 0 : -1}
             onClick={() => onTabChange(id)}
+            onKeyDown={createTabKeyDownHandler(index, onTabChange)}
           >
             <Icon />
             <span>{label}</span>
