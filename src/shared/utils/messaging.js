@@ -39,6 +39,7 @@ export function buildPendingTranslatePayload({
   thinking = null,
   sentenceStudyThinking = null,
   sentenceStudyPending = false,
+  downloadProgress = null,
 }) {
   return {
     original: text,
@@ -51,6 +52,7 @@ export function buildPendingTranslatePayload({
     thinking,
     sentenceStudyThinking,
     sentenceStudyPending,
+    downloadProgress,
   };
 }
 

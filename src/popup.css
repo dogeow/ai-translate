@@ -335,8 +335,42 @@ body {
   color: var(--error-text);
 }
 
-.popup-page-translate-btn {
+.popup-page-translate-actions {
+  display: flex;
+  gap: 6px;
   margin-top: 1px;
+}
+
+.popup-page-translate-btn {
+  flex: 1;
+}
+
+.popup-site-translate-btn {
+  flex: 1;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  font-weight: 500;
+}
+
+.popup-site-translate-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.popup-site-translate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.popup-site-translate-btn--on {
+  background: var(--success-bg);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.popup-site-translate-btn--on:hover:not(:disabled) {
+  background: var(--success-bg);
+  filter: brightness(1.15);
 }
 
 .popup-page-translate-status {
@@ -384,6 +418,29 @@ body {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: var(--shadow-focus);
+}
+
+.popup-provider-hint {
+  margin-top: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.popup-provider-hint--ok {
+  color: var(--success, #22c55e);
+  background: var(--success-bg, rgba(34, 197, 94, 0.12));
+}
+
+.popup-provider-hint--warn {
+  color: var(--warning-text, #fcd34d);
+  background: var(--warning-bg, rgba(245, 158, 11, 0.1));
+}
+
+.popup-provider-hint--err {
+  color: var(--error-text, #fca5a5);
+  background: var(--error-bg, rgba(239, 68, 68, 0.1));
 }
 
 /* ===== Choice Cards ===== */

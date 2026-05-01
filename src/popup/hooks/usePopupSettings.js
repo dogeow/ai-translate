@@ -169,22 +169,67 @@ export function usePopupSettings() {
   };
 }
 
+function getActiveTabInfo() {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs?.[0];
+        if (!tab?.id) {
+          resolve(null);
+          return;
+        }
+        let origin = "";
+        try {
+          const url = new URL(tab.url || "");
+          if (/^https?:$/.test(url.protocol)) {
+            origin = `${url.protocol}//${url.host}`;
+          }
+        } catch (_) {}
+        resolve({ tabId: tab.id, origin });
+      });
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
 /**
  * 管理页面翻译功能的 Hook
  */
 export function usePageTranslate(appEnabled) {
   const [isStarting, setIsStarting] = useState(false);
+  const [activeOrigin, setActiveOrigin] = useState("");
+  const [siteEnabled, setSiteEnabled] = useState(false);
   const { message: status, showMessage: showStatus } =
     useTemporaryMessage(2800);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const info = await getActiveTabInfo();
+      if (cancelled || !info) return;
+      setActiveOrigin(info.origin);
+      if (!info.origin) {
+        setSiteEnabled(false);
+        return;
+      }
+      const { isAlwaysTranslateOrigin } = await import(
+        "../../shared/always-translate-origins.js"
+      );
+      const enabled = await isAlwaysTranslateOrigin(info.origin);
+      if (!cancelled) setSiteEnabled(enabled);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const startPageTranslate = useCallback(() => {
     if (isStarting) return;
-
     if (!appEnabled) {
       showStatus("应用已关闭，请先开启应用。");
       return;
     }
-
     setIsStarting(true);
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs?.[0]?.id;
@@ -193,7 +238,6 @@ export function usePageTranslate(appEnabled) {
         showStatus("未找到当前标签页。");
         return;
       }
-
       chrome.tabs.sendMessage(
         tabId,
         { action: "startVisualPageTranslate" },
@@ -213,9 +257,39 @@ export function usePageTranslate(appEnabled) {
     });
   }, [appEnabled, isStarting, showStatus]);
 
+  const toggleSiteAutoTranslate = useCallback(async () => {
+    if (!appEnabled) {
+      showStatus("应用已关闭，请先开启应用。");
+      return;
+    }
+    if (!activeOrigin) {
+      showStatus("当前页面不支持自动翻译（仅 http/https）。");
+      return;
+    }
+    const { toggleAlwaysTranslateOrigin } = await import(
+      "../../shared/always-translate-origins.js"
+    );
+    const result = await toggleAlwaysTranslateOrigin(activeOrigin);
+    if (!result.ok) {
+      showStatus("操作失败，请重试。");
+      return;
+    }
+    setSiteEnabled(result.enabled);
+    if (result.enabled) {
+      showStatus(`已加入自动翻译：${activeOrigin}`);
+      // 同时立即翻译当前页
+      startPageTranslate();
+    } else {
+      showStatus(`已移出自动翻译：${activeOrigin}`);
+    }
+  }, [appEnabled, activeOrigin, showStatus, startPageTranslate]);
+
   return {
     isStarting,
     status,
     startPageTranslate,
+    toggleSiteAutoTranslate,
+    siteAutoTranslateEnabled: siteEnabled,
+    activeOrigin,
   };
 }

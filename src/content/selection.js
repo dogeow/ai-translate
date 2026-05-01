@@ -167,6 +167,17 @@ function getParagraphContainer(element) {
  * @param {number} lastMouseX - 上次鼠标 clientX
  * @param {number} lastMouseY - 上次鼠标 clientY
  */
+function unwrapPageTranslated(element, text) {
+  if (!element) return { element, text };
+  const wrap = element.closest?.(".ollama-pt-wrap");
+  if (!wrap) return { element, text };
+  const orig = wrap.querySelector(".ollama-pt-orig");
+  if (!orig) return { element, text };
+  const origText = (orig.textContent || "").trim();
+  if (!origText) return { element, text };
+  return { element: orig, text: origText };
+}
+
 export function getCurrentElementAndText(lastMouseX, lastMouseY) {
   const sel = window.getSelection();
   if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
@@ -175,7 +186,7 @@ export function getCurrentElementAndText(lastMouseX, lastMouseY) {
     const element =
       ancestor.nodeType === Node.TEXT_NODE ? ancestor.parentElement : ancestor;
     const text = sel.toString().trim();
-    if (element && text) return { element, text };
+    if (element && text) return unwrapPageTranslated(element, text);
   }
   try {
     const range = getPointRange(lastMouseX, lastMouseY);
@@ -191,11 +202,12 @@ export function getCurrentElementAndText(lastMouseX, lastMouseY) {
     if (node.nodeType === Node.TEXT_NODE) {
       text = getWordAtOffset(node.textContent || "", offset);
     }
-    if (element)
-      return {
+    if (element) {
+      return unwrapPageTranslated(
         element,
-        text: text || element.textContent.trim().slice(0, 200),
-      };
+        text || element.textContent.trim().slice(0, 200),
+      );
+    }
   } catch (_) {}
   return { element: null, text: "" };
 }
@@ -234,6 +246,10 @@ export function getHoverTranslateTarget(clientX, clientY, scope = "word") {
   const node = range.startContainer;
   const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
   if (!element || isEditableElement(element) || isInteractiveElement(element)) {
+    return null;
+  }
+  // 已被整页翻译包裹（含原文/译文 span），无需再次 hover 翻译
+  if (element.closest && element.closest(".ollama-pt-wrap")) {
     return null;
   }
 

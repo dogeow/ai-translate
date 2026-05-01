@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { LANG_OPTIONS } from "../../shared/constants.js";
+import { isChromeAiProvider } from "../../shared/settings.js";
 
 const TRANSLATE_RESULT_CLASSES = {
   error: "test-result-block error",
@@ -26,7 +28,17 @@ export function TranslateTestTab({
   testTranslateResult,
   runDetectLanguage,
   runTranslateTest,
+  provider,
 }) {
+  const isChromeAi = isChromeAiProvider(provider);
+
+  // Chrome 内置 AI 不支持自动识别源语言；如果当前选了 auto，自动改成 English
+  useEffect(() => {
+    if (isChromeAi && testSourceLang === "auto") {
+      setTestSourceLang("English");
+    }
+  }, [isChromeAi, testSourceLang, setTestSourceLang]);
+
   const testTranslateClassName = getTranslateResultClass(
     testTranslateResult.tone,
   );
@@ -87,26 +99,32 @@ export function TranslateTestTab({
               value={testSourceLang}
               onChange={(event) => setTestSourceLang(event.target.value)}
             >
-              <option value="auto">自动识别</option>
+              {!isChromeAi ? (
+                <option value="auto">自动识别</option>
+              ) : null}
               {LANG_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={runDetectLanguage}
-            >
-              识别语言
-            </button>
-            <span
-              className={`detect-lang-result ${detectLangResult.isError ? "error" : ""}`.trim()}
-              aria-live="polite"
-            >
-              {detectLangResult.text}
-            </span>
+            {!isChromeAi ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={runDetectLanguage}
+                >
+                  识别语言
+                </button>
+                <span
+                  className={`detect-lang-result ${detectLangResult.isError ? "error" : ""}`.trim()}
+                  aria-live="polite"
+                >
+                  {detectLangResult.text}
+                </span>
+              </>
+            ) : null}
           </div>
         </div>
 

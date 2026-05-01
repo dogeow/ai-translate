@@ -191,6 +191,43 @@ export function createInteractionController({
       return true;
     }
 
+    if (msg.action === "togglePageTranslate") {
+      if (pageTranslator.isActive()) {
+        pageTranslator.stop();
+        sendResponse({ ok: true, toggled: true, active: false });
+      } else {
+        pageTranslator.start();
+        sendResponse({
+          ok: true,
+          toggled: true,
+          active: pageTranslator.isActive(),
+        });
+      }
+      return true;
+    }
+
+    if (msg.action === "cyclePageTranslateMode") {
+      const order = ["translation", "original", "bilingual"];
+      const current =
+        pageTranslator.getDisplayMode?.() || "translation";
+      const next = order[(order.indexOf(current) + 1) % order.length];
+      pageTranslator.setDisplayMode?.(next);
+      const labelMap = {
+        translation: "译文",
+        original: "原文",
+        bilingual: "双语",
+      };
+      showShortcutHint(`显示模式：${labelMap[next] || next}`);
+      sendResponse({ ok: true, mode: next });
+      return true;
+    }
+
+    if (msg.action === "setPageTranslateMode" && msg.mode) {
+      pageTranslator.setDisplayMode?.(msg.mode);
+      sendResponse({ ok: true, mode: msg.mode });
+      return true;
+    }
+
     if (msg.action === "getTextToTranslate") {
       const { element: currentElement, text: currentText } =
         getCurrentElementAndText(state.lastMouseX, state.lastMouseY);

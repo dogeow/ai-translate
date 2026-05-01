@@ -859,6 +859,10 @@ body {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 }
 
+.hint--warn {
+  color: var(--warning-text);
+}
+
 /* ===== Checkbox ===== */
 .checkbox-label {
   display: flex !important;
@@ -877,6 +881,15 @@ body {
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 500;
+}
+
+.checkbox-label--disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.checkbox-label--disabled span {
+  color: var(--text-muted);
 }
 
 /* ===== Shortcuts ===== */
@@ -1715,4 +1728,273 @@ body {
     margin-left: 0;
     padding: 20px 16px;
   }
+}
+
+/* ===== Chrome AI download panel ===== */
+.chrome-ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  margin-top: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.chrome-ai-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.chrome-ai-link-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.chrome-ai-link-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.chrome-ai-link-btn:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.chrome-ai-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.chrome-ai-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.chrome-ai-row-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chrome-ai-row-dot--ok {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.chrome-ai-row-dot--warn {
+  background: var(--warning);
+}
+
+.chrome-ai-row-dot--err {
+  background: var(--error);
+}
+
+.chrome-ai-row-dot--muted {
+  background: var(--text-muted);
+}
+
+.chrome-ai-row-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 80px;
+}
+
+.chrome-ai-row-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+}
+
+.chrome-ai-row--ok .chrome-ai-row-text {
+  color: var(--success);
+}
+
+.chrome-ai-row--err .chrome-ai-row-text {
+  color: var(--error-text);
+}
+
+.chrome-ai-row-action {
+  flex-shrink: 0;
+}
+
+.chrome-ai-row-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+.chrome-ai-progress {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+
+.chrome-ai-progress-bar {
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: inherit;
+  transition: width 120ms ease-out;
+}
+
+.chrome-ai-progress--indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+
+.chrome-ai-progress-bar--indeterminate {
+  position: absolute;
+  width: 30%;
+  height: 100%;
+  animation: chrome-ai-indeterminate 1.4s ease-in-out infinite;
+  transition: none;
+}
+
+@keyframes chrome-ai-indeterminate {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+
+.chrome-ai-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.chrome-ai-panel-hint-block {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-action-border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chrome-ai-panel-hint-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.chrome-ai-panel-hint-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+
+.chrome-ai-panel-hint-steps strong {
+  color: var(--warning-strong);
+  font-weight: 600;
+}
+
+.chrome-ai-flag-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chrome-ai-flag-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--warning-strong);
+  background: var(--warning-action-bg);
+  border: 1px solid var(--warning-action-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: monospace;
+  transition: all var(--transition-fast);
+}
+
+.chrome-ai-flag-btn:hover {
+  background: var(--warning-action-bg-hover);
+  color: var(--warning-text);
+}
+
+.chrome-ai-panel-hint-foot {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chrome-ai-panel-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--error-text);
+}
+
+.chrome-ai-panel-success {
+  margin: 0;
+  font-size: 12px;
+  color: var(--success);
+}
+
+.chrome-ai-pairs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.chrome-ai-pairs-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.chrome-ai-pairs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chrome-ai-pair-chip {
+  font-family: monospace;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.chrome-ai-pair-chip--current {
+  border-color: var(--success);
+  color: var(--success);
+  background: var(--success-bg);
 }

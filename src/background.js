@@ -23,6 +23,9 @@ import {
 import { isRateLimitError } from "./shared/utils/textProcessing.js";
 import { migrateSettingsIfNeeded } from "./shared/settings.js";
 import {
+  toggleAlwaysTranslateOrigin,
+} from "./shared/always-translate-origins.js";
+import {
   translatePageBatchWithProvider,
   translateWithProvider,
 } from "./background/translationService.js";
@@ -54,66 +57,171 @@ chrome.alarms?.onAlarm.addListener((alarm) => {
   void checkForExtensionUpdate();
 });
 
-chrome.commands.onCommand.addListener(async (command) => {
-  console.log(LOG_PREFIX, "command received:", command);
-  if (command !== "translate-selection") return;
-
+async function getActiveTabId() {
   const [tab] = await chrome.tabs.query({
     active: true,
     currentWindow: true,
   });
-  if (!tab?.id) {
-    console.warn(LOG_PREFIX, "no active tab id");
-    return;
-  }
+  return tab?.id || null;
+}
 
-  try {
-    let text = "";
-    const response = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(
-        tab.id,
-        { action: "getTextToTranslate" },
-        (value) => {
-          if (chrome.runtime.lastError) resolve(null);
-          else resolve(value);
-        },
-      );
-    });
-    if (response && (response.text || "").trim()) {
-      text = response.text.trim();
+function sendTabMessageSafe(tabId, message) {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, message, (value) => {
+        if (chrome.runtime.lastError) resolve(null);
+        else resolve(value);
+      });
+    } catch (_) {
+      resolve(null);
     }
-    if (!text) {
+  });
+}
+
+async function handleTranslateSelection(tabId) {
+  let text = "";
+  const response = await sendTabMessageSafe(tabId, {
+    action: "getTextToTranslate",
+  });
+  if (response && (response.text || "").trim()) {
+    text = response.text.trim();
+  }
+  if (!text) {
+    try {
       const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId },
         func: () => {
           const selection = window.getSelection();
           return selection && selection.toString().trim();
         },
       });
       text = (results[0]?.result || "").trim();
+    } catch (_) {}
+  }
+  if (!text) {
+    await sendTabMessageSafe(tabId, {
+      action: "showShortcutHint",
+      message: "请选中文字或将鼠标悬停在单词上",
+    });
+    return;
+  }
+  const result = await translateWithProvider(text, tabId, {
+    showPending: true,
+  });
+  if (!result) return;
+  const sent = await sendTranslateResult(tabId, result);
+  if (!sent) openResultWindow();
+}
+
+async function handleTogglePageTranslate(tabId) {
+  const response = await sendTabMessageSafe(tabId, {
+    action: "togglePageTranslate",
+  });
+  if (!response?.ok && !response?.toggled) {
+    // Fallback: 直接触发开始
+    await triggerVisualPageTranslate(tabId);
+  }
+}
+
+async function handleCycleDisplayMode(tabId) {
+  await sendTabMessageSafe(tabId, { action: "cyclePageTranslateMode" });
+}
+
+async function handleToggleApp() {
+  const stored = await chrome.storage.sync.get(["appEnabled"]);
+  const next = stored?.appEnabled === false;
+  await chrome.storage.sync.set({ appEnabled: next });
+  const tabId = await getActiveTabId();
+  if (tabId) {
+    await sendTabMessageSafe(tabId, {
+      action: "showShortcutHint",
+      message: next ? "已启用 AI 翻译" : "已禁用 AI 翻译",
+    });
+  }
+}
+
+async function handleToggleTranslateSite(tabId) {
+  let origin = "";
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = new URL(tab.url || "");
+    if (/^https?:$/.test(url.protocol)) {
+      origin = `${url.protocol}//${url.host}`;
     }
-    if (!text) {
-      try {
-        await chrome.tabs.sendMessage(tab.id, {
-          action: "showShortcutHint",
-          message: "请选中文字或将鼠标悬停在单词上",
-        });
-      } catch (e) {
-        console.warn(LOG_PREFIX, "send showShortcutHint failed:", e?.message);
-      }
+  } catch (_) {}
+  if (!origin) {
+    await sendTabMessageSafe(tabId, {
+      action: "showShortcutHint",
+      message: "当前页面不支持网站自动翻译（仅 http/https）",
+    });
+    return;
+  }
+  const result = await toggleAlwaysTranslateOrigin(origin);
+  if (!result.ok) return;
+  if (result.enabled) {
+    await sendTabMessageSafe(tabId, {
+      action: "showShortcutHint",
+      message: `已加入自动翻译：${origin}`,
+    });
+    // 立即翻译当前页
+    await triggerVisualPageTranslate(tabId);
+  } else {
+    await sendTabMessageSafe(tabId, {
+      action: "showShortcutHint",
+      message: `已移出自动翻译：${origin}`,
+    });
+  }
+}
+
+async function handleTranslatePageBilingual(tabId) {
+  await sendTabMessageSafe(tabId, {
+    action: "setPageTranslateMode",
+    mode: "bilingual",
+  });
+  const response = await triggerVisualPageTranslate(tabId);
+  if (!response?.ok) {
+    console.warn(LOG_PREFIX, "双语翻译启动失败:", response?.error);
+  }
+}
+
+chrome.commands.onCommand.addListener(async (command) => {
+  console.log(LOG_PREFIX, "command received:", command);
+  try {
+    if (command === "open-options") {
+      await chrome.runtime.openOptionsPage();
       return;
     }
-
-    const result = await translateWithProvider(text, tab.id, {
-      showPending: true,
-    });
-    if (!result) return;
-    const sent = await sendTranslateResult(tab.id, result);
-    if (!sent) {
-      openResultWindow();
+    if (command === "toggle-app") {
+      await handleToggleApp();
+      return;
+    }
+    const tabId = await getActiveTabId();
+    if (!tabId) {
+      console.warn(LOG_PREFIX, "no active tab id");
+      return;
+    }
+    if (command === "translate-selection") {
+      await handleTranslateSelection(tabId);
+      return;
+    }
+    if (command === "toggle-page-translate") {
+      await handleTogglePageTranslate(tabId);
+      return;
+    }
+    if (command === "cycle-display-mode") {
+      await handleCycleDisplayMode(tabId);
+      return;
+    }
+    if (command === "translate-page-bilingual") {
+      await handleTranslatePageBilingual(tabId);
+      return;
+    }
+    if (command === "toggle-translate-site") {
+      await handleToggleTranslateSite(tabId);
+      return;
     }
   } catch (e) {
-    console.error(LOG_PREFIX, "Hotkey translate error:", e);
+    console.error(LOG_PREFIX, "Hotkey error:", e);
   }
 });
 
@@ -213,7 +321,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.action === "translatePageTextBatch" && Array.isArray(msg.texts)) {
-    translatePageBatchWithProvider(msg.texts)
+    const tabId = sender.tab?.id;
+    translatePageBatchWithProvider(msg.texts, {
+      onDownloadProgress: (loaded) => {
+        if (!tabId) return;
+        try {
+          chrome.tabs.sendMessage(
+            tabId,
+            { action: "chromeAiDownloadProgress", loaded },
+            () => {
+              void chrome.runtime.lastError;
+            },
+          );
+        } catch (_) {}
+      },
+    })
       .then((result) => sendResponse(result))
       .catch((error) =>
         sendResponse({

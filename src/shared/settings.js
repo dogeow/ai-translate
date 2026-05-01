@@ -10,6 +10,7 @@ import {
   PROVIDER_MINIMAX_CN,
   PROVIDER_MINIMAX_GLOBAL,
   PROVIDER_GITHUB_MODELS,
+  PROVIDER_CHROME_AI,
   DEFAULT_TRANSLATE_PROVIDER,
   DEFAULT_OLLAMA_URL,
   DEFAULT_OLLAMA_MODEL,
@@ -92,6 +93,7 @@ const CANONICAL_PROVIDER_VALUES = new Set([
   PROVIDER_MINIMAX_CN,
   PROVIDER_MINIMAX_GLOBAL,
   PROVIDER_GITHUB_MODELS,
+  PROVIDER_CHROME_AI,
 ]);
 
 function hasOwnSetting(input, key) {
@@ -195,6 +197,10 @@ export function isGitHubModelsProvider(provider) {
   return provider === PROVIDER_GITHUB_MODELS;
 }
 
+export function isChromeAiProvider(provider) {
+  return provider === PROVIDER_CHROME_AI;
+}
+
 /**
  * 从厂家值得到 MiniMax 区域（仅当 isMiniMaxProvider 为 true 时有效）
  * @param {string} provider
@@ -214,6 +220,9 @@ export function getMiniMaxRegionFromProvider(provider) {
  * @returns {string} 规范化后的提供商：'ollama' | 'minimax-cn' | 'minimax-global'
  */
 export function normalizeTranslateProvider(provider, minimaxRegion) {
+  if (provider === PROVIDER_CHROME_AI) {
+    return PROVIDER_CHROME_AI;
+  }
   if (provider === PROVIDER_GITHUB_MODELS) {
     return PROVIDER_GITHUB_MODELS;
   }

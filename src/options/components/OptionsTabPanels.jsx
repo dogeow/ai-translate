@@ -81,7 +81,9 @@ export function OptionsTabPanels({
         updateConnectionStatus={updateConnectionStatus}
       />
     ),
-    translate: <TranslateTestTab {...translateTestState} />,
+    translate: (
+      <TranslateTestTab {...translateTestState} provider={settings.provider} />
+    ),
     "pick-mode": (
       <PickModeTab
         settings={settings}

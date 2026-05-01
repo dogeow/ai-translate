@@ -57,6 +57,36 @@
         "mac": "Alt+T"
       },
       "description": "翻译选中文本"
+    },
+    "toggle-page-translate": {
+      "suggested_key": {
+        "default": "Alt+P",
+        "mac": "Alt+P"
+      },
+      "description": "开始/停止整页翻译"
+    },
+    "cycle-display-mode": {
+      "suggested_key": {
+        "default": "Alt+M",
+        "mac": "Alt+M"
+      },
+      "description": "页面翻译显示模式：译文 → 原文 → 双语"
+    },
+    "toggle-app": {
+      "suggested_key": {
+        "default": "Alt+Shift+T",
+        "mac": "Alt+Shift+T"
+      },
+      "description": "启用/禁用扩展"
+    },
+    "open-options": {
+      "description": "打开扩展设置"
+    },
+    "translate-page-bilingual": {
+      "description": "整页翻译并切换到双语模式"
+    },
+    "toggle-translate-site": {
+      "description": "始终翻译该网站（加入/移出自动翻译白名单）"
     }
   }
 }

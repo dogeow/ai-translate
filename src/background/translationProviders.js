@@ -6,6 +6,7 @@ import { getOllamaErrorMessage } from "../shared/ollama-errors.js";
 import {
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChromeAiProvider,
 } from "../shared/settings.js";
 import {
   generateMiniMaxCompletion,
@@ -15,6 +16,10 @@ import {
   generateGitHubModelsCompletion,
   generateGitHubModelsStreamingCompletion,
 } from "../shared/github-models-api.js";
+import {
+  generateChromeAiCompletion,
+  generateChromeAiStreamingCompletion,
+} from "../shared/chrome-ai-api.js";
 
 export async function runProviderCompletion({
   provider,
@@ -22,7 +27,12 @@ export async function runProviderCompletion({
   model,
   apiKey,
   prompt,
+  text,
+  targetLang,
 }) {
+  if (isChromeAiProvider(provider)) {
+    return generateChromeAiCompletion(text, targetLang);
+  }
   if (isMiniMaxProvider(provider)) {
     return generateMiniMaxCompletion(base, apiKey, model, prompt);
   }
@@ -38,8 +48,13 @@ export async function runProviderStreaming({
   model,
   apiKey,
   prompt,
+  text,
+  targetLang,
   onChunk,
 }) {
+  if (isChromeAiProvider(provider)) {
+    return generateChromeAiStreamingCompletion(text, targetLang, { onChunk });
+  }
   if (isMiniMaxProvider(provider)) {
     return generateMiniMaxStreamingCompletion(base, apiKey, model, prompt, {
       onChunk,
@@ -54,7 +69,11 @@ export async function runProviderStreaming({
 }
 
 export function toProviderError(provider, error) {
-  if (isMiniMaxProvider(provider) || isGitHubModelsProvider(provider)) {
+  if (
+    isChromeAiProvider(provider) ||
+    isMiniMaxProvider(provider) ||
+    isGitHubModelsProvider(provider)
+  ) {
     return error?.message || String(error);
   }
   return getOllamaErrorMessage(error, { detailed: true });

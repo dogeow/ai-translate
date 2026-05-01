@@ -10,7 +10,12 @@ const IGNORE_TAGS = new Set([
   "PRE",
   "SVG",
   "CANVAS",
+  "KBD",
+  "SAMP",
+  "VAR",
 ]);
+const IGNORE_ANCESTOR_SELECTOR =
+  "script,style,noscript,textarea,input,select,option,code,pre,svg,canvas,kbd,samp,var";
 
 const SIGNIFICANT_CHAR_RE = /[\p{L}\p{N}\u3400-\u9fff]/u;
 const PAGE_TRANSLATE_SCAN_DEBOUNCE_MS = 180;
@@ -21,6 +26,29 @@ const PAGE_TRANSLATE_DEFAULT_BATCH_CHARS = 128;
 const PAGE_TRANSLATE_MAX_ITEMS_PER_BATCH = 32;
 const PAGE_TRANSLATE_MAX_CACHE_SIZE = 300;
 const PAGE_TRANSLATE_PENDING_CLASS = "ollama-page-translate-pending";
+const PAGE_TRANSLATE_WRAP_CLASS = "ollama-pt-wrap";
+const PAGE_TRANSLATE_ORIG_CLASS = "ollama-pt-orig";
+const PAGE_TRANSLATE_TRANS_CLASS = "ollama-pt-trans";
+const DISPLAY_MODE_CLASS_PREFIX = "ollama-pt-mode-";
+export const PAGE_TRANSLATE_DISPLAY_MODES = ["translation", "original", "bilingual"];
+const DEFAULT_DISPLAY_MODE = "translation";
+
+function applyDisplayModeClass(mode) {
+  const root = document.documentElement;
+  if (!root) return;
+  PAGE_TRANSLATE_DISPLAY_MODES.forEach((m) => {
+    root.classList.remove(`${DISPLAY_MODE_CLASS_PREFIX}${m}`);
+  });
+  root.classList.add(`${DISPLAY_MODE_CLASS_PREFIX}${mode}`);
+}
+
+function clearDisplayModeClass() {
+  const root = document.documentElement;
+  if (!root) return;
+  PAGE_TRANSLATE_DISPLAY_MODES.forEach((m) => {
+    root.classList.remove(`${DISPLAY_MODE_CLASS_PREFIX}${m}`);
+  });
+}
 const PAGE_TRANSLATE_RETRY_DELAY_MS = 8000;
 const PAGE_TRANSLATE_RETRY_DELAY_RATE_LIMIT_MS = 60000;
 const THINK_TAG_RE = /<\/?think\b[^>]*>/i;
@@ -169,6 +197,8 @@ export function createVisualPageTranslator({
   let inFlightCount = 0;
   let scanTimerId = null;
   let mutationObserver = null;
+  let displayMode = DEFAULT_DISPLAY_MODE;
+  let displayModeListeners = new Set();
   let maxConcurrent = normalizePositiveInt(
     initialOptions.maxConcurrent,
     1,
@@ -229,6 +259,14 @@ export function createVisualPageTranslator({
     const retryAt = failedNodeRetryAt.get(node) || 0;
     if (retryAt > Date.now()) return false;
     if (IGNORE_TAGS.has(parent.tagName)) return false;
+    // 任意祖先在忽略列表（如 <pre>、<code>）中也跳过，避免代码块被翻译
+    if (parent.closest && parent.closest(IGNORE_ANCESTOR_SELECTOR)) {
+      return false;
+    }
+    // 已翻译并被包裹的节点（含其内部 orig/trans 文本）不再二次处理
+    if (parent.closest && parent.closest(`.${PAGE_TRANSLATE_WRAP_CLASS}`)) {
+      return false;
+    }
     if (isEditable(parent)) return false;
     if (isInteractive(parent)) return false;
     if (typeof isUiElement === "function" && isUiElement(parent)) return false;
@@ -245,8 +283,7 @@ export function createVisualPageTranslator({
     return true;
   }
 
-  function setNodePendingState(node, isPending) {
-    const parent = node?.parentElement;
+  function setParentPendingState(parent, isPending) {
     if (!parent) return;
 
     const currentCount = pendingParentCount.get(parent) || 0;
@@ -265,6 +302,10 @@ export function createVisualPageTranslator({
       return;
     }
     pendingParentCount.set(parent, currentCount - 1);
+  }
+
+  function setNodePendingState(node, isPending) {
+    setParentPendingState(node?.parentElement, isPending);
   }
 
   function collectCandidateTextNodes() {
@@ -406,11 +447,37 @@ export function createVisualPageTranslator({
       if (THINK_TAG_RE.test(translated)) return;
       const currentText = normalizeText(task.node.textContent);
       if (!currentText || currentText !== task.text) return;
-      task.node.textContent = translated;
-      successFlags[index] = true;
+      const replaced = wrapTextNode(task.node, task.text, translated);
+      if (replaced) successFlags[index] = true;
     });
 
     return successFlags;
+  }
+
+  function wrapTextNode(textNode, originalText, translatedText) {
+    const parent = textNode.parentNode;
+    if (!parent) return false;
+    const rawOriginal = textNode.textContent || "";
+    // 保留原文的前后空白：翻译器返回值会被 trim，相邻文本节点直接拼接会丢空格
+    const leading = rawOriginal.match(/^\s*/)?.[0] || "";
+    const trailing = rawOriginal.match(/\s*$/)?.[0] || "";
+
+    const wrap = document.createElement("span");
+    wrap.className = PAGE_TRANSLATE_WRAP_CLASS;
+    const origSpan = document.createElement("span");
+    origSpan.className = PAGE_TRANSLATE_ORIG_CLASS;
+    origSpan.textContent = rawOriginal;
+    const transSpan = document.createElement("span");
+    transSpan.className = PAGE_TRANSLATE_TRANS_CLASS;
+    transSpan.textContent = `${leading}${translatedText}${trailing}`;
+    wrap.appendChild(origSpan);
+    wrap.appendChild(transSpan);
+    try {
+      parent.replaceChild(wrap, textNode);
+    } catch (_) {
+      return false;
+    }
+    return true;
   }
 
   function scheduleScan(immediate = false) {
@@ -433,9 +500,10 @@ export function createVisualPageTranslator({
     for (const item of candidateNodes) {
       if (queue.length >= PAGE_TRANSLATE_MAX_QUEUE_SIZE) break;
       const { node, text } = item;
+      const parent = node.parentElement;
       pendingNodes.add(node);
-      setNodePendingState(node, true);
-      queue.push({ node, text });
+      setParentPendingState(parent, true);
+      queue.push({ node, text, parent });
     }
 
     pumpQueue();
@@ -460,7 +528,7 @@ export function createVisualPageTranslator({
       void processQueueBatch(tasks)
         .then((successFlags = []) => {
           tasks.forEach((task, index) => {
-            setNodePendingState(task.node, false);
+            setParentPendingState(task.parent, false);
             pendingNodes.delete(task.node);
             if (successFlags[index]) {
               translatedNodes.add(task.node);
@@ -479,7 +547,7 @@ export function createVisualPageTranslator({
             isRateLimitedError(error?.message) ||
             isRateLimitedError(error);
           tasks.forEach((task) => {
-            setNodePendingState(task.node, false);
+            setParentPendingState(task.parent, false);
             pendingNodes.delete(task.node);
             if (task?.node?.isConnected) {
               failedNodeRetryAt.set(
@@ -521,6 +589,7 @@ export function createVisualPageTranslator({
     hasShownRateLimitMessage = false;
     if (!active) {
       active = true;
+      applyDisplayModeClass(displayMode);
       ensureMutationObserver();
       if (typeof onStatusMessage === "function") {
         onStatusMessage("已开始页面翻译：优先当前可视区域，并自动继续凑满每批字符数。");
@@ -530,6 +599,27 @@ export function createVisualPageTranslator({
     }
 
     scheduleScan(true);
+  }
+
+  function setDisplayMode(mode) {
+    if (!PAGE_TRANSLATE_DISPLAY_MODES.includes(mode)) return;
+    displayMode = mode;
+    applyDisplayModeClass(mode);
+    displayModeListeners.forEach((fn) => {
+      try {
+        fn(mode);
+      } catch (_) {}
+    });
+  }
+
+  function getDisplayMode() {
+    return displayMode;
+  }
+
+  function onDisplayModeChange(fn) {
+    if (typeof fn !== "function") return () => {};
+    displayModeListeners.add(fn);
+    return () => displayModeListeners.delete(fn);
   }
 
   function handleViewportChanged() {
@@ -543,7 +633,7 @@ export function createVisualPageTranslator({
     disconnectMutationObserver();
     for (const task of queue) {
       if (!task?.node) continue;
-      setNodePendingState(task.node, false);
+      setParentPendingState(task.parent, false);
       pendingNodes.delete(task.node);
     }
     queue.length = 0;
@@ -576,6 +666,9 @@ export function createVisualPageTranslator({
     stop,
     handleViewportChanged,
     updateOptions,
+    setDisplayMode,
+    getDisplayMode,
+    onDisplayModeChange,
     isActive() {
       return active;
     },

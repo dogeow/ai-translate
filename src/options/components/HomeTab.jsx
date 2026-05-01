@@ -11,6 +11,7 @@ import {
   getDefaultMiniMaxApiUrlByRegion,
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChromeAiProvider,
 } from "../../shared/settings.js";
 import { Card } from "./common/Card.jsx";
 import {
@@ -23,6 +24,7 @@ import {
   getMiniMaxConfig,
   isMiniMaxKeyMissing as checkMiniMaxKeyMissing,
 } from "../lib/homeTabUtils.js";
+import { ChromeAiPanel } from "./home-tab/ChromeAiPanel.jsx";
 import { ConnectionTestField } from "./home-tab/ConnectionTestField.jsx";
 import { FIELD_IDS } from "./home-tab/constants.js";
 import { GitHubAuthFields } from "./home-tab/GitHubAuthFields.jsx";
@@ -50,6 +52,7 @@ export function HomeTab({
   );
   const isMiniMax = isMiniMaxProvider(settings.provider);
   const isGitHub = isGitHubModelsProvider(settings.provider);
+  const isChromeAi = isChromeAiProvider(settings.provider);
   const testConnectionClassName = getConnectionResultClass(
     testConnectionResult.tone,
   );
@@ -96,7 +99,7 @@ export function HomeTab({
           onChange={handleProviderChange}
         />
 
-        {!isGitHub ? (
+        {!isGitHub && !isChromeAi ? (
           <AutoSaveInputField
             id={FIELD_IDS.providerApiUrl}
             label={isMiniMax ? "MiniMax API 地址" : "Ollama API 地址"}
@@ -110,6 +113,26 @@ export function HomeTab({
             settingsRef={settingsRef}
             showAutoSaveStatus={showAutoSaveStatus}
           />
+        ) : null}
+
+        {isChromeAi ? (
+          <>
+            <p className="hint" style={{ marginTop: 8 }}>
+              使用 Chrome 内置翻译模型，免费、离线、无 API Key。需 Chrome 138+
+              （含 Edge）。Firefox 暂不支持。
+            </p>
+            <ChromeAiPanel
+              isChromeAi={isChromeAi}
+              targetLang={settings.translateTargetLang}
+              onAfterDownload={() => {
+                void updateConnectionStatus(settingsRef.current, {
+                  preserveTestMessage: false,
+                  updateBannerStatus: true,
+                  showTestPending: false,
+                });
+              }}
+            />
+          </>
         ) : null}
 
         <MiniMaxApiKeyField
@@ -133,31 +156,36 @@ export function HomeTab({
           updateConnectionStatus={updateConnectionStatus}
         />
 
-        <ProviderModelField
-          isMiniMax={isMiniMax}
-          isGitHub={isGitHub}
-          settings={settings}
-          updateSettings={updateSettings}
-          persistSettings={persistSettings}
-          settingsRef={settingsRef}
-          showAutoSaveStatus={showAutoSaveStatus}
-          models={models}
-          modelDropdownOpen={modelDropdownOpen}
-          setModelDropdownOpen={setModelDropdownOpen}
-          modelDropdownRef={modelDropdownRef}
-        />
+        {!isChromeAi ? (
+          <ProviderModelField
+            isMiniMax={isMiniMax}
+            isGitHub={isGitHub}
+            settings={settings}
+            updateSettings={updateSettings}
+            persistSettings={persistSettings}
+            settingsRef={settingsRef}
+            showAutoSaveStatus={showAutoSaveStatus}
+            models={models}
+            modelDropdownOpen={modelDropdownOpen}
+            setModelDropdownOpen={setModelDropdownOpen}
+            modelDropdownRef={modelDropdownRef}
+          />
+        ) : null}
 
-        <ConnectionTestField
-          isMiniMax={isMiniMax}
-          isGitHub={isGitHub}
-          isMiniMaxKeyMissing={isMiniMaxKeyMissing}
-          isGitHubTokenMissing={isGitHubTokenMissing}
-          testConnectionClassName={testConnectionClassName}
-          testConnectionResult={testConnectionResult}
-          settingsRef={settingsRef}
-          updateConnectionStatus={updateConnectionStatus}
-          setOriginsModalOpen={setOriginsModalOpen}
-        />
+        {!isChromeAi ? (
+          <ConnectionTestField
+            isMiniMax={isMiniMax}
+            isGitHub={isGitHub}
+            isChromeAi={isChromeAi}
+            isMiniMaxKeyMissing={isMiniMaxKeyMissing}
+            isGitHubTokenMissing={isGitHubTokenMissing}
+            testConnectionClassName={testConnectionClassName}
+            testConnectionResult={testConnectionResult}
+            settingsRef={settingsRef}
+            updateConnectionStatus={updateConnectionStatus}
+            setOriginsModalOpen={setOriginsModalOpen}
+          />
+        ) : null}
       </Card>
 
       <div className="card">

@@ -5,6 +5,7 @@ import {
   resolveMiniMaxApiKey,
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChromeAiProvider,
   resolveGitHubToken,
   getGitHubDeviceLoginPrompt,
 } from "../shared/settings.js";
@@ -69,16 +70,21 @@ export function resolveProviderRuntime(settings) {
   );
   const isMiniMax = isMiniMaxProvider(provider);
   const isGitHub = isGitHubModelsProvider(provider);
-  const selectedModel = isMiniMax
-    ? normalized.minimaxModel || DEFAULT_MINIMAX_MODEL
-    : isGitHub
-      ? normalized.githubModel || DEFAULT_GITHUB_MODEL
-      : normalized.ollamaModel;
-  const base = isMiniMax
-    ? normalizeMiniMaxBaseUrl(normalized.minimaxApiUrl)
-    : isGitHub
-      ? normalizeGitHubModelsBaseUrl(normalized.githubApiUrl)
-      : String(normalized.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
+  const isChromeAi = isChromeAiProvider(provider);
+  const selectedModel = isChromeAi
+    ? "chrome-translator"
+    : isMiniMax
+      ? normalized.minimaxModel || DEFAULT_MINIMAX_MODEL
+      : isGitHub
+        ? normalized.githubModel || DEFAULT_GITHUB_MODEL
+        : normalized.ollamaModel;
+  const base = isChromeAi
+    ? ""
+    : isMiniMax
+      ? normalizeMiniMaxBaseUrl(normalized.minimaxApiUrl)
+      : isGitHub
+        ? normalizeGitHubModelsBaseUrl(normalized.githubApiUrl)
+        : String(normalized.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
   const minimaxApiKey = resolveMiniMaxApiKey(normalized);
   const githubToken = resolveGitHubToken(normalized);
   const apiKey = isMiniMax ? minimaxApiKey : isGitHub ? githubToken : "";
@@ -87,6 +93,7 @@ export function resolveProviderRuntime(settings) {
     provider,
     isMiniMax,
     isGitHub,
+    isChromeAi,
     selectedModel,
     base,
     minimaxApiKey,

@@ -1,6 +1,7 @@
 export function ConnectionTestField({
   isMiniMax,
   isGitHub,
+  isChromeAi,
   isMiniMaxKeyMissing,
   isGitHubTokenMissing,
   testConnectionClassName,
@@ -24,10 +25,10 @@ export function ConnectionTestField({
             });
           }}
         >
-          测试连接
+          {isChromeAi ? "检查可用性" : "测试连接"}
         </button>
         <span className={testConnectionClassName}>{testConnectionResult.text}</span>
-        {!isMiniMax && !isGitHub && testConnectionResult.showAction ? (
+        {!isMiniMax && !isGitHub && !isChromeAi && testConnectionResult.showAction ? (
           <button
             type="button"
             className="btn btn-secondary test-result-action"

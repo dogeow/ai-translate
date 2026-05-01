@@ -9,6 +9,7 @@ export const PROVIDER_MINIMAX = "minimax"; // legacy
 export const PROVIDER_MINIMAX_CN = "minimax-cn";
 export const PROVIDER_MINIMAX_GLOBAL = "minimax-global";
 export const PROVIDER_GITHUB_MODELS = "github-models";
+export const PROVIDER_CHROME_AI = "chrome-ai";
 export const DEFAULT_TRANSLATE_PROVIDER = PROVIDER_OLLAMA;
 
 export const TRANSLATE_PROVIDER_OPTIONS = [
@@ -16,6 +17,7 @@ export const TRANSLATE_PROVIDER_OPTIONS = [
   { value: PROVIDER_MINIMAX_CN, label: "MiniMax（国内）" },
   { value: PROVIDER_MINIMAX_GLOBAL, label: "MiniMax（海外）" },
   { value: PROVIDER_GITHUB_MODELS, label: "GitHub Copilot" },
+  { value: PROVIDER_CHROME_AI, label: "Chrome 内置 AI（免费 / 离线）" },
 ];
 
 // Ollama 连接配置
@@ -114,6 +116,7 @@ export const DEFAULT_TRANSLATE_PENDING_UPDATE_INTERVAL_MS = 80;
 
 // 存储键名
 export const TRANSLATE_RESULT_KEY = "ollamaTranslateResult";
+export const ALWAYS_TRANSLATE_ORIGINS_KEY = "alwaysTranslateOrigins";
 export const TRANSLATION_CACHE_STORAGE_KEY = "ollamaTranslationCache";
 export const TRANSLATION_CACHE_MAX_ENTRIES = 200;
 export const AI_REQUEST_LOG_STORAGE_KEY = "ollamaAiRequestLogs";

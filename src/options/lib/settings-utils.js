@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChromeAiProvider,
   resolveMiniMaxApiKey,
   getMiniMaxApiKeyLabel,
   resolveGitHubToken,
@@ -18,6 +19,7 @@ import {
 import { generateCompletion } from "../../shared/ollama-api.js";
 import { generateMiniMaxCompletion } from "../../shared/minimax-api.js";
 import { generateGitHubModelsCompletion } from "../../shared/github-models-api.js";
+import { generateChromeAiCompletion } from "../../shared/chrome-ai-api.js";
 
 export {
   formatModelSize,
@@ -67,6 +69,16 @@ export function getSettingsSnapshot(settings = {}) {
 
 export function getConfig(settings = {}) {
   const snapshot = getSettingsSnapshot(settings);
+  if (isChromeAiProvider(snapshot.provider)) {
+    return {
+      provider: snapshot.provider,
+      base: "",
+      model: "chrome-translator",
+      apiKey: "",
+      apiKeyLabel: "",
+      targetLang: snapshot.translateTargetLang,
+    };
+  }
   if (isMiniMaxProvider(snapshot.provider)) {
     const apiKey = resolveMiniMaxApiKey(snapshot);
     return {
@@ -127,7 +139,15 @@ export function getInitialSettings() {
   return getStoredSettingsShape(DEFAULT_SETTINGS);
 }
 
-export function runGenerateRequest(config, prompt) {
+export function runGenerateRequest(config, prompt, options = {}) {
+  if (isChromeAiProvider(config.provider)) {
+    const text = options.text ?? prompt;
+    const targetLang = options.targetLang ?? config.targetLang;
+    return generateChromeAiCompletion(text, targetLang, {
+      onDownloadProgress: options.onDownloadProgress,
+      sourceLang: options.sourceLang || null,
+    });
+  }
   if (isMiniMaxProvider(config.provider)) {
     return generateMiniMaxCompletion(
       config.base,

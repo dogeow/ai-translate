@@ -7,6 +7,7 @@ import {
   getGitHubDeviceLoginPrompt,
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChromeAiProvider,
 } from "../../shared/settings.js";
 import { isOllama403Error } from "../../shared/ollama-errors.js";
 import { getConfig, runGenerateRequest } from "../lib/utils.js";
@@ -109,6 +110,9 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
   }
 
   function getConfigValidationError(config) {
+    if (isChromeAiProvider(config.provider)) {
+      return "";
+    }
     if (!config.model) {
       return isMiniMaxProvider(config.provider)
         ? "请先填写 MiniMax 模型"
@@ -144,6 +148,13 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
     const validationError = getConfigValidationError(config);
     if (validationError) {
       setDetectLangResult({ text: validationError, isError: true });
+      return;
+    }
+    if (isChromeAiProvider(config.provider)) {
+      setDetectLangResult({
+        text: "Chrome 内置 AI 暂不支持语言识别，请使用其他厂家。",
+        isError: true,
+      });
       return;
     }
 
@@ -199,8 +210,22 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
         testSourceLang === "auto"
           ? `Translate the following text to ${testTargetLang}. Detect the source language automatically. Only output the translation, no explanation or extra text.\n\n${text}`
           : `Translate the following text from ${testSourceLang} to ${testTargetLang}. Only output the translation, no explanation or extra text.\n\n${text}`;
+      const onDownloadProgress = isChromeAiProvider(config.provider)
+        ? (loaded) => {
+            if (requestId !== translateRequestIdRef.current) return;
+            setTestTranslateResult({
+              text: `正在下载 Chrome 内置翻译模型… ${Math.round(loaded * 100)}%`,
+              tone: "normal",
+            });
+          }
+        : undefined;
       const translation = normalizeTranslationText(
-        await runGenerateRequest(config, prompt),
+        await runGenerateRequest(config, prompt, {
+          text,
+          targetLang: testTargetLang,
+          sourceLang: testSourceLang === "auto" ? null : testSourceLang,
+          onDownloadProgress,
+        }),
       );
       if (requestId !== translateRequestIdRef.current) return;
       setTestTranslateResult({

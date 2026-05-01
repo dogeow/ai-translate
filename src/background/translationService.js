@@ -16,6 +16,7 @@ import {
 } from "./translationProviders.js";
 import { PROVIDER_OLLAMA } from "../shared/constants.js";
 import { filterTranslationModels } from "../shared/model-utils.js";
+import { generateChromeAiCompletion } from "../shared/chrome-ai-api.js";
 import {
   normalizeDisplayText,
   splitThinkingFromText,
@@ -90,7 +91,7 @@ function buildCredentialErrorResult(text, providerRuntime, credentialError, opti
   });
 }
 
-export async function translatePageBatchWithProvider(texts) {
+export async function translatePageBatchWithProvider(texts, options = {}) {
   const { settings: storedSettings } = await migrateSettingsIfNeeded(
     () => chrome.storage.sync.get(null),
     (updates) => chrome.storage.sync.set(updates),
@@ -129,6 +130,30 @@ export async function translatePageBatchWithProvider(texts) {
     return { ok: false, needModel: false, error: credentialError };
   }
 
+  if (providerRuntime.isChromeAi) {
+    const { onDownloadProgress } = options;
+    const settled = await Promise.all(
+      normalizedTexts.map((entry) =>
+        generateChromeAiCompletion(entry, providerRuntime.targetLang, {
+          onDownloadProgress,
+        }).then(
+          (translated) => ({ ok: true, translated }),
+          (error) => ({ ok: false, error }),
+        ),
+      ),
+    );
+    const failure = settled.find((item) => !item.ok);
+    if (failure) {
+      const message = failure.error?.message || String(failure.error || "");
+      return {
+        ok: false,
+        needModel: false,
+        error: message || "Chrome 内置翻译失败。",
+      };
+    }
+    return { ok: true, translations: settled.map((item) => item.translated) };
+  }
+
   const batchPrompt = buildPageBatchTranslatePrompt(
     normalizedTexts,
     providerRuntime.targetLang,
@@ -143,6 +168,8 @@ export async function translatePageBatchWithProvider(texts) {
       model: providerRuntime.selectedModel,
       apiKey: providerRuntime.apiKey,
       prompt: batchPrompt,
+      text: normalizedTexts.join("\n"),
+      targetLang: providerRuntime.targetLang,
     });
     translations = parsePageBatchTranslations(batchRaw, normalizedTexts.length);
   } catch (error) {
@@ -181,9 +208,10 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
   registerLatestTranslateRequest(tabId, resolvedRequestId);
   const providerRuntime = resolveProviderRuntime(settings);
   const learningModeEnabled =
-    typeof learningModeOverride === "boolean"
+    !providerRuntime.isChromeAi &&
+    (typeof learningModeOverride === "boolean"
       ? learningModeOverride
-      : !!settings.learningModeEnabled;
+      : !!settings.learningModeEnabled);
 
   if (!settings.appEnabled) {
     return null;
@@ -237,6 +265,7 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
   let translation = "";
   let thinking = "";
   let error = null;
+  let downloadProgress = null;
   let hasSentThinkingPreview = false;
   let latestSentenceStudyThinking = "";
   let firstSentenceStudyThinkingAt = 0;
@@ -269,6 +298,7 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
         thinking: thinking || null,
         sentenceStudyThinking: latestSentenceStudyThinking || null,
         sentenceStudyPending: learningModeEnabled,
+        downloadProgress,
       }),
     );
     if (String(thinking || "").trim()) {
@@ -329,10 +359,15 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
       model: providerRuntime.selectedModel,
       apiKey: providerRuntime.apiKey,
       prompt,
+      text,
+      targetLang: providerRuntime.targetLang,
       onChunk: (chunk) => {
         const parsed = splitThinkingFromText(chunk.response || "");
         translation = parsed.translation;
         thinking = mergeThinking(chunk.thinking || "", parsed.thinking);
+        if (typeof chunk.downloadProgress === "number") {
+          downloadProgress = chunk.downloadProgress;
+        }
         void sendPendingProgress();
       },
     });

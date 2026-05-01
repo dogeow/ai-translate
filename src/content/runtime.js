@@ -6,6 +6,7 @@ import { hideButton } from "./button.js";
 import { showShortcutHint } from "./shortcutHint.js";
 import { hideTip } from "./tip.js";
 import { createPageTranslateBridge } from "./pageTranslateBridge.js";
+import { createPageTranslateBar } from "./pageTranslateBar.js";
 import { createInteractionController } from "./interactionController.js";
 import {
   DEFAULT_TRANSLATE_TARGET_LANG,
@@ -31,6 +32,12 @@ import {
   sendMessageSafe,
 } from "./runtimeShared.js";
 import { BUTTON_ID, SHORTCUT_HINT_ID, TIP_ID } from "./constants.js";
+import {
+  ALWAYS_TRANSLATE_ORIGINS_KEY,
+} from "../shared/constants.js";
+import {
+  isAlwaysTranslateOrigin,
+} from "../shared/always-translate-origins.js";
 
 function getAllSyncSettings() {
   return new Promise((resolve) => {
@@ -96,12 +103,33 @@ export function initContentRuntime() {
       !!(
         element &&
         element.closest &&
-        element.closest(`#${BUTTON_ID}, #${TIP_ID}, #${SHORTCUT_HINT_ID}`)
+        element.closest(
+          `#${BUTTON_ID}, #${TIP_ID}, #${SHORTCUT_HINT_ID}, #ollama-pt-bar`,
+        )
       ),
     initialOptions: {
       maxConcurrent: state.pageTranslateConcurrency,
       batchChars: state.pageTranslateBatchChars,
     },
+  });
+
+  const pageTranslateBar = createPageTranslateBar(pageTranslator);
+  const originalStart = pageTranslator.start;
+  const originalStop = pageTranslator.stop;
+  pageTranslator.start = () => {
+    originalStart();
+    pageTranslateBar.show();
+  };
+  pageTranslator.stop = () => {
+    originalStop();
+    pageTranslateBar.hide();
+  };
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.action !== "chromeAiDownloadProgress") return;
+    if (typeof msg.loaded === "number" && pageTranslator.isActive()) {
+      pageTranslateBar.setDownloadProgress(msg.loaded);
+    }
   });
 
   const interactionController = createInteractionController({
@@ -155,10 +183,25 @@ export function initContentRuntime() {
     applyAutoTranslateSettings(settings);
   }
 
-  void loadAutoTranslateSettings();
+  async function maybeAutoStartForAllowedOrigin() {
+    if (!state.appEnabled) return;
+    if (pageTranslator.isActive()) return;
+    try {
+      const here = `${window.location.protocol}//${window.location.host}`;
+      const allowed = await isAlwaysTranslateOrigin(here);
+      if (!allowed) return;
+      if (!state.appEnabled || pageTranslator.isActive()) return;
+      pageTranslator.start();
+    } catch (_) {}
+  }
+
+  void loadAutoTranslateSettings().then(() => maybeAutoStartForAllowedOrigin());
 
   function onStorageChanged(changes, area) {
     if (area !== "sync") return;
+    if (ALWAYS_TRANSLATE_ORIGINS_KEY in changes) {
+      void maybeAutoStartForAllowedOrigin();
+    }
     if (
       !("appEnabled" in changes) &&
       !("autoTranslateMode" in changes) &&

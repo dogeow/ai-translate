@@ -13,9 +13,14 @@ import {
   isMiniMaxProvider,
   getGitHubDeviceLoginPrompt,
   isGitHubModelsProvider,
+  isChromeAiProvider,
 } from "../../shared/settings.js";
 import { filterTranslationModels } from "../../shared/model-utils.js";
 import { fetchGitHubModels } from "../../shared/github-models-api.js";
+import {
+  isChromeAiSupported,
+  checkChromeAiAvailability,
+} from "../../shared/chrome-ai-api.js";
 
 /**
  * 管理翻译提供商连接状态的 hook
@@ -90,11 +95,13 @@ export function useConnectionStatus({
       } = options;
       const requestId = ++connectionRequestIdRef.current;
       const provider = getConfig(nextSettings).provider;
-      const providerLabel = isMiniMaxProvider(provider)
-        ? "MiniMax"
-        : isGitHubModelsProvider(provider)
-          ? "GitHub Copilot"
-          : "Ollama";
+      const providerLabel = isChromeAiProvider(provider)
+        ? "Chrome 内置 AI"
+        : isMiniMaxProvider(provider)
+          ? "MiniMax"
+          : isGitHubModelsProvider(provider)
+            ? "GitHub Copilot"
+            : "Ollama";
       applyConnectionStatus(
         {
           kind: "pending",
@@ -113,6 +120,124 @@ export function useConnectionStatus({
       setModelDropdownOpen(false);
 
       const { base, model, apiKey, apiKeyLabel } = getConfig(nextSettings);
+
+      if (isChromeAiProvider(provider)) {
+        if (!isChromeAiSupported()) {
+          applyConnectionStatus(
+            {
+              kind: "err",
+              text: "当前浏览器不支持 Chrome 内置 AI",
+              showAction: false,
+            },
+            updateBannerStatus,
+          );
+          setModels([]);
+          if (!preserveTestMessage) {
+            setTestConnectionResult({
+              text: "需要 Chrome 138+（含 Edge）。Firefox 暂不支持。",
+              tone: "err",
+              showAction: false,
+            });
+          }
+          return;
+        }
+        try {
+          const status = await checkChromeAiAvailability(
+            nextSettings.translateTargetLang,
+          );
+          if (requestId !== connectionRequestIdRef.current) return;
+          setModels([]);
+
+          if (status.translator === "unavailable") {
+            applyConnectionStatus(
+              {
+                kind: "err",
+                text: `Chrome 内置 AI 不支持 ${status.sourceCode} → ${status.targetCode}`,
+                showAction: false,
+              },
+              updateBannerStatus,
+            );
+            if (!preserveTestMessage) {
+              setTestConnectionResult({
+                text: "请尝试切换默认翻译语言。",
+                tone: "err",
+                showAction: false,
+              });
+            }
+            return;
+          }
+
+          if (status.translator === "available") {
+            applyConnectionStatus(
+              {
+                kind: "ok",
+                text: "Chrome 内置 AI 已就绪",
+                showAction: false,
+              },
+              updateBannerStatus,
+            );
+            if (!preserveTestMessage) {
+              setTestConnectionResult({
+                text: `${status.sourceCode} → ${status.targetCode} 已就绪`,
+                tone: "ok",
+                showAction: false,
+              });
+            }
+          } else if (status.translator === "downloading") {
+            applyConnectionStatus(
+              {
+                kind: "pending",
+                text: "Chrome 内置 AI 模型下载中…",
+                showAction: false,
+              },
+              updateBannerStatus,
+            );
+            if (!preserveTestMessage) {
+              setTestConnectionResult({
+                text: `${status.sourceCode} → ${status.targetCode} 模型正在下载，请稍候。`,
+                tone: "",
+                showAction: false,
+              });
+            }
+          } else {
+            // downloadable
+            applyConnectionStatus(
+              {
+                kind: "403",
+                text: "Chrome 内置 AI 需下载语言模型",
+                showAction: false,
+              },
+              updateBannerStatus,
+            );
+            if (!preserveTestMessage) {
+              setTestConnectionResult({
+                text: `${status.sourceCode} → ${status.targetCode} 模型未下载，可点下方按钮下载，或首次翻译时自动下载。`,
+                tone: "",
+                showAction: false,
+              });
+            }
+          }
+        } catch (error) {
+          if (requestId !== connectionRequestIdRef.current) return;
+          applyConnectionStatus(
+            {
+              kind: "err",
+              text: "Chrome 内置 AI 不可用",
+              showAction: false,
+            },
+            updateBannerStatus,
+          );
+          setModels([]);
+          if (!preserveTestMessage) {
+            setTestConnectionResult({
+              text: error.message || String(error),
+              tone: "err",
+              showAction: false,
+            });
+          }
+        }
+        return;
+      }
 
       if (isMiniMaxProvider(provider)) {
         const fallbackModel =

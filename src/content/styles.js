@@ -380,6 +380,43 @@ export function injectStyles() {
     background: var(--ollama-panel);
 }
 
+#${TIP_ID} .ollama-tip-download {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--ollama-border-soft);
+    border-radius: 10px;
+    background: var(--ollama-panel);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+#${TIP_ID} .ollama-tip-download-label {
+    color: var(--ollama-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#${TIP_ID} .ollama-tip-download-track {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(127, 127, 127, 0.18);
+    overflow: hidden;
+}
+
+#${TIP_ID} .ollama-tip-download-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: inherit;
+    transition: width 120ms ease-out;
+}
+
+#${TIP_ID} .ollama-tip-download-hint {
+    color: var(--ollama-text-muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
 #${TIP_ID} .ollama-tip-thinking-label {
     color: var(--ollama-text-muted);
     font-size: 10px;
@@ -628,6 +665,157 @@ export function injectStyles() {
 @media (prefers-color-scheme: light) {
     .ollama-page-translate-pending {
         text-decoration-color: rgba(217, 119, 6, 0.9);
+    }
+}
+
+/* ===== Page translate display modes ===== */
+.ollama-pt-wrap {
+    display: inline;
+}
+.ollama-pt-orig,
+.ollama-pt-trans {
+    display: inline;
+}
+/* Default fallback (in case no mode class is set): show translation only */
+.ollama-pt-orig { display: none; }
+
+html.ollama-pt-mode-translation .ollama-pt-orig { display: none; }
+html.ollama-pt-mode-translation .ollama-pt-trans { display: inline; }
+
+html.ollama-pt-mode-original .ollama-pt-orig { display: inline; }
+html.ollama-pt-mode-original .ollama-pt-trans { display: none; }
+
+html.ollama-pt-mode-bilingual .ollama-pt-orig {
+    display: inline;
+    opacity: 0.62;
+}
+html.ollama-pt-mode-bilingual .ollama-pt-trans {
+    display: inline;
+}
+html.ollama-pt-mode-bilingual .ollama-pt-trans::before {
+    content: " · ";
+    opacity: 0.5;
+    margin: 0 2px;
+}
+
+/* ===== Page translate control bar ===== */
+#ollama-pt-bar {
+    all: initial;
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 2147483646;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px;
+    min-width: 220px;
+    background: rgba(20, 20, 24, 0.92);
+    color: #fafafa;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    user-select: none;
+}
+
+#ollama-pt-bar .ollama-pt-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#ollama-pt-bar .ollama-pt-bar-progress-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 10px 6px;
+}
+
+#ollama-pt-bar .ollama-pt-bar-progress-row[hidden] {
+    display: none;
+}
+
+#ollama-pt-bar .ollama-pt-bar-progress-label {
+    font-size: 11px;
+    color: rgba(250, 250, 250, 0.78);
+}
+
+#ollama-pt-bar .ollama-pt-bar-progress-track {
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+#ollama-pt-bar .ollama-pt-bar-progress-bar {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: inherit;
+    transition: width 120ms ease-out;
+}
+
+#ollama-pt-bar * { box-sizing: border-box; }
+
+#ollama-pt-bar .ollama-pt-bar-btn {
+    appearance: none;
+    background: transparent;
+    color: rgba(250, 250, 250, 0.7);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 120ms, color 120ms;
+}
+
+#ollama-pt-bar .ollama-pt-bar-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+#ollama-pt-bar .ollama-pt-bar-btn--active {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+}
+
+#ollama-pt-bar .ollama-pt-bar-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.12);
+    margin: 0 2px;
+}
+
+#ollama-pt-bar .ollama-pt-bar-stop {
+    color: rgba(252, 165, 165, 0.85);
+}
+
+#ollama-pt-bar .ollama-pt-bar-stop:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+}
+
+@media (prefers-color-scheme: light) {
+    #ollama-pt-bar {
+        background: rgba(255, 255, 255, 0.96);
+        color: #18181b;
+        border-color: rgba(0, 0, 0, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+    #ollama-pt-bar .ollama-pt-bar-btn {
+        color: rgba(24, 24, 27, 0.7);
+    }
+    #ollama-pt-bar .ollama-pt-bar-btn:hover {
+        background: rgba(0, 0, 0, 0.06);
+        color: #18181b;
+    }
+    #ollama-pt-bar .ollama-pt-bar-divider {
+        background: rgba(0, 0, 0, 0.1);
     }
 }
 

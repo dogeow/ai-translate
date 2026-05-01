@@ -95,6 +95,9 @@ export function PopupApp() {
         isStartingPageTranslate={pageTranslate.isStarting}
         pageTranslateStatus={pageTranslate.status}
         onStartPageTranslate={pageTranslate.startPageTranslate}
+        onToggleSiteAutoTranslate={pageTranslate.toggleSiteAutoTranslate}
+        siteAutoTranslateEnabled={pageTranslate.siteAutoTranslateEnabled}
+        activeOrigin={pageTranslate.activeOrigin}
         provider={popupSettings.provider}
         onProviderChange={popupSettings.updateProvider}
         showStatus={showSaveStatus}

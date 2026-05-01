@@ -38,16 +38,45 @@ function SentenceStudyPlaceholder({ thinking = "" }) {
   );
 }
 
+function DownloadProgressBar({ progress }) {
+  const pct = Math.max(0, Math.min(1, Number(progress) || 0));
+  return (
+    <div className="ollama-tip-download">
+      <div className="ollama-tip-download-label">
+        正在下载语言模型 {Math.round(pct * 100)}%
+      </div>
+      <div className="ollama-tip-download-track">
+        <div
+          className="ollama-tip-download-bar"
+          style={{ width: `${Math.round(pct * 100)}%` }}
+        />
+      </div>
+      <div className="ollama-tip-download-hint">
+        首次使用 Chrome 内置 AI，下载后离线即可翻译。
+      </div>
+    </div>
+  );
+}
+
 function PendingTranslationSection({ result }) {
   const hasThinking = !!String(result.thinking || "").trim();
   const thinkingPreview = getLatestThinkingPreview(result.thinking, 3);
-  const loadingLabel = hasThinking ? "思考中..." : "翻译中...";
+  const isDownloading =
+    typeof result.downloadProgress === "number" && result.downloadProgress < 1;
+  const loadingLabel = isDownloading
+    ? "正在准备模型..."
+    : hasThinking
+      ? "思考中..."
+      : "翻译中...";
 
   return (
     <div className="ollama-tip-section">
       <div className="ollama-tip-label">译文</div>
       <div className="ollama-tip-loading">{loadingLabel}</div>
-      {hasThinking && thinkingPreview ? (
+      {isDownloading ? (
+        <DownloadProgressBar progress={result.downloadProgress} />
+      ) : null}
+      {!isDownloading && hasThinking && thinkingPreview ? (
         <div className="ollama-tip-thinking">
           <div className="ollama-tip-thinking-label">思考过程（最新三行）</div>
           <div className="ollama-tip-thinking-content ollama-tip-thinking-content--preview">
