@@ -7,3 +7,4 @@ export { Panel } from "./Panel.jsx";
 export { PopupHero } from "./PopupHero.jsx";
 export { QuickActionsPanel } from "./QuickActionsPanel.jsx";
 export { UpdateBanner } from "./UpdateBanner.jsx";
+export { UiRewriteAndLearningPanel } from "./UiRewriteAndLearningPanel.jsx";

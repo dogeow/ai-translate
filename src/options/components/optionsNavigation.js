@@ -8,6 +8,8 @@ import {
   IconLogs,
   IconBook,
   IconInfo,
+  IconWand,
+  IconWords,
 } from "./NavIcons.jsx";
 
 export const OPTIONS_NAV_ITEMS = Object.freeze([
@@ -19,6 +21,8 @@ export const OPTIONS_NAV_ITEMS = Object.freeze([
   { id: "translation-cache", label: "翻译缓存", Icon: IconCache },
   { id: "logs", label: "请求日志", Icon: IconLogs },
   { id: "learning", label: "学习模式", Icon: IconBook },
+  { id: "ui-rewrite", label: "AI 页面改造", Icon: IconWand },
+  { id: "word-learning", label: "英语学习", Icon: IconWords },
   { id: "about", label: "关于", Icon: IconInfo },
 ]);
 

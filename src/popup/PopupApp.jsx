@@ -13,6 +13,7 @@ import {
   PopupHero,
   QuickActionsPanel,
   UpdateBanner,
+  UiRewriteAndLearningPanel,
 } from "./components/index.js";
 import {
   usePopupSettings,
@@ -116,6 +117,7 @@ export function PopupApp() {
           onChange={popupSettings.updateHoverTranslateScope}
         />
       )}
+      <UiRewriteAndLearningPanel />
       <p className="popup-version">当前版本 {currentVersion}</p>
     </div>
   );

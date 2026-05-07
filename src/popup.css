@@ -618,6 +618,49 @@ body {
   color: var(--text-disabled);
 }
 
+/* ===== UI Rewrite + Word Learning Panel ===== */
+.popup-rewrite {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.popup-rewrite__input {
+  width: 100%;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font: inherit;
+  resize: vertical;
+}
+
+.popup-rewrite__input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.popup-rewrite__btn {
+  align-self: flex-end;
+}
+
+.popup-rewrite__divider {
+  height: 1px;
+  background: var(--border-default);
+  margin: 10px 0;
+}
+
+.popup-rewrite__toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .popup > * {
     animation: none;

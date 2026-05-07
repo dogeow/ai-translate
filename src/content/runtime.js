@@ -38,6 +38,8 @@ import {
 import {
   isAlwaysTranslateOrigin,
 } from "../shared/always-translate-origins.js";
+import { initUiRewrite } from "./uiRewrite.js";
+import { initWordMarker } from "./wordMarker.js";
 
 function getAllSyncSettings() {
   return new Promise((resolve) => {
@@ -197,6 +199,9 @@ export function initContentRuntime() {
 
   void loadAutoTranslateSettings().then(() => maybeAutoStartForAllowedOrigin());
 
+  const cleanupUiRewrite = initUiRewrite();
+  const cleanupWordMarker = initWordMarker();
+
   function onStorageChanged(changes, area) {
     if (area !== "sync") return;
     if (ALWAYS_TRANSLATE_ORIGINS_KEY in changes) {
@@ -228,6 +233,8 @@ export function initContentRuntime() {
   return function cleanup() {
     interactionController.cleanup();
     chrome.storage.onChanged.removeListener(onStorageChanged);
+    try { cleanupUiRewrite?.(); } catch (_) {}
+    try { cleanupWordMarker?.(); } catch (_) {}
   };
 }
 

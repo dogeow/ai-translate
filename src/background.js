@@ -29,8 +29,35 @@ import {
   translatePageBatchWithProvider,
   translateWithProvider,
 } from "./background/translationService.js";
+import { handleUiRewriteMessage } from "./background/uiRewriteService.js";
+import { handleWordLearningMessage } from "./background/wordLearningService.js";
+import { addKnownWord, addStudyingWord } from "./shared/word-learning.js";
 
 const LOG_PREFIX = "[Ollama 翻译]";
+
+const MENU_REWRITE_PAGE = "ai-translate-rewrite-page";
+const MENU_LEARN_KNOWN = "ai-translate-learn-known";
+const MENU_LEARN_STUDYING = "ai-translate-learn-studying";
+
+async function createExtraContextMenus() {
+  try {
+    chrome.contextMenus.create({
+      id: MENU_REWRITE_PAGE,
+      title: "AI 改造这个页面…",
+      contexts: ["page", "action"],
+    });
+    chrome.contextMenus.create({
+      id: MENU_LEARN_KNOWN,
+      title: "加入我知道的单词",
+      contexts: ["selection"],
+    });
+    chrome.contextMenus.create({
+      id: MENU_LEARN_STUDYING,
+      title: "标记为生词（学习中）",
+      contexts: ["selection"],
+    });
+  } catch (_) {}
+}
 
 async function initializeExtensionRuntime() {
   const migration = await migrateSettingsIfNeeded(
@@ -39,6 +66,7 @@ async function initializeExtensionRuntime() {
   );
   if (!migration.shouldMigrate || migration.writeFailed) {
     await createContextMenus();
+    await createExtraContextMenus();
   }
   void ensureUpdateCheckAlarm();
   void checkForExtensionUpdate();
@@ -251,6 +279,53 @@ chrome.contextMenus.onClicked.addListener(async (info, clickedTab) => {
     return;
   }
 
+  if (info.menuItemId === MENU_REWRITE_PAGE) {
+    const tabId = clickedTab?.id;
+    if (tabId) {
+      try {
+        chrome.tabs.sendMessage(
+          tabId,
+          { action: "openUiRewritePrompt" },
+          () => {
+            void chrome.runtime.lastError;
+          },
+        );
+      } catch (_) {}
+    }
+    return;
+  }
+
+  if (
+    info.menuItemId === MENU_LEARN_KNOWN ||
+    info.menuItemId === MENU_LEARN_STUDYING
+  ) {
+    const word = String(info.selectionText || "").trim();
+    if (!word) return;
+    const tabId = clickedTab?.id;
+    if (info.menuItemId === MENU_LEARN_KNOWN) {
+      const added = await addKnownWord(word);
+      if (tabId) {
+        sendTabMessageSafe(tabId, {
+          action: "showShortcutHint",
+          message: added ? `已入「我知道的单词」：${added}` : "不是有效的英文单词",
+        });
+        sendTabMessageSafe(tabId, { action: "wordsChanged" });
+      }
+    } else {
+      const added = await addStudyingWord(word);
+      if (tabId) {
+        sendTabMessageSafe(tabId, {
+          action: "showShortcutHint",
+          message: added
+            ? `已加入生词：${added}`
+            : "不是有效单词或已在「我知道的单词」里",
+        });
+        sendTabMessageSafe(tabId, { action: "wordsChanged" });
+      }
+    }
+    return;
+  }
+
   const clickedTabId = clickedTab?.id;
   if (info.menuItemId === MENU_TRANSLATE_PAGE) {
     const response = await triggerVisualPageTranslate(clickedTabId);
@@ -302,10 +377,49 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   ) {
     return;
   }
-  void createContextMenus();
+  void createContextMenus().then(() => createExtraContextMenus());
 });
 
+const UI_REWRITE_ACTIONS = new Set([
+  "generateUiRewrite",
+  "getUiRewrites",
+  "getUiRewriteForUrl",
+  "setUiRewriteActiveVersion",
+  "deleteUiRewriteVersion",
+  "deleteUiRewriteRule",
+  "updateUiRewriteRule",
+]);
+
+const WORD_LEARNING_ACTIONS = new Set([
+  "lookupWord",
+  "getAllWords",
+  "getKnownWords",
+  "getStudyingWords",
+  "addKnownWord",
+  "removeKnownWord",
+  "addStudyingWord",
+  "removeStudyingWord",
+  "reviewWord",
+]);
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && UI_REWRITE_ACTIONS.has(msg.action)) {
+    handleUiRewriteMessage(msg, sender)
+      .then((res) => sendResponse(res || { ok: false, error: "unknown_action" }))
+      .catch((err) =>
+        sendResponse({ ok: false, error: err?.message || String(err) }),
+      );
+    return true;
+  }
+  if (msg && WORD_LEARNING_ACTIONS.has(msg.action)) {
+    handleWordLearningMessage(msg)
+      .then((res) => sendResponse(res || { ok: false, error: "unknown_action" }))
+      .catch((err) =>
+        sendResponse({ ok: false, error: err?.message || String(err) }),
+      );
+    return true;
+  }
+
   if (msg.action === "getExtensionUpdateState") {
     readStoredUpdateState()
       .then((state) => sendResponse({ ok: true, state }))

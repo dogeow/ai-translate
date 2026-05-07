@@ -48,7 +48,8 @@
     "http://127.0.0.1:11434/*",
     "https://github.com/*",
     "https://models.github.ai/*",
-    "https://raw.githubusercontent.com/dogeow/ai-translate/*"
+    "https://raw.githubusercontent.com/dogeow/ai-translate/*",
+    "https://dict.youdao.com/*"
   ],
   "commands": {
     "translate-selection": {

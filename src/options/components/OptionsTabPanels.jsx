@@ -6,6 +6,8 @@ import { ShortcutsTab } from "./ShortcutsTab.jsx";
 import { TranslationCacheTab } from "./TranslationCacheTab.jsx";
 import { AiLogsTab } from "./AiLogsTab.jsx";
 import { LearningTab } from "./LearningTab.jsx";
+import { UiRewriteTab } from "./UiRewriteTab.jsx";
+import { WordLearningTab } from "./WordLearningTab.jsx";
 import { AboutTab } from "./AboutTab.jsx";
 import {
   OPTIONS_TAB_ORDER,
@@ -111,6 +113,8 @@ export function OptionsTabPanels({
         updateSettings={updateSettings}
       />
     ),
+    "ui-rewrite": <UiRewriteTab />,
+    "word-learning": <WordLearningTab />,
     about: (
       <AboutTab
         currentVersion={currentVersion}
