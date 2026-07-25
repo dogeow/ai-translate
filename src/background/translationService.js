@@ -35,6 +35,7 @@ import {
   buildErrorResult,
 } from "../shared/utils/messaging.js";
 import { appendTranslationCache } from "../shared/translation-cache.js";
+import { resolveTranslationTargetLang } from "../shared/translation-language.js";
 
 const MIN_THINK_PREVIEW_MS = 320;
 const latestTranslateRequestIdsByTab = new Map();
@@ -111,7 +112,14 @@ export async function translatePageBatchWithProvider(texts, options = {}) {
     return { ok: false, disabled: true };
   }
 
-  const providerRuntime = resolveProviderRuntime(settings);
+  const baseProviderRuntime = resolveProviderRuntime(settings);
+  const providerRuntime = {
+    ...baseProviderRuntime,
+    targetLang: resolveTranslationTargetLang(
+      normalizedTexts.join("\n"),
+      baseProviderRuntime.targetLang,
+    ),
+  };
   if (
     providerRuntime.provider === PROVIDER_OLLAMA &&
     !providerRuntime.selectedModel
@@ -206,7 +214,14 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
   } = options;
   const resolvedRequestId = createTranslateRequestId(requestId);
   registerLatestTranslateRequest(tabId, resolvedRequestId);
-  const providerRuntime = resolveProviderRuntime(settings);
+  const baseProviderRuntime = resolveProviderRuntime(settings);
+  const providerRuntime = {
+    ...baseProviderRuntime,
+    targetLang: resolveTranslationTargetLang(
+      text,
+      baseProviderRuntime.targetLang,
+    ),
+  };
   const learningModeEnabled =
     !providerRuntime.isChromeAi &&
     (typeof learningModeOverride === "boolean"

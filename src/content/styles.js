@@ -337,6 +337,59 @@ export function injectStyles() {
     line-height: 1.6;
 }
 
+#${TIP_ID} .ollama-tip-original-inline {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+#${TIP_ID} .ollama-tip-original-inline .ollama-tip-text {
+    min-width: 0;
+}
+
+#${TIP_ID} .ollama-tip-pronounce {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 25px;
+    height: 25px;
+    padding: 0;
+    color: var(--ollama-text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    cursor: pointer;
+    transition:
+        color 0.15s ease,
+        background 0.15s ease,
+        border-color 0.15s ease;
+}
+
+#${TIP_ID} .ollama-tip-pronounce:hover,
+#${TIP_ID} .ollama-tip-pronounce.is-playing {
+    color: var(--ollama-focus);
+    background: var(--ollama-focus-ring);
+    border-color: var(--ollama-border-soft);
+}
+
+#${TIP_ID} .ollama-tip-pronounce:focus-visible {
+    outline: none;
+    color: var(--ollama-focus);
+    box-shadow: 0 0 0 3px var(--ollama-focus-ring);
+}
+
+#${TIP_ID} .ollama-tip-pronounce-icon {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 #${TIP_ID} .ollama-tip-translation-inline {
     color: var(--ollama-text-strong);
     font-size: 13px;

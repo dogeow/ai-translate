@@ -15,6 +15,11 @@ export function buildYoudaoAudioUrl(word, type = 2) {
   return `${YOUDAO_AUDIO_BASE}?audio=${safeWord}&type=${safeType}`;
 }
 
+export function isPronounceableEnglishWord(word) {
+  const normalizedWord = String(word || "").trim();
+  return /^[A-Za-z]+(?:['’-][A-Za-z]+)*$/.test(normalizedWord);
+}
+
 /**
  * 查询单词，返回 { word, ukphone, usphone, phone, translations[], raw }
  */

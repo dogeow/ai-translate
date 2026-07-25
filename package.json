@@ -9,7 +9,7 @@
     "dev": "extension dev",
     "prebuild": "node tools/sync-version.mjs",
     "build": "extension build",
-    "test": "node --test ./src/shared/settings.test.js ./src/shared/settings-migration-smoke.test.js ./src/options/lib/settings-utils.test.js",
+    "test": "node --test ./src/shared/settings.test.js ./src/shared/settings-migration-smoke.test.js ./src/shared/translation-language.test.js ./src/shared/youdao-api.test.js ./src/options/lib/settings-utils.test.js",
     "prestart": "node tools/sync-version.mjs",
     "start": "extension start",
     "version": "node tools/sync-version.mjs"

@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TARGET_LANG_LABELS } from "../constants.js";
 import { getModelName, getModelDisplay } from "../../shared/model-utils.js";
 import { getOllamaErrorMessage } from "../../shared/ollama-errors.js";
+import {
+  buildYoudaoAudioUrl,
+  isPronounceableEnglishWord,
+} from "../../shared/youdao-api.js";
 
 function getThinkingLines(text) {
   return String(text || "")
@@ -15,6 +19,93 @@ function getLatestThinkingPreview(text, lineCount = 3) {
   const lines = getThinkingLines(text);
   if (lines.length === 0) return "";
   return lines.slice(-lineCount).join("\n");
+}
+
+function SpeakerIcon({ playing }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="ollama-tip-pronounce-icon"
+    >
+      <path d="M11 5 6.8 8.5H3.5v7h3.3L11 19V5Z" />
+      {playing ? (
+        <path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.2 6.5a7.7 7.7 0 0 1 0 11" />
+      ) : (
+        <path d="M15.5 9.2a4 4 0 0 1 0 5.6" />
+      )}
+    </svg>
+  );
+}
+
+function OriginalTextSection({ text }) {
+  const normalizedText = String(text || "").trim();
+  const canPronounce = isPronounceableEnglishWord(normalizedText);
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+
+  function stopAudio({ resetState = true } = {}) {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.currentTime = 0;
+      audioRef.current = null;
+    }
+    if (resetState) setPlaying(false);
+  }
+
+  useEffect(() => {
+    stopAudio();
+    return () => stopAudio({ resetState: false });
+  }, [normalizedText]);
+
+  async function handlePronounce() {
+    if (!canPronounce) return;
+    if (audioRef.current) {
+      stopAudio();
+      return;
+    }
+
+    const audio = new Audio(buildYoudaoAudioUrl(normalizedText, 2));
+    audioRef.current = audio;
+    setPlaying(true);
+
+    const finish = () => {
+      if (audioRef.current !== audio) return;
+      audioRef.current = null;
+      setPlaying(false);
+    };
+    audio.onended = finish;
+    audio.onerror = finish;
+
+    try {
+      await audio.play();
+    } catch (_) {
+      finish();
+    }
+  }
+
+  return (
+    <div className="ollama-tip-section">
+      <div className="ollama-tip-label">原文</div>
+      <div className="ollama-tip-original-inline">
+        <span className="ollama-tip-text">{text || ""}</span>
+        {canPronounce ? (
+          <button
+            type="button"
+            className={`ollama-tip-pronounce${playing ? " is-playing" : ""}`}
+            aria-label={playing ? "停止朗读" : "朗读单词（美式发音）"}
+            title={playing ? "停止朗读" : "朗读单词（美式发音）"}
+            onClick={() => void handlePronounce()}
+          >
+            <SpeakerIcon playing={playing} />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function SentenceStudyPlaceholder({ thinking = "" }) {
@@ -203,10 +294,7 @@ function NeedModelSection({ result, onTranslateWithModel }) {
           })}
         </select>
       </div>
-      <div className="ollama-tip-section">
-        <div className="ollama-tip-label">原文</div>
-        <div className="ollama-tip-text">{result.original || ""}</div>
-      </div>
+      <OriginalTextSection text={result.original} />
       <button
         type="button"
         className="ollama-tip-translate-btn"
@@ -253,10 +341,7 @@ export function TipView({ result, onClose, onTranslateWithModel }) {
     body = (
       <>
         <div className="ollama-tip-body">
-          <div className="ollama-tip-section">
-            <div className="ollama-tip-label">原文</div>
-            <div className="ollama-tip-text">{result.original || ""}</div>
-          </div>
+          <OriginalTextSection text={result.original} />
           <PendingTranslationSection result={result} />
         </div>
         {result.learningModeEnabled ? (
@@ -272,10 +357,7 @@ export function TipView({ result, onClose, onTranslateWithModel }) {
         <div className="ollama-tip-section">
           <div className="ollama-tip-error">{getOllamaErrorMessage(result.error)}</div>
         </div>
-        <div className="ollama-tip-section">
-          <div className="ollama-tip-label">原文</div>
-          <div className="ollama-tip-text">{result.original || ""}</div>
-        </div>
+        <OriginalTextSection text={result.original} />
       </div>
     );
   } else {
@@ -290,10 +372,7 @@ export function TipView({ result, onClose, onTranslateWithModel }) {
               <div className="ollama-tip-error">{getOllamaErrorMessage(result.error)}</div>
             </div>
           ) : null}
-          <div className="ollama-tip-section">
-            <div className="ollama-tip-label">原文</div>
-            <div className="ollama-tip-text">{result.original || ""}</div>
-          </div>
+          <OriginalTextSection text={result.original} />
           <div className="ollama-tip-section">
             <div className="ollama-tip-label">译文</div>
             <div className="ollama-tip-translation-inline">
