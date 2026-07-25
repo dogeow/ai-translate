@@ -1,4 +1,7 @@
-import { DEFAULT_GITHUB_MODEL } from "../../../shared/constants.js";
+import {
+  DEFAULT_CHATGPT_MODEL,
+  DEFAULT_GITHUB_MODEL,
+} from "../../../shared/constants.js";
 import { ModelDropdown } from "../ModelDropdown.jsx";
 import { AutoSaveInputField } from "../common/AutoSaveField.jsx";
 import { FIELD_IDS } from "./constants.js";
@@ -6,6 +9,7 @@ import { FIELD_IDS } from "./constants.js";
 export function ProviderModelField({
   isMiniMax,
   isGitHub,
+  isChatGpt,
   settings,
   updateSettings,
   persistSettings,
@@ -66,6 +70,27 @@ export function ProviderModelField({
         settingsRef={settingsRef}
         showAutoSaveStatus={showAutoSaveStatus}
       />
+    );
+  }
+
+  if (isChatGpt) {
+    return (
+      <>
+        <AutoSaveInputField
+          id={FIELD_IDS.providerModel}
+          label="模型"
+          placeholder={DEFAULT_CHATGPT_MODEL}
+          value={settings.chatgptModel}
+          settingKey="chatgptModel"
+          updateSettings={updateSettings}
+          persistSettings={persistSettings}
+          settingsRef={settingsRef}
+          showAutoSaveStatus={showAutoSaveStatus}
+        />
+        <p className="hint" style={{ marginTop: 8 }}>
+          默认使用 {DEFAULT_CHATGPT_MODEL}。该预览模型需要账号具备相应使用权限。
+        </p>
+      </>
     );
   }
 

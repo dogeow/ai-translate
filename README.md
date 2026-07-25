@@ -1,15 +1,17 @@
-# Ollama / MiniMax / GitHub Copilot 翻译 - 浏览器扩展
+# AI 翻译 - 浏览器扩展
 
-在网页中翻译选中文字，支持本地 Ollama、云端 MiniMax、GitHub Copilot，并提供可选的句型学习模式。
+在网页中翻译选中文字或整页内容，支持本地 Ollama、云端 MiniMax、GitHub Copilot、ChatGPT、Chrome 内置 AI，并提供可选的句型学习与单词学习功能。
 
 ## 功能
 
 - **右键翻译**：选中文字后右键「Ollama 翻译选中内容」
 - **页面翻译（可视区域优先）**：左键打开扩展弹窗后点击「开始页面翻译」，或在网页右键选择「Ollama 翻译整个页面（可视区域优先）」，先翻译当前可视区域，滚动后继续翻译新出现内容
 - **快捷键翻译**：`Alt+T` 翻译当前选中内容（可在扩展快捷方式中修改）
-- **多厂家切换**：`Ollama（本地）`、`MiniMax（云端）`、`GitHub Copilot`
-- **模型选择**：Ollama 使用本地模型列表；MiniMax / GitHub Copilot 可手动指定模型；GitHub Copilot 默认模型为 `openai/gpt-4.1`
-- **翻译偏好**：默认翻译语言单独放在「翻译偏好」卡片中设置
+- **多厂家切换**：`Ollama（本地）`、`MiniMax（云端）`、`GitHub Copilot`、`ChatGPT（设备登录）`、`Chrome 内置 AI`
+- **模型选择**：Ollama 使用本地模型列表；MiniMax / GitHub Copilot / ChatGPT 可手动指定模型；ChatGPT 默认模型为 `gpt-5.3-codex-spark`
+- **中英双向翻译**：默认目标为中文时，英文等内容译为中文；识别到中文原文时自动改译英语。中英文混合页面会按每段语言分别处理
+- **单词朗读**：英文单词翻译结果支持美式发音，使用有道词典音频接口
+- **翻译偏好**：默认翻译语言在「翻译偏好」卡片中设置
 - **学习模式**（可选）：翻译后展示句型分析（主语/谓语/状语等）
 
 ## 前置条件
@@ -19,12 +21,13 @@
 - 如使用 Ollama：本机已安装 [Ollama](https://ollama.com)，并至少拉取一个模型（例如 `ollama pull qwen2.5:7b`）
 - 如使用 MiniMax：准备可用的 MiniMax API Key
 - 如使用 GitHub Copilot：准备一个已启用 Device Flow 的 GitHub OAuth App Client ID，并使用设备登录完成授权
+- 如使用 ChatGPT：账号需要开通 Codex，并在 ChatGPT 安全设置或工作区权限中允许设备码登录；`gpt-5.3-codex-spark` 预览模型需要相应账号权限
 
 ## 配置指引（重点）
 
 `npm run dev` 后，打开扩展设置页：
 
-1. 在「翻译引擎」卡片的 **API 厂家** 下拉框中选择厂家（`Ollama`、`MiniMax` 或 `GitHub Copilot`）。
+1. 在「翻译引擎」卡片的 **API 厂家** 下拉框中选择厂家。
 2. 选择 `MiniMax` 后：
    - **MiniMax API 地址** 默认值：`https://api.minimaxi.com/v1`
    - **MiniMax API Key** 输入框在 API 地址下方
@@ -34,6 +37,13 @@
    - 先填写 `GitHub OAuth App Client ID`
    - 点击 **开始设备登录**，在 GitHub 页面完成授权
    - **模型** 默认值：`openai/gpt-4.1`
+4. 选择 `ChatGPT（设备登录）` 后：
+   - 点击 **开始设备登录**
+   - 在自动打开的 OpenAI 页面输入扩展显示的一次性验证码
+   - 授权成功后扩展会自动保存并刷新令牌；令牌只保存在 `chrome.storage.local`，不会进入浏览器同步设置
+   - **模型** 默认值：`gpt-5.3-codex-spark`
+
+ChatGPT 设备登录使用 OpenAI 官方 Codex 流程，详见 [Codex authentication](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta)。
 
 ## 学习模式说明
 
@@ -55,6 +65,9 @@ npm run dev
 
 # 构建
 npm run build
+
+# 测试（包含语言策略、批量翻译与 DOM 页面翻译）
+npm test
 
 # 构建并启动预览
 npm start
@@ -99,10 +112,16 @@ browser-extension/
 │   │   └── ...
 │   ├── background.js    # 后台消息流、翻译请求与学习模式调度
 │   ├── background/
+│   │   ├── translationService.js
+│   │   ├── pageTranslationService.js
+│   │   ├── translationMessageHandlers.js
 │   │   ├── ollama.js
 │   │   └── sentenceStudy.js
 │   ├── shared/
+│   │   ├── chatgpt-auth.js
+│   │   ├── chatgpt-codex-api.js
 │   │   ├── minimax-api.js
+│   │   ├── translation-language.js
 │   │   └── settings.js
 │   └── icons/
 └── package.json

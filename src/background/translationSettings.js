@@ -5,6 +5,7 @@ import {
   resolveMiniMaxApiKey,
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChatGptProvider,
   isChromeAiProvider,
   resolveGitHubToken,
   getGitHubDeviceLoginPrompt,
@@ -25,6 +26,8 @@ import {
   DEFAULT_GITHUB_DEVICE_TOKEN,
   DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   DEFAULT_GITHUB_MODEL,
+  DEFAULT_CHATGPT_CODEX_API_URL,
+  DEFAULT_CHATGPT_MODEL,
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_LEARNING_MODE_ENABLED,
   DEFAULT_APP_ENABLED,
@@ -47,6 +50,7 @@ export const SYNC_SETTINGS_DEFAULTS = {
   githubDeviceToken: DEFAULT_GITHUB_DEVICE_TOKEN,
   githubOAuthClientId: DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   githubModel: DEFAULT_GITHUB_MODEL,
+  chatgptModel: DEFAULT_CHATGPT_MODEL,
   translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
   learningModeEnabled: DEFAULT_LEARNING_MODE_ENABLED,
   appEnabled: DEFAULT_APP_ENABLED,
@@ -70,6 +74,7 @@ export function resolveProviderRuntime(settings) {
   );
   const isMiniMax = isMiniMaxProvider(provider);
   const isGitHub = isGitHubModelsProvider(provider);
+  const isChatGpt = isChatGptProvider(provider);
   const isChromeAi = isChromeAiProvider(provider);
   const selectedModel = isChromeAi
     ? "chrome-translator"
@@ -77,6 +82,8 @@ export function resolveProviderRuntime(settings) {
       ? normalized.minimaxModel || DEFAULT_MINIMAX_MODEL
       : isGitHub
         ? normalized.githubModel || DEFAULT_GITHUB_MODEL
+        : isChatGpt
+          ? normalized.chatgptModel || DEFAULT_CHATGPT_MODEL
         : normalized.ollamaModel;
   const base = isChromeAi
     ? ""
@@ -84,6 +91,8 @@ export function resolveProviderRuntime(settings) {
       ? normalizeMiniMaxBaseUrl(normalized.minimaxApiUrl)
       : isGitHub
         ? normalizeGitHubModelsBaseUrl(normalized.githubApiUrl)
+        : isChatGpt
+          ? DEFAULT_CHATGPT_CODEX_API_URL
         : String(normalized.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
   const minimaxApiKey = resolveMiniMaxApiKey(normalized);
   const githubToken = resolveGitHubToken(normalized);
@@ -93,6 +102,7 @@ export function resolveProviderRuntime(settings) {
     provider,
     isMiniMax,
     isGitHub,
+    isChatGpt,
     isChromeAi,
     selectedModel,
     base,

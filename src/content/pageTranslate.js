@@ -199,6 +199,8 @@ export function createVisualPageTranslator({
   let mutationObserver = null;
   let displayMode = DEFAULT_DISPLAY_MODE;
   let displayModeListeners = new Set();
+  let translationContext = String(initialOptions.translationContext || "");
+  let requestGeneration = 0;
   let maxConcurrent = normalizePositiveInt(
     initialOptions.maxConcurrent,
     1,
@@ -370,14 +372,20 @@ export function createVisualPageTranslator({
     return nodes;
   }
 
-  async function processQueueBatch(tasks) {
+  function getTranslationCacheKey(text, context = translationContext) {
+    return `${context}\u0000${text}`;
+  }
+
+  async function processQueueBatch(tasks, generation, context) {
     const translations = new Array(tasks.length).fill("");
     const successFlags = new Array(tasks.length).fill(false);
     const unresolved = [];
 
     tasks.forEach((task, index) => {
       if (!task?.node?.isConnected) return;
-      const cached = translationCache.get(task.text);
+      const cached = translationCache.get(
+        getTranslationCacheKey(task.text, context),
+      );
       if (cached) {
         translations[index] = cached;
         return;
@@ -433,12 +441,23 @@ export function createVisualPageTranslator({
         }
       }
 
+      if (generation !== requestGeneration) {
+        return { stale: true, successFlags };
+      }
+
       unresolved.forEach((item, idx) => {
         const translated = resolvedBatchTranslations[idx] || "";
         if (!translated) return;
         translations[item.index] = translated;
-        writeCache(item.task.text, translated);
+        writeCache(
+          getTranslationCacheKey(item.task.text, context),
+          translated,
+        );
       });
+    }
+
+    if (generation !== requestGeneration) {
+      return { stale: true, successFlags };
     }
 
     tasks.forEach((task, index) => {
@@ -451,7 +470,7 @@ export function createVisualPageTranslator({
       if (replaced) successFlags[index] = true;
     });
 
-    return successFlags;
+    return { stale: false, successFlags };
   }
 
   function wrapTextNode(textNode, originalText, translatedText) {
@@ -524,12 +543,15 @@ export function createVisualPageTranslator({
         takeCount += 1;
       }
       const tasks = queue.splice(0, takeCount);
+      const generation = requestGeneration;
+      const context = translationContext;
       inFlightCount += 1;
-      void processQueueBatch(tasks)
-        .then((successFlags = []) => {
+      void processQueueBatch(tasks, generation, context)
+        .then(({ stale = false, successFlags = [] } = {}) => {
           tasks.forEach((task, index) => {
             setParentPendingState(task.parent, false);
             pendingNodes.delete(task.node);
+            if (stale) return;
             if (successFlags[index]) {
               translatedNodes.add(task.node);
               failedNodeRetryAt.delete(task.node);
@@ -542,6 +564,7 @@ export function createVisualPageTranslator({
           });
         })
         .catch((error) => {
+          const stale = generation !== requestGeneration;
           const rateLimited =
             error?.code === "RATE_LIMIT" ||
             isRateLimitedError(error?.message) ||
@@ -549,7 +572,7 @@ export function createVisualPageTranslator({
           tasks.forEach((task) => {
             setParentPendingState(task.parent, false);
             pendingNodes.delete(task.node);
-            if (task?.node?.isConnected) {
+            if (!stale && task?.node?.isConnected) {
               failedNodeRetryAt.set(
                 task.node,
                 Date.now() +
@@ -559,6 +582,7 @@ export function createVisualPageTranslator({
               );
             }
           });
+          if (stale) return;
           if (rateLimited) {
             queue.length = 0;
             if (
@@ -629,6 +653,7 @@ export function createVisualPageTranslator({
 
   function stop() {
     active = false;
+    requestGeneration += 1;
     clearScanTimer();
     disconnectMutationObserver();
     for (const task of queue) {
@@ -656,8 +681,30 @@ export function createVisualPageTranslator({
       2048,
       batchChars,
     );
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        nextOptions,
+        "translationContext",
+      )
+    ) {
+      const nextTranslationContext = String(
+        nextOptions.translationContext || "",
+      );
+      if (nextTranslationContext !== translationContext) {
+        translationContext = nextTranslationContext;
+        requestGeneration += 1;
+        translationCache.clear();
+        for (const task of queue) {
+          setParentPendingState(task.parent, false);
+          pendingNodes.delete(task.node);
+        }
+        queue.length = 0;
+      }
+    }
+
     if (active) {
-      pumpQueue();
+      scheduleScan(true);
     }
   }
 

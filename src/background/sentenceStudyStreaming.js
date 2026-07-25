@@ -3,9 +3,11 @@ import { PROVIDER_OLLAMA } from "../shared/constants.js";
 import {
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChatGptProvider,
 } from "../shared/settings.js";
 import { generateMiniMaxStreamingCompletion } from "../shared/minimax-api.js";
 import { generateGitHubModelsStreamingCompletion } from "../shared/github-models-api.js";
+import { generateChatGptStreamingCompletion } from "../shared/chatgpt-codex-api.js";
 
 export const SENTENCE_STUDY_MAX_TEXT_LENGTH = 1200;
 const MAX_SENTENCE_STUDY_THINKING_CHARS = 900;
@@ -127,6 +129,18 @@ async function runSentenceStudyCompletion(base, model, prompt, runtime = {}) {
       generateGitHubModelsStreamingCompletion(
         base,
         runtime?.apiKey || "",
+        model,
+        prompt,
+        { onChunk: handleStreamChunk },
+      ),
+      SENTENCE_STUDY_REQUEST_TIMEOUT_MS,
+      "句型学习请求超时",
+    );
+  } else if (isChatGptProvider(provider)) {
+    streamed = await withTimeout(
+      generateChatGptStreamingCompletion(
+        base,
+        "",
         model,
         prompt,
         { onChunk: handleStreamChunk },

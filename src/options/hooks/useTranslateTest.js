@@ -7,6 +7,7 @@ import {
   getGitHubDeviceLoginPrompt,
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChatGptProvider,
   isChromeAiProvider,
 } from "../../shared/settings.js";
 import { isOllama403Error } from "../../shared/ollama-errors.js";
@@ -105,7 +106,11 @@ export function useTranslateTest({ settingsRef, setConnectionStatus }) {
         ? "Ollama 连接失败"
         : isMiniMaxProvider(provider)
           ? "MiniMax 连接失败"
-          : "GitHub Copilot 连接失败"
+          : isGitHubModelsProvider(provider)
+            ? "GitHub Copilot 连接失败"
+            : isChatGptProvider(provider)
+              ? "ChatGPT 连接失败"
+              : "AI 服务连接失败"
       : error.message || String(error);
   }
 

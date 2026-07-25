@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  getConfig,
   getSettingsSnapshot,
   getStoredSettingsShape,
 } from "./settings-utils.js";
+import { DEFAULT_CHATGPT_MODEL } from "../../shared/constants.js";
 
 test("getSettingsSnapshot 为无协议 Ollama 地址补上 http", () => {
   const snapshot = getSettingsSnapshot({
@@ -27,11 +29,13 @@ test("getSettingsSnapshot 在保存时会 trim 自定义模型名", () => {
     ollamaModel: "  custom ollama model  ",
     minimaxModel: "  custom minimax model  ",
     githubModel: "  custom github model  ",
+    chatgptModel: "  custom chatgpt model  ",
   });
 
   assert.equal(snapshot.ollamaModel, "custom ollama model");
   assert.equal(snapshot.minimaxModel, "custom minimax model");
   assert.equal(snapshot.githubModel, "custom github model");
+  assert.equal(snapshot.chatgptModel, "custom chatgpt model");
 });
 
 test("getStoredSettingsShape 在加载时会 trim 自定义模型名", () => {
@@ -39,11 +43,21 @@ test("getStoredSettingsShape 在加载时会 trim 自定义模型名", () => {
     ollamaModel: "  local model  ",
     minimaxModel: "  remote minimax model  ",
     githubModel: "  remote github model  ",
+    chatgptModel: "  remote chatgpt model  ",
   });
 
   assert.equal(stored.ollamaModel, "local model");
   assert.equal(stored.minimaxModel, "remote minimax model");
   assert.equal(stored.githubModel, "remote github model");
+  assert.equal(stored.chatgptModel, "remote chatgpt model");
+});
+
+test("ChatGPT provider defaults to gpt-5.3-codex-spark", () => {
+  const config = getConfig({ provider: "chatgpt" });
+
+  assert.equal(config.provider, "chatgpt");
+  assert.equal(config.model, DEFAULT_CHATGPT_MODEL);
+  assert.equal(config.apiKey, "");
 });
 
 test("getSettingsSnapshot 会输出 canonical 通用设置键", () => {

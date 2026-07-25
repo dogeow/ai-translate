@@ -3,6 +3,7 @@ import { getConfig } from "../lib/utils.js";
 import {
   DEFAULT_MINIMAX_MODEL,
   DEFAULT_GITHUB_MODEL,
+  DEFAULT_CHATGPT_MODEL,
 } from "../../shared/constants.js";
 import {
   fetchMiniMaxModels,
@@ -13,6 +14,7 @@ import {
   isMiniMaxProvider,
   getGitHubDeviceLoginPrompt,
   isGitHubModelsProvider,
+  isChatGptProvider,
   isChromeAiProvider,
 } from "../../shared/settings.js";
 import { filterTranslationModels } from "../../shared/model-utils.js";
@@ -21,6 +23,8 @@ import {
   isChromeAiSupported,
   checkChromeAiAvailability,
 } from "../../shared/chrome-ai-api.js";
+import { getChatGptAuthSummary } from "../../shared/chatgpt-auth.js";
+import { testChatGptConnection } from "../../shared/chatgpt-codex-api.js";
 
 /**
  * 管理翻译提供商连接状态的 hook
@@ -101,6 +105,8 @@ export function useConnectionStatus({
           ? "MiniMax"
           : isGitHubModelsProvider(provider)
             ? "GitHub Copilot"
+            : isChatGptProvider(provider)
+              ? "ChatGPT"
             : "Ollama";
       applyConnectionStatus(
         {
@@ -395,6 +401,73 @@ export function useConnectionStatus({
               showAction: false,
             });
           }
+        }
+        return;
+      }
+
+      if (isChatGptProvider(provider)) {
+        const fallbackModel =
+          nextSettings.chatgptModel || DEFAULT_CHATGPT_MODEL;
+        setModels([{ name: fallbackModel }]);
+        const summary = await getChatGptAuthSummary({ refresh: true });
+        if (requestId !== connectionRequestIdRef.current) return;
+
+        if (!summary.isLoggedIn) {
+          applyConnectionStatus(
+            {
+              kind: "err",
+              text: "ChatGPT 尚未登录",
+              showAction: false,
+            },
+            updateBannerStatus,
+          );
+          if (!preserveTestMessage) {
+            setTestConnectionResult({
+              text: summary.error || "请先完成 ChatGPT 设备登录。",
+              tone: "err",
+              showAction: false,
+            });
+          }
+          return;
+        }
+
+        if (showTestPending) {
+          try {
+            await testChatGptConnection(fallbackModel);
+          } catch (error) {
+            if (requestId !== connectionRequestIdRef.current) return;
+            applyConnectionStatus(
+              {
+                kind: "err",
+                text: "ChatGPT 模型不可用",
+                showAction: false,
+              },
+              updateBannerStatus,
+            );
+            setTestConnectionResult({
+              text: error?.message || String(error),
+              tone: "err",
+              showAction: false,
+            });
+            return;
+          }
+        }
+
+        const identity = summary.email ? `（${summary.email}）` : "";
+        applyConnectionStatus(
+          {
+            kind: "ok",
+            text: `ChatGPT 已登录${identity}`,
+            showAction: false,
+          },
+          updateBannerStatus,
+        );
+        if (!preserveTestMessage) {
+          setTestConnectionResult({
+            text: `登录有效，当前模型：${fallbackModel}`,
+            tone: "ok",
+            showAction: false,
+          });
         }
         return;
       }

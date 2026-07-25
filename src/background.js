@@ -20,15 +20,14 @@ import {
   checkForExtensionUpdate,
   UPDATE_CHECK_ALARM_NAME,
 } from "./shared/utils/updateManager.js";
-import { isRateLimitError } from "./shared/utils/textProcessing.js";
 import { migrateSettingsIfNeeded } from "./shared/settings.js";
 import {
   toggleAlwaysTranslateOrigin,
 } from "./shared/always-translate-origins.js";
 import {
-  translatePageBatchWithProvider,
   translateWithProvider,
 } from "./background/translationService.js";
+import { handleTranslationRuntimeMessage } from "./background/translationMessageHandlers.js";
 import { handleUiRewriteMessage } from "./background/uiRewriteService.js";
 import { handleWordLearningMessage } from "./background/wordLearningService.js";
 import { addKnownWord, addStudyingWord } from "./shared/word-learning.js";
@@ -434,103 +433,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (msg.action === "translatePageTextBatch" && Array.isArray(msg.texts)) {
-    const tabId = sender.tab?.id;
-    translatePageBatchWithProvider(msg.texts, {
-      onDownloadProgress: (loaded) => {
-        if (!tabId) return;
-        try {
-          chrome.tabs.sendMessage(
-            tabId,
-            { action: "chromeAiDownloadProgress", loaded },
-            () => {
-              void chrome.runtime.lastError;
-            },
-          );
-        } catch (_) {}
-      },
-    })
-      .then((result) => sendResponse(result))
-      .catch((error) =>
-        sendResponse({
-          ok: false,
-          error: error.message || String(error),
-        }),
-      );
+  if (handleTranslationRuntimeMessage(msg, sender, sendResponse)) {
     return true;
   }
 
-  if (msg.action === "translatePageTextChunk" && msg.text) {
-    const chunkText = String(msg.text).trim();
-    if (!chunkText) {
-      sendResponse({ ok: false, error: "empty_text" });
-      return true;
-    }
-
-    translateWithProvider(chunkText, null, {
-      showPending: false,
-      requestId: msg.requestId,
-      triggerSource: msg.triggerSource || "page-visual",
-      persistResult: false,
-      learningModeOverride: false,
-    })
-      .then((result) => {
-        if (!result) {
-          sendResponse({ ok: false, disabled: true });
-          return;
-        }
-        sendResponse({
-          ok: !result.error && !!result.translation,
-          translation: result.translation || "",
-          error: result.error || null,
-          rateLimited: isRateLimitError(result.error),
-          needModel: !!result.needModel,
-        });
-      })
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (msg.action !== "translate" || !msg.text) return true;
-
-  const text = String(msg.text).trim();
-  const tabId = sender.tab?.id;
-  const fromTip = msg.fromTip;
-  const requestId = msg.requestId;
-  const triggerSource = msg.triggerSource;
-
-  translateWithProvider(text, tabId, {
-    showPending: !fromTip,
-    requestId,
-    triggerSource,
-  })
-    .then((result) => {
-      if (!result) {
-        sendResponse({ ok: true, disabled: true });
-        return;
-      }
-      const responsePayload = {
-        ok: !result.error && !result.needModel,
-        needModel: result.needModel,
-        error: result.error,
-      };
-
-      if (tabId) {
-        sendTranslateResult(tabId, { ...result, fromTip }).then(
-          (sent) => {
-            if (!sent) {
-              openResultWindow();
-            }
-            sendResponse(responsePayload);
-          },
-          () => sendResponse(responsePayload),
-        );
-      } else {
-        openResultWindow();
-        sendResponse(responsePayload);
-      }
-    })
-    .catch((error) => sendResponse({ ok: false, error: error.message }));
-
-  return true;
+  return false;
 });

@@ -10,6 +10,7 @@ import {
   PROVIDER_MINIMAX_CN,
   PROVIDER_MINIMAX_GLOBAL,
   PROVIDER_GITHUB_MODELS,
+  PROVIDER_CHATGPT,
   PROVIDER_CHROME_AI,
   DEFAULT_TRANSLATE_PROVIDER,
   DEFAULT_OLLAMA_URL,
@@ -29,6 +30,7 @@ import {
   DEFAULT_GITHUB_DEVICE_TOKEN,
   DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   DEFAULT_GITHUB_MODEL,
+  DEFAULT_CHATGPT_MODEL,
   GITHUB_AUTH_MODE_DEVICE,
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_AUTO_TRANSLATE_MODE,
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS = {
   githubDeviceToken: DEFAULT_GITHUB_DEVICE_TOKEN,
   githubOAuthClientId: DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   githubModel: DEFAULT_GITHUB_MODEL,
+  chatgptModel: DEFAULT_CHATGPT_MODEL,
   translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
   autoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
   hoverTranslateScope: DEFAULT_HOVER_TRANSLATE_SCOPE,
@@ -93,6 +96,7 @@ const CANONICAL_PROVIDER_VALUES = new Set([
   PROVIDER_MINIMAX_CN,
   PROVIDER_MINIMAX_GLOBAL,
   PROVIDER_GITHUB_MODELS,
+  PROVIDER_CHATGPT,
   PROVIDER_CHROME_AI,
 ]);
 
@@ -197,6 +201,10 @@ export function isGitHubModelsProvider(provider) {
   return provider === PROVIDER_GITHUB_MODELS;
 }
 
+export function isChatGptProvider(provider) {
+  return provider === PROVIDER_CHATGPT;
+}
+
 export function isChromeAiProvider(provider) {
   return provider === PROVIDER_CHROME_AI;
 }
@@ -225,6 +233,9 @@ export function normalizeTranslateProvider(provider, minimaxRegion) {
   }
   if (provider === PROVIDER_GITHUB_MODELS) {
     return PROVIDER_GITHUB_MODELS;
+  }
+  if (provider === PROVIDER_CHATGPT) {
+    return PROVIDER_CHATGPT;
   }
   if (
     provider === PROVIDER_MINIMAX_CN ||
@@ -518,6 +529,7 @@ function normalizeSettings(settings = {}, options = {}) {
     githubOAuthClientId,
     githubToken,
     githubModel: settings?.githubModel || DEFAULT_SETTINGS.githubModel,
+    chatgptModel: settings?.chatgptModel || DEFAULT_SETTINGS.chatgptModel,
     translateTargetLang:
       settings?.translateTargetLang || DEFAULT_SETTINGS.translateTargetLang,
     autoTranslateMode: normalizeAutoTranslateMode(

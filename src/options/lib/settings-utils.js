@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChatGptProvider,
   isChromeAiProvider,
   resolveMiniMaxApiKey,
   getMiniMaxApiKeyLabel,
@@ -20,6 +21,7 @@ import { generateCompletion } from "../../shared/ollama-api.js";
 import { generateMiniMaxCompletion } from "../../shared/minimax-api.js";
 import { generateGitHubModelsCompletion } from "../../shared/github-models-api.js";
 import { generateChromeAiCompletion } from "../../shared/chrome-ai-api.js";
+import { generateChatGptCompletion } from "../../shared/chatgpt-codex-api.js";
 
 export {
   formatModelSize,
@@ -64,6 +66,10 @@ export function getSettingsSnapshot(settings = {}) {
       settings.githubModel,
       DEFAULT_SETTINGS.githubModel,
     ),
+    chatgptModel: normalizeModelInput(
+      settings.chatgptModel,
+      DEFAULT_SETTINGS.chatgptModel,
+    ),
   };
 }
 
@@ -101,6 +107,16 @@ export function getConfig(settings = {}) {
     };
   }
 
+  if (isChatGptProvider(snapshot.provider)) {
+    return {
+      provider: snapshot.provider,
+      base: "",
+      model: snapshot.chatgptModel,
+      apiKey: "",
+      apiKeyLabel: "",
+    };
+  }
+
   return {
     provider: PROVIDER_OLLAMA,
     base: snapshot.ollamaUrl,
@@ -128,6 +144,10 @@ export function getStoredSettingsShape(stored = {}) {
     githubModel: normalizeModelInput(
       stored.githubModel,
       DEFAULT_SETTINGS.githubModel,
+    ),
+    chatgptModel: normalizeModelInput(
+      stored.chatgptModel,
+      DEFAULT_SETTINGS.chatgptModel,
     ),
     hoverTranslateDelayMs: String(normalized.hoverTranslateDelayMs),
     pageTranslateConcurrency: String(normalized.pageTranslateConcurrency),
@@ -160,6 +180,14 @@ export function runGenerateRequest(config, prompt, options = {}) {
     return generateGitHubModelsCompletion(
       config.base,
       config.apiKey,
+      config.model,
+      prompt,
+    );
+  }
+  if (isChatGptProvider(config.provider)) {
+    return generateChatGptCompletion(
+      config.base,
+      "",
       config.model,
       prompt,
     );

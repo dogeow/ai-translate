@@ -11,6 +11,7 @@ import {
   getDefaultMiniMaxApiUrlByRegion,
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChatGptProvider,
   isChromeAiProvider,
 } from "../../shared/settings.js";
 import { Card } from "./common/Card.jsx";
@@ -28,6 +29,7 @@ import { ChromeAiPanel } from "./home-tab/ChromeAiPanel.jsx";
 import { ConnectionTestField } from "./home-tab/ConnectionTestField.jsx";
 import { FIELD_IDS } from "./home-tab/constants.js";
 import { GitHubAuthFields } from "./home-tab/GitHubAuthFields.jsx";
+import { ChatGptAuthFields } from "./home-tab/ChatGptAuthFields.jsx";
 import { MiniMaxApiKeyField } from "./home-tab/MiniMaxApiKeyField.jsx";
 import { ProviderModelField } from "./home-tab/ProviderModelField.jsx";
 
@@ -52,6 +54,7 @@ export function HomeTab({
   );
   const isMiniMax = isMiniMaxProvider(settings.provider);
   const isGitHub = isGitHubModelsProvider(settings.provider);
+  const isChatGpt = isChatGptProvider(settings.provider);
   const isChromeAi = isChromeAiProvider(settings.provider);
   const testConnectionClassName = getConnectionResultClass(
     testConnectionResult.tone,
@@ -99,7 +102,7 @@ export function HomeTab({
           onChange={handleProviderChange}
         />
 
-        {!isGitHub && !isChromeAi ? (
+        {!isGitHub && !isChatGpt && !isChromeAi ? (
           <AutoSaveInputField
             id={FIELD_IDS.providerApiUrl}
             label={isMiniMax ? "MiniMax API 地址" : "Ollama API 地址"}
@@ -156,10 +159,17 @@ export function HomeTab({
           updateConnectionStatus={updateConnectionStatus}
         />
 
+        <ChatGptAuthFields
+          isChatGpt={isChatGpt}
+          settingsRef={settingsRef}
+          updateConnectionStatus={updateConnectionStatus}
+        />
+
         {!isChromeAi ? (
           <ProviderModelField
             isMiniMax={isMiniMax}
             isGitHub={isGitHub}
+            isChatGpt={isChatGpt}
             settings={settings}
             updateSettings={updateSettings}
             persistSettings={persistSettings}
@@ -176,6 +186,7 @@ export function HomeTab({
           <ConnectionTestField
             isMiniMax={isMiniMax}
             isGitHub={isGitHub}
+            isChatGpt={isChatGpt}
             isChromeAi={isChromeAi}
             isMiniMaxKeyMissing={isMiniMaxKeyMissing}
             isGitHubTokenMissing={isGitHubTokenMissing}

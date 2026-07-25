@@ -9,6 +9,7 @@ export const PROVIDER_MINIMAX = "minimax"; // legacy
 export const PROVIDER_MINIMAX_CN = "minimax-cn";
 export const PROVIDER_MINIMAX_GLOBAL = "minimax-global";
 export const PROVIDER_GITHUB_MODELS = "github-models";
+export const PROVIDER_CHATGPT = "chatgpt";
 export const PROVIDER_CHROME_AI = "chrome-ai";
 export const DEFAULT_TRANSLATE_PROVIDER = PROVIDER_OLLAMA;
 
@@ -17,6 +18,7 @@ export const TRANSLATE_PROVIDER_OPTIONS = [
   { value: PROVIDER_MINIMAX_CN, label: "MiniMax（国内）" },
   { value: PROVIDER_MINIMAX_GLOBAL, label: "MiniMax（海外）" },
   { value: PROVIDER_GITHUB_MODELS, label: "GitHub Copilot" },
+  { value: PROVIDER_CHATGPT, label: "ChatGPT（设备登录）" },
   { value: PROVIDER_CHROME_AI, label: "Chrome 内置 AI（免费 / 离线）" },
 ];
 
@@ -55,6 +57,11 @@ export const GITHUB_MODEL_WHITELIST = Object.freeze([
   "openai/gpt-4.1",
   "openai/gpt-4o",
 ]);
+
+// ChatGPT / Codex 连接配置
+export const DEFAULT_CHATGPT_CODEX_API_URL =
+  "https://chatgpt.com/backend-api/codex";
+export const DEFAULT_CHATGPT_MODEL = "gpt-5.3-codex-spark";
 
 // 翻译配置
 export const DEFAULT_TRANSLATE_TARGET_LANG = "Chinese";

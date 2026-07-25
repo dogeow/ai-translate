@@ -6,6 +6,7 @@ import { getOllamaErrorMessage } from "../shared/ollama-errors.js";
 import {
   isMiniMaxProvider,
   isGitHubModelsProvider,
+  isChatGptProvider,
   isChromeAiProvider,
 } from "../shared/settings.js";
 import {
@@ -20,6 +21,10 @@ import {
   generateChromeAiCompletion,
   generateChromeAiStreamingCompletion,
 } from "../shared/chrome-ai-api.js";
+import {
+  generateChatGptCompletion,
+  generateChatGptStreamingCompletion,
+} from "../shared/chatgpt-codex-api.js";
 
 export async function runProviderCompletion({
   provider,
@@ -38,6 +43,9 @@ export async function runProviderCompletion({
   }
   if (isGitHubModelsProvider(provider)) {
     return generateGitHubModelsCompletion(base, apiKey, model, prompt);
+  }
+  if (isChatGptProvider(provider)) {
+    return generateChatGptCompletion(base, apiKey, model, prompt);
   }
   return generateOllamaResponse(base, model, prompt);
 }
@@ -65,6 +73,11 @@ export async function runProviderStreaming({
       onChunk,
     });
   }
+  if (isChatGptProvider(provider)) {
+    return generateChatGptStreamingCompletion(base, apiKey, model, prompt, {
+      onChunk,
+    });
+  }
   return generateOllamaStreamingResponse(base, model, prompt, { onChunk });
 }
 
@@ -72,7 +85,8 @@ export function toProviderError(provider, error) {
   if (
     isChromeAiProvider(provider) ||
     isMiniMaxProvider(provider) ||
-    isGitHubModelsProvider(provider)
+    isGitHubModelsProvider(provider) ||
+    isChatGptProvider(provider)
   ) {
     return error?.message || String(error);
   }

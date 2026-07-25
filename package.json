@@ -9,13 +9,14 @@
     "dev": "extension dev",
     "prebuild": "node tools/sync-version.mjs",
     "build": "extension build",
-    "test": "node --test ./src/shared/settings.test.js ./src/shared/settings-migration-smoke.test.js ./src/shared/translation-language.test.js ./src/shared/youdao-api.test.js ./src/options/lib/settings-utils.test.js",
+    "test": "node --test",
     "prestart": "node tools/sync-version.mjs",
     "start": "extension start",
     "version": "node tools/sync-version.mjs"
   },
   "devDependencies": {
-    "extension": "latest"
+    "extension": "latest",
+    "jsdom": "^26.1.0"
   },
   "dependencies": {
     "react": "^19.2.4",

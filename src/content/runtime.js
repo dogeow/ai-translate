@@ -27,10 +27,10 @@ import {
   normalizePageTranslateBatchChars,
 } from "../shared/settings.js";
 import {
-  createChineseTextGuards,
   logDebug,
   sendMessageSafe,
 } from "./runtimeShared.js";
+import { isChineseIdentifierText } from "../shared/translation-language.js";
 import { BUTTON_ID, SHORTCUT_HINT_ID, TIP_ID } from "./constants.js";
 import {
   ALWAYS_TRANSLATE_ORIGINS_KEY,
@@ -84,17 +84,12 @@ export function initContentRuntime() {
     pageTranslateConcurrency: DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
     pageTranslateBatchChars: DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
   };
-  const { isMostlyChineseText, isChineseIdentifierText } =
-    createChineseTextGuards();
-
   function shouldSkipHoverTranslate(text) {
-    if (isChineseIdentifierText(text)) return true;
-    return state.translateTargetLang === "Chinese" && isMostlyChineseText(text);
+    return isChineseIdentifierText(text);
   }
 
   function shouldSkipPageTranslate(text) {
-    if (isChineseIdentifierText(text)) return true;
-    return state.translateTargetLang === "Chinese" && isMostlyChineseText(text);
+    return isChineseIdentifierText(text);
   }
 
   const pageTranslator = createPageTranslateBridge({
@@ -112,6 +107,7 @@ export function initContentRuntime() {
     initialOptions: {
       maxConcurrent: state.pageTranslateConcurrency,
       batchChars: state.pageTranslateBatchChars,
+      translationContext: state.translateTargetLang,
     },
   });
 
@@ -163,6 +159,7 @@ export function initContentRuntime() {
     pageTranslator.updateOptions({
       maxConcurrent: state.pageTranslateConcurrency,
       batchChars: state.pageTranslateBatchChars,
+      translationContext: state.translateTargetLang,
     });
     interactionController.clearSelectionAutoTranslateTimer();
     interactionController.clearHoverAutoTranslateTimer({
