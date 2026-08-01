@@ -60,11 +60,23 @@ test("ChatGPT provider defaults to gpt-5.3-codex-spark", () => {
   assert.equal(config.apiKey, "");
 });
 
+test("settings keep the added provider card list and include the active provider", () => {
+  const snapshot = getSettingsSnapshot({
+    provider: "chatgpt",
+    addedProviders: ["ollama", "ollama"],
+    verifiedProviders: ["ollama", "chrome-ai", "ollama"],
+  });
+
+  assert.deepEqual(snapshot.addedProviders, ["chatgpt", "ollama"]);
+  assert.deepEqual(snapshot.verifiedProviders, ["ollama"]);
+});
+
 test("getSettingsSnapshot 会输出 canonical 通用设置键", () => {
   const snapshot = getSettingsSnapshot({
     provider: "github-models",
     autoTranslateMode: "hover",
     hoverTranslateScope: "paragraph",
+    hoverTranslateModifierKey: "control",
     hoverTranslateDelayMs: "650",
     pageTranslateConcurrency: "6",
     pageTranslateBatchChars: "420",
@@ -73,6 +85,7 @@ test("getSettingsSnapshot 会输出 canonical 通用设置键", () => {
   assert.equal(snapshot.provider, "github-models");
   assert.equal(snapshot.autoTranslateMode, "hover");
   assert.equal(snapshot.hoverTranslateScope, "paragraph");
+  assert.equal(snapshot.hoverTranslateModifierKey, "control");
   assert.equal(snapshot.hoverTranslateDelayMs, 650);
   assert.equal(snapshot.pageTranslateConcurrency, 6);
   assert.equal(snapshot.pageTranslateBatchChars, 420);
@@ -85,6 +98,7 @@ test("getStoredSettingsShape 会保留 canonical 通用设置键并格式化数�
     minimaxRegion: "global",
     autoTranslateMode: "selection",
     hoverTranslateScope: "paragraph",
+    hoverTranslateModifierKey: "meta",
     hoverTranslateDelayMs: 700,
     pageTranslateConcurrency: 5,
     pageTranslateBatchChars: 380,
@@ -93,6 +107,7 @@ test("getStoredSettingsShape 会保留 canonical 通用设置键并格式化数�
   assert.equal(stored.provider, "minimax-global");
   assert.equal(stored.autoTranslateMode, "selection");
   assert.equal(stored.hoverTranslateScope, "paragraph");
+  assert.equal(stored.hoverTranslateModifierKey, "meta");
   assert.equal(stored.hoverTranslateDelayMs, "700");
   assert.equal(stored.pageTranslateConcurrency, "5");
   assert.equal(stored.pageTranslateBatchChars, "380");

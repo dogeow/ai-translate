@@ -21,6 +21,7 @@ test("legacy 通用设置升级后 popup、菜单、运行时和 options 形状�
     minimaxModel: "MiniMax-M2.5-custom",
     ollamaAutoTranslateSelection: true,
     ollamaHoverTranslateScope: "paragraph",
+    ollamaHoverTranslateModifierKey: "shift",
     ollamaHoverTranslateDelayMs: "700",
     ollamaPageTranslateConcurrency: "5",
     ollamaPageTranslateBatchChars: "380",
@@ -40,6 +41,7 @@ test("legacy 通用设置升级后 popup、菜单、运行时和 options 形状�
     provider: "minimax-global",
     autoTranslateMode: "selection",
     hoverTranslateScope: "paragraph",
+    hoverTranslateModifierKey: "shift",
     hoverTranslateDelayMs: 700,
     pageTranslateConcurrency: 5,
     pageTranslateBatchChars: 380,
@@ -57,6 +59,7 @@ test("legacy 通用设置升级后 popup、菜单、运行时和 options 形状�
     provider: "minimax-global",
     autoTranslateMode: "selection",
     hoverTranslateScope: "paragraph",
+    hoverTranslateModifierKey: "shift",
     appEnabled: false,
   });
   assert.deepEqual(menuState, popupState);
@@ -64,6 +67,7 @@ test("legacy 通用设置升级后 popup、菜单、运行时和 options 形状�
   assert.equal(runtimeSettings.provider, "minimax-global");
   assert.equal(runtimeSettings.autoTranslateMode, "selection");
   assert.equal(runtimeSettings.hoverTranslateScope, "paragraph");
+  assert.equal(runtimeSettings.hoverTranslateModifierKey, "shift");
   assert.equal(runtimeSettings.hoverTranslateDelayMs, 700);
   assert.equal(runtimeSettings.pageTranslateConcurrency, 5);
   assert.equal(runtimeSettings.pageTranslateBatchChars, 380);
@@ -79,6 +83,7 @@ test("legacy 通用设置升级后 popup、菜单、运行时和 options 形状�
   assert.equal(optionsStoredShape.provider, "minimax-global");
   assert.equal(optionsStoredShape.autoTranslateMode, "selection");
   assert.equal(optionsStoredShape.hoverTranslateScope, "paragraph");
+  assert.equal(optionsStoredShape.hoverTranslateModifierKey, "shift");
   assert.equal(optionsStoredShape.hoverTranslateDelayMs, "700");
   assert.equal(optionsStoredShape.pageTranslateConcurrency, "5");
   assert.equal(optionsStoredShape.pageTranslateBatchChars, "380");
@@ -86,6 +91,7 @@ test("legacy 通用设置升级后 popup、菜单、运行时和 options 形状�
   assert.equal(optionsSnapshot.provider, "minimax-global");
   assert.equal(optionsSnapshot.autoTranslateMode, "selection");
   assert.equal(optionsSnapshot.hoverTranslateScope, "paragraph");
+  assert.equal(optionsSnapshot.hoverTranslateModifierKey, "shift");
   assert.equal(optionsSnapshot.hoverTranslateDelayMs, 700);
   assert.equal(optionsSnapshot.pageTranslateConcurrency, 5);
   assert.equal(optionsSnapshot.pageTranslateBatchChars, 380);

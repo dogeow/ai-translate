@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTemporaryMessage } from "../../shared/hooks/useTemporaryMessage.js";
+import { detectChromeAiRuntimeAvailability } from "../../shared/chrome-ai-verification.js";
 import {
+  getDefaultMiniMaxApiUrlByRegion,
+  getMiniMaxRegionFromProvider,
   getPopupSettingsState,
+  isMiniMaxProvider,
   migrateSettingsIfNeeded,
+  normalizeAllSettings,
   normalizeAutoTranslateMode,
+  normalizeHoverTranslateModifierKey,
   normalizeHoverTranslateScope,
 } from "../../shared/settings.js";
-
-const POPUP_SETTINGS_WATCH_KEYS = new Set([
-  "appEnabled",
-  "provider",
-  "ollamaProvider",
-  "minimaxRegion",
-  "autoTranslateMode",
-  "ollamaAutoTranslateMode",
-  "ollamaAutoTranslateSelection",
-  "hoverTranslateScope",
-  "ollamaHoverTranslateScope",
-]);
+import { resolvePageTranslateState } from "../lib/pageTranslateState.js";
 
 function getAllSyncSettings() {
   return new Promise((resolve) => {
@@ -42,6 +37,9 @@ function setAllSyncSettings(updates) {
  * 处理设置的读取、更新和同步
  */
 export function usePopupSettings() {
+  const [settings, setSettings] = useState(() => normalizeAllSettings());
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
+  const [chromeAiReady, setChromeAiReady] = useState(null);
   const [provider, setProvider] = useState(
     () => getPopupSettingsState().provider,
   );
@@ -50,6 +48,9 @@ export function usePopupSettings() {
   );
   const [hoverTranslateScope, setHoverTranslateScope] = useState(
     () => getPopupSettingsState().hoverTranslateScope,
+  );
+  const [hoverTranslateModifierKey, setHoverTranslateModifierKey] = useState(
+    () => getPopupSettingsState().hoverTranslateModifierKey,
   );
   const [appEnabled, setAppEnabled] = useState(
     () => getPopupSettingsState().appEnabled,
@@ -64,9 +65,11 @@ export function usePopupSettings() {
 
   const applyPopupSettingsState = useCallback((value) => {
     const nextState = getPopupSettingsState(value);
+    setSettings(normalizeAllSettings(value));
     setProvider(nextState.provider);
     setAutoTranslateMode(nextState.autoTranslateMode);
     setHoverTranslateScope(nextState.hoverTranslateScope);
+    setHoverTranslateModifierKey(nextState.hoverTranslateModifierKey);
     setAppEnabled(nextState.appEnabled);
   }, []);
 
@@ -75,7 +78,13 @@ export function usePopupSettings() {
       getAllSyncSettings,
       setAllSyncSettings,
     );
+    const chromeAiAvailability =
+      await detectChromeAiRuntimeAvailability(settings);
     applyPopupSettingsState(settings);
+    setChromeAiReady(
+      chromeAiAvailability.checked ? chromeAiAvailability.ready : null,
+    );
+    setIsSettingsLoaded(true);
   }, [applyPopupSettingsState]);
 
   // 初始加载设置
@@ -87,10 +96,6 @@ export function usePopupSettings() {
   useEffect(() => {
     function handleStorageChanged(changes, areaName) {
       if (areaName !== "sync") return;
-      if (!Object.keys(changes).some((key) => POPUP_SETTINGS_WATCH_KEYS.has(key))) {
-        return;
-      }
-
       void reloadPopupSettings();
     }
 
@@ -119,8 +124,18 @@ export function usePopupSettings() {
       const normalized = getPopupSettingsState({
         provider: nextProvider,
       }).provider;
+      const updates = { provider: normalized };
+      if (isMiniMaxProvider(normalized)) {
+        const minimaxRegion = getMiniMaxRegionFromProvider(normalized);
+        updates.minimaxRegion = minimaxRegion;
+        updates.minimaxApiUrl =
+          getDefaultMiniMaxApiUrlByRegion(minimaxRegion);
+      }
       setProvider(normalized);
-      syncSettings({ provider: normalized });
+      setSettings((previous) =>
+        normalizeAllSettings({ ...previous, ...updates }),
+      );
+      syncSettings(updates);
     },
     [syncSettings],
   );
@@ -145,6 +160,15 @@ export function usePopupSettings() {
     [syncSettings],
   );
 
+  const updateHoverTranslateModifierKey = useCallback(
+    (modifierKey) => {
+      const normalized = normalizeHoverTranslateModifierKey(modifierKey);
+      setHoverTranslateModifierKey(normalized);
+      syncSettings({ hoverTranslateModifierKey: normalized });
+    },
+    [syncSettings],
+  );
+
   // 切换应用开关
   const toggleAppEnabled = useCallback(() => {
     setAppEnabled((prevEnabled) => {
@@ -155,9 +179,13 @@ export function usePopupSettings() {
   }, [syncSettings]);
 
   return {
+    settings,
+    isSettingsLoaded,
+    chromeAiReady,
     provider,
     autoTranslateMode,
     hoverTranslateScope,
+    hoverTranslateModifierKey,
     appEnabled,
     isSaving,
     saveStatusText,
@@ -165,6 +193,7 @@ export function usePopupSettings() {
     updateProvider,
     updateAutoTranslateMode,
     updateHoverTranslateScope,
+    updateHoverTranslateModifierKey,
     toggleAppEnabled,
   };
 }
@@ -198,6 +227,9 @@ function getActiveTabInfo() {
  */
 export function usePageTranslate(appEnabled) {
   const [isStarting, setIsStarting] = useState(false);
+  const [isChangingDisplayMode, setIsChangingDisplayMode] = useState(false);
+  const [isPageTranslateActive, setIsPageTranslateActive] = useState(false);
+  const [displayMode, setDisplayMode] = useState("translation");
   const [activeOrigin, setActiveOrigin] = useState("");
   const [siteEnabled, setSiteEnabled] = useState(false);
   const { message: status, showMessage: showStatus } =
@@ -209,6 +241,21 @@ export function usePageTranslate(appEnabled) {
       const info = await getActiveTabInfo();
       if (cancelled || !info) return;
       setActiveOrigin(info.origin);
+
+      chrome.tabs.sendMessage(
+        info.tabId,
+        { action: "getPageTranslateState" },
+        (response) => {
+          if (cancelled || chrome.runtime.lastError || !response?.ok) return;
+          const nextState = resolvePageTranslateState(response, {
+            active: false,
+            mode: "translation",
+          });
+          setIsPageTranslateActive(nextState.active);
+          setDisplayMode(nextState.mode);
+        },
+      );
+
       if (!info.origin) {
         setSiteEnabled(false);
         return;
@@ -248,6 +295,12 @@ export function usePageTranslate(appEnabled) {
             return;
           }
           if (response?.ok) {
+            const nextState = resolvePageTranslateState(response, {
+              active: true,
+              mode: displayMode,
+            });
+            setIsPageTranslateActive(nextState.active);
+            setDisplayMode(nextState.mode);
             showStatus("已启动：先翻译可视区域，滚动后继续。");
             return;
           }
@@ -255,7 +308,53 @@ export function usePageTranslate(appEnabled) {
         },
       );
     });
-  }, [appEnabled, isStarting, showStatus]);
+  }, [appEnabled, displayMode, isStarting, showStatus]);
+
+  const changeDisplayMode = useCallback(
+    (mode) => {
+      if (
+        isChangingDisplayMode ||
+        !isPageTranslateActive ||
+        !["translation", "original", "bilingual"].includes(mode)
+      ) {
+        return;
+      }
+
+      setIsChangingDisplayMode(true);
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tabId = tabs?.[0]?.id;
+        if (!tabId) {
+          setIsChangingDisplayMode(false);
+          showStatus("未找到当前标签页。");
+          return;
+        }
+
+        chrome.tabs.sendMessage(
+          tabId,
+          { action: "setPageTranslateMode", mode },
+          (response) => {
+            setIsChangingDisplayMode(false);
+            if (chrome.runtime.lastError || !response?.ok) {
+              setIsPageTranslateActive(false);
+              showStatus("当前页面的翻译状态已失效，请重新翻译。");
+              return;
+            }
+            const nextState = resolvePageTranslateState(response, {
+              active: isPageTranslateActive,
+              mode,
+            });
+            setIsPageTranslateActive(nextState.active);
+            setDisplayMode(nextState.mode);
+          },
+        );
+      });
+    },
+    [
+      isChangingDisplayMode,
+      isPageTranslateActive,
+      showStatus,
+    ],
+  );
 
   const toggleSiteAutoTranslate = useCallback(async () => {
     if (!appEnabled) {
@@ -286,8 +385,12 @@ export function usePageTranslate(appEnabled) {
 
   return {
     isStarting,
+    isChangingDisplayMode,
+    isPageTranslateActive,
+    displayMode,
     status,
     startPageTranslate,
+    changeDisplayMode,
     toggleSiteAutoTranslate,
     siteAutoTranslateEnabled: siteEnabled,
     activeOrigin,

@@ -35,6 +35,7 @@ import {
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_AUTO_TRANSLATE_MODE,
   DEFAULT_HOVER_TRANSLATE_SCOPE,
+  DEFAULT_HOVER_TRANSLATE_MODIFIER_KEY,
   DEFAULT_HOVER_TRANSLATE_DELAY_MS,
   DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
   DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
@@ -47,6 +48,8 @@ import {
  */
 export const DEFAULT_SETTINGS = {
   provider: DEFAULT_TRANSLATE_PROVIDER,
+  addedProviders: [DEFAULT_TRANSLATE_PROVIDER],
+  verifiedProviders: [],
   ollamaUrl: DEFAULT_OLLAMA_URL,
   ollamaModel: DEFAULT_OLLAMA_MODEL,
   minimaxApiUrl: DEFAULT_MINIMAX_API_URL,
@@ -64,6 +67,7 @@ export const DEFAULT_SETTINGS = {
   translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
   autoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
   hoverTranslateScope: DEFAULT_HOVER_TRANSLATE_SCOPE,
+  hoverTranslateModifierKey: DEFAULT_HOVER_TRANSLATE_MODIFIER_KEY,
   hoverTranslateDelayMs: DEFAULT_HOVER_TRANSLATE_DELAY_MS,
   pageTranslateConcurrency: DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
   pageTranslateBatchChars: DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
@@ -74,6 +78,7 @@ export const CANONICAL_SETTINGS_KEY_MAP = Object.freeze({
   provider: "ollamaProvider",
   autoTranslateMode: "ollamaAutoTranslateMode",
   hoverTranslateScope: "ollamaHoverTranslateScope",
+  hoverTranslateModifierKey: "ollamaHoverTranslateModifierKey",
   hoverTranslateDelayMs: "ollamaHoverTranslateDelayMs",
   pageTranslateConcurrency: "ollamaPageTranslateConcurrency",
   pageTranslateBatchChars: "ollamaPageTranslateBatchChars",
@@ -87,6 +92,7 @@ export const POPUP_SETTINGS_STORAGE_DEFAULTS = Object.freeze({
   provider: DEFAULT_SETTINGS.provider,
   autoTranslateMode: DEFAULT_SETTINGS.autoTranslateMode,
   hoverTranslateScope: DEFAULT_SETTINGS.hoverTranslateScope,
+  hoverTranslateModifierKey: DEFAULT_SETTINGS.hoverTranslateModifierKey,
   minimaxRegion: DEFAULT_SETTINGS.minimaxRegion,
   appEnabled: DEFAULT_APP_ENABLED,
 });
@@ -99,6 +105,39 @@ const CANONICAL_PROVIDER_VALUES = new Set([
   PROVIDER_CHATGPT,
   PROVIDER_CHROME_AI,
 ]);
+
+export function normalizeAddedProviders(value, activeProvider) {
+  const source = Array.isArray(value) ? value : [];
+  const explicitlyEmpty = Array.isArray(value) && value.length === 0;
+  const normalizedActiveProvider = normalizeTranslateProvider(activeProvider);
+  const providers = source
+    .map((provider) => String(provider || "").trim())
+    .filter((provider) => CANONICAL_PROVIDER_VALUES.has(provider))
+    .map((provider) => normalizeTranslateProvider(provider));
+
+  if (!explicitlyEmpty && !providers.includes(normalizedActiveProvider)) {
+    providers.unshift(normalizedActiveProvider);
+  }
+
+  return Array.from(new Set(providers));
+}
+
+export function normalizeVerifiedProviders(value, addedProviders = []) {
+  const added = new Set(
+    Array.isArray(addedProviders) ? addedProviders : [],
+  );
+  return Array.from(
+    new Set(
+      (Array.isArray(value) ? value : [])
+        .map((provider) => String(provider || "").trim())
+        .filter(
+          (provider) =>
+            CANONICAL_PROVIDER_VALUES.has(provider) && added.has(provider),
+        )
+        .map((provider) => normalizeTranslateProvider(provider)),
+    ),
+  );
+}
 
 function hasOwnSetting(input, key) {
   return !!input && Object.prototype.hasOwnProperty.call(input, key);
@@ -145,6 +184,10 @@ function isValidCanonicalSetting(key, value) {
 
   if (key === "hoverTranslateScope") {
     return value === "word" || value === "paragraph";
+  }
+
+  if (key === "hoverTranslateModifierKey") {
+    return ["alt", "shift", "control", "meta", "none"].includes(value);
   }
 
   if (key === "hoverTranslateDelayMs") {
@@ -409,6 +452,17 @@ export function normalizeHoverTranslateScope(scope) {
 }
 
 /**
+ * 规范化悬停范围临时切换键
+ * @param {string} key - 'alt' | 'shift' | 'control' | 'meta' | 'none'
+ * @returns {string}
+ */
+export function normalizeHoverTranslateModifierKey(key) {
+  return ["alt", "shift", "control", "meta", "none"].includes(key)
+    ? key
+    : DEFAULT_SETTINGS.hoverTranslateModifierKey;
+}
+
+/**
  * 规范化悬停翻译延迟时间
  * @param {string|number} value - 延迟毫秒数
  * @returns {number} 规范化后的延迟时间（0-5000ms）
@@ -468,6 +522,14 @@ function normalizeSettings(settings = {}, options = {}) {
     rawProvider,
     inferredMiniMaxRegion,
   );
+  const addedProviders = normalizeAddedProviders(
+    settings.addedProviders,
+    provider,
+  );
+  const verifiedProviders = normalizeVerifiedProviders(
+    settings.verifiedProviders,
+    addedProviders,
+  );
   const minimaxRegion = resolveMiniMaxRegionFromInput({
     ...settings,
     provider,
@@ -511,6 +573,8 @@ function normalizeSettings(settings = {}, options = {}) {
 
   return {
     provider,
+    addedProviders,
+    verifiedProviders,
     ollamaUrl: String(
       settings?.ollamaUrl ?? DEFAULT_SETTINGS.ollamaUrl,
     ).replace(/\/$/, ""),
@@ -538,6 +602,9 @@ function normalizeSettings(settings = {}, options = {}) {
     ),
     hoverTranslateScope: normalizeHoverTranslateScope(
       readSettingValue(settings, "hoverTranslateScope", { allowLegacy }),
+    ),
+    hoverTranslateModifierKey: normalizeHoverTranslateModifierKey(
+      readSettingValue(settings, "hoverTranslateModifierKey", { allowLegacy }),
     ),
     hoverTranslateDelayMs: normalizeHoverTranslateDelayMs(
       readSettingValue(settings, "hoverTranslateDelayMs", { allowLegacy }),
@@ -628,6 +695,7 @@ export function getPopupSettingsState(stored = {}) {
     provider: normalized.provider,
     autoTranslateMode: normalized.autoTranslateMode,
     hoverTranslateScope: normalized.hoverTranslateScope,
+    hoverTranslateModifierKey: normalized.hoverTranslateModifierKey,
     appEnabled: stored.appEnabled !== false,
   };
 }

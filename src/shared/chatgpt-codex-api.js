@@ -1,4 +1,6 @@
 import {
+  CHATGPT_CODEX_ORIGINATOR,
+  CHATGPT_CODEX_USER_AGENT,
   DEFAULT_CHATGPT_CODEX_API_URL,
   DEFAULT_CHATGPT_MODEL,
 } from "./constants.js";
@@ -62,8 +64,10 @@ export function buildChatGptCodexHeaders(auth, requestId = makeRequestId()) {
     "X-Client-Request-Id": requestId,
     "Session-Id": requestId,
     "Thread-Id": requestId,
-    Originator: "ai-translate",
-    Version: "0.0.2",
+    Originator: CHATGPT_CODEX_ORIGINATOR,
+    // Firefox 等环境会直接采用；Chromium 会丢弃 fetch 设置的
+    // User-Agent，因此 manifest 中另有一条仅针对 Codex API 的规则。
+    "User-Agent": CHATGPT_CODEX_USER_AGENT,
   };
   if (auth.accountId) {
     headers["ChatGPT-Account-Id"] = auth.accountId;

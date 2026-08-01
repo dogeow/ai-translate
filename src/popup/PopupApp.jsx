@@ -5,6 +5,7 @@ import {
 } from "../shared/update.js";
 import {
   AUTO_TRANSLATE_MODE_OPTIONS,
+  HOVER_TRANSLATE_MODIFIER_OPTIONS,
   HOVER_TRANSLATE_SCOPE_OPTIONS,
 } from "../shared/constants.js";
 import {
@@ -19,6 +20,7 @@ import {
   usePopupSettings,
   usePageTranslate,
 } from "./hooks/usePopupSettings.js";
+import { getVerifiedProviderOptions } from "./lib/providerAvailability.js";
 
 // 为 popup 创建简洁版选项（使用 shortTitle）
 const AUTO_MODE_OPTIONS = AUTO_TRANSLATE_MODE_OPTIONS.map((option) => ({
@@ -31,6 +33,13 @@ const HOVER_SCOPE_OPTIONS = HOVER_TRANSLATE_SCOPE_OPTIONS.map((option) => ({
   title: option.title,
 }));
 
+const HOVER_MODIFIER_OPTIONS = HOVER_TRANSLATE_MODIFIER_OPTIONS.map(
+  (option) => ({
+    value: option.value,
+    label: option.label,
+  }),
+);
+
 export function PopupApp() {
   const currentVersion = chrome.runtime.getManifest().version;
   const [updateState, setUpdateState] = useState(
@@ -40,6 +49,28 @@ export function PopupApp() {
   // 使用自定义 hooks 管理状态
   const popupSettings = usePopupSettings();
   const pageTranslate = usePageTranslate(popupSettings.appEnabled);
+  const availableProviders = getVerifiedProviderOptions(
+    popupSettings.settings,
+    { chromeAiReady: popupSettings.chromeAiReady },
+  );
+
+  useEffect(() => {
+    if (
+      !popupSettings.isSettingsLoaded ||
+      availableProviders.length === 0 ||
+      availableProviders.some(
+        (option) => option.value === popupSettings.provider,
+      )
+    ) {
+      return;
+    }
+    popupSettings.updateProvider(availableProviders[0].value);
+  }, [
+    availableProviders,
+    popupSettings.isSettingsLoaded,
+    popupSettings.provider,
+    popupSettings.updateProvider,
+  ]);
 
   // 加载更新状态
   useEffect(() => {
@@ -54,6 +85,13 @@ export function PopupApp() {
   function openOptionsPage() {
     chrome.tabs.create({
       url: chrome.runtime.getURL("options/index.html"),
+    });
+    window.close();
+  }
+
+  function openProviderSetup() {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("options/index.html?add-provider=1"),
     });
     window.close();
   }
@@ -94,13 +132,20 @@ export function PopupApp() {
       <QuickActionsPanel
         appEnabled={popupSettings.appEnabled}
         isStartingPageTranslate={pageTranslate.isStarting}
+        isChangingPageDisplayMode={pageTranslate.isChangingDisplayMode}
+        isPageTranslateActive={pageTranslate.isPageTranslateActive}
+        pageDisplayMode={pageTranslate.displayMode}
         pageTranslateStatus={pageTranslate.status}
         onStartPageTranslate={pageTranslate.startPageTranslate}
+        onPageDisplayModeChange={pageTranslate.changeDisplayMode}
         onToggleSiteAutoTranslate={pageTranslate.toggleSiteAutoTranslate}
         siteAutoTranslateEnabled={pageTranslate.siteAutoTranslateEnabled}
         activeOrigin={pageTranslate.activeOrigin}
         provider={popupSettings.provider}
         onProviderChange={popupSettings.updateProvider}
+        availableProviders={availableProviders}
+        providersLoading={!popupSettings.isSettingsLoaded}
+        onOpenProviderSetup={openProviderSetup}
         showStatus={showSaveStatus}
         statusText={saveStatusText}
         statusTone={saveStatusTone}
@@ -115,6 +160,9 @@ export function PopupApp() {
           options={HOVER_SCOPE_OPTIONS}
           value={popupSettings.hoverTranslateScope}
           onChange={popupSettings.updateHoverTranslateScope}
+          modifierOptions={HOVER_MODIFIER_OPTIONS}
+          modifierValue={popupSettings.hoverTranslateModifierKey}
+          onModifierChange={popupSettings.updateHoverTranslateModifierKey}
         />
       )}
       <UiRewriteAndLearningPanel />

@@ -10,6 +10,7 @@ export function useGitHubDeviceLogin({
   updateSettings,
   persistSettings,
   updateConnectionStatus,
+  providerOverride = "",
 }) {
   const [deviceLoginStatus, setDeviceLoginStatus] = useState("");
   const [deviceLoginBusy, setDeviceLoginBusy] = useState(false);
@@ -52,11 +53,17 @@ export function useGitHubDeviceLogin({
       updateSettings({ githubDeviceToken: accessToken }, "now");
       await persistSettings(nextSettings, { force: true });
       setDeviceLoginStatus("设备登录成功，令牌已保存。");
-      await updateConnectionStatus(nextSettings, {
-        preserveTestMessage: false,
-        updateBannerStatus: false,
-        showTestPending: true,
-      });
+      await updateConnectionStatus(
+        {
+          ...nextSettings,
+          provider: providerOverride || nextSettings.provider,
+        },
+        {
+          preserveTestMessage: false,
+          updateBannerStatus: false,
+          showTestPending: true,
+        },
+      );
     } catch (error) {
       setDeviceLoginStatus(error?.message || "GitHub 设备登录失败。");
     } finally {

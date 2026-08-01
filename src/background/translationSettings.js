@@ -37,6 +37,8 @@ import { normalizeGitHubModelsBaseUrl } from "../shared/github-models-api.js";
 
 export const SYNC_SETTINGS_DEFAULTS = {
   provider: DEFAULT_TRANSLATE_PROVIDER,
+  addedProviders: [DEFAULT_TRANSLATE_PROVIDER],
+  verifiedProviders: [],
   ollamaUrl: DEFAULT_OLLAMA_URL,
   ollamaModel: DEFAULT_OLLAMA_MODEL,
   minimaxApiUrl: DEFAULT_MINIMAX_API_URL,
@@ -72,6 +74,7 @@ export function resolveProviderRuntime(settings) {
     normalized.provider,
     normalized.minimaxRegion,
   );
+  const isProviderAdded = normalized.addedProviders.includes(provider);
   const isMiniMax = isMiniMaxProvider(provider);
   const isGitHub = isGitHubModelsProvider(provider);
   const isChatGpt = isChatGptProvider(provider);
@@ -100,6 +103,7 @@ export function resolveProviderRuntime(settings) {
 
   return {
     provider,
+    isProviderAdded,
     isMiniMax,
     isGitHub,
     isChatGpt,
@@ -115,6 +119,9 @@ export function resolveProviderRuntime(settings) {
 }
 
 export function buildMissingCredentialError(providerRuntime, settings) {
+  if (!providerRuntime.isProviderAdded) {
+    return "请先新增并验证翻译引擎。";
+  }
   if (providerRuntime.provider === PROVIDER_OLLAMA) return "";
   if (providerRuntime.isMiniMax && !providerRuntime.apiKey) {
     return `请先填写${getMiniMaxApiKeyLabel(settings)}。`;

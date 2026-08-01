@@ -12,6 +12,7 @@ import {
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_AUTO_TRANSLATE_MODE,
   DEFAULT_HOVER_TRANSLATE_SCOPE,
+  DEFAULT_HOVER_TRANSLATE_MODIFIER_KEY,
   DEFAULT_HOVER_TRANSLATE_DELAY_MS,
   DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
   DEFAULT_PAGE_TRANSLATE_BATCH_CHARS,
@@ -22,6 +23,7 @@ import {
   normalizeAllSettings,
   normalizeAutoTranslateMode,
   normalizeHoverTranslateScope,
+  normalizeHoverTranslateModifierKey,
   normalizeHoverTranslateDelayMs,
   normalizePageTranslateConcurrency,
   normalizePageTranslateBatchChars,
@@ -31,7 +33,13 @@ import {
   sendMessageSafe,
 } from "./runtimeShared.js";
 import { isChineseIdentifierText } from "../shared/translation-language.js";
-import { BUTTON_ID, SHORTCUT_HINT_ID, TIP_ID } from "./constants.js";
+import {
+  BUTTON_ID,
+  HOVER_TARGET_INDICATOR_ID,
+  SHORTCUT_HINT_ID,
+  TIP_ID,
+  WORD_MARKER_CARD_ID,
+} from "./constants.js";
 import {
   ALWAYS_TRANSLATE_ORIGINS_KEY,
 } from "../shared/constants.js";
@@ -65,10 +73,14 @@ export function initContentRuntime() {
     lastTipRect: null,
     lastMouseX: 0,
     lastMouseY: 0,
+    lastMouseTarget: null,
+    lastMouseButtons: 0,
     lastTranslatedElement: null,
+    lastTranslatedText: "",
     autoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
     translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
     hoverTranslateScope: DEFAULT_HOVER_TRANSLATE_SCOPE,
+    hoverTranslateModifierKey: DEFAULT_HOVER_TRANSLATE_MODIFIER_KEY,
     hoverTranslateDelayMs: DEFAULT_HOVER_TRANSLATE_DELAY_MS,
     selectionAutoTranslateTimerId: null,
     hoverAutoTranslateTimerId: null,
@@ -79,6 +91,7 @@ export function initContentRuntime() {
     activeHoverRequestId: "",
     lastCompletedHoverRequestId: "",
     hoverRequestSeq: 0,
+    hoverModifierActive: false,
     activeTipRequestId: "",
     dismissedTipRequestId: "",
     pageTranslateConcurrency: DEFAULT_PAGE_TRANSLATE_CONCURRENCY,
@@ -101,7 +114,7 @@ export function initContentRuntime() {
         element &&
         element.closest &&
         element.closest(
-          `#${BUTTON_ID}, #${TIP_ID}, #${SHORTCUT_HINT_ID}, #ollama-pt-bar`,
+          `#${BUTTON_ID}, #${TIP_ID}, #${SHORTCUT_HINT_ID}, #${HOVER_TARGET_INDICATOR_ID}, #${WORD_MARKER_CARD_ID}, #ollama-pt-bar`,
         )
       ),
     initialOptions: {
@@ -147,6 +160,10 @@ export function initContentRuntime() {
     state.hoverTranslateScope = normalizeHoverTranslateScope(
       normalized.hoverTranslateScope,
     );
+    state.hoverTranslateModifierKey = normalizeHoverTranslateModifierKey(
+      normalized.hoverTranslateModifierKey,
+    );
+    state.hoverModifierActive = false;
     state.hoverTranslateDelayMs = normalizeHoverTranslateDelayMs(
       normalized.hoverTranslateDelayMs,
     );
@@ -212,6 +229,8 @@ export function initContentRuntime() {
       !("translateTargetLang" in changes) &&
       !("hoverTranslateScope" in changes) &&
       !("ollamaHoverTranslateScope" in changes) &&
+      !("hoverTranslateModifierKey" in changes) &&
+      !("ollamaHoverTranslateModifierKey" in changes) &&
       !("hoverTranslateDelayMs" in changes) &&
       !("ollamaHoverTranslateDelayMs" in changes) &&
       !("pageTranslateConcurrency" in changes) &&

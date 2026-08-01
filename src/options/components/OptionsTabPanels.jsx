@@ -47,6 +47,7 @@ export function OptionsTabPanels({
 }) {
   const {
     settings,
+    isSettingsLoaded,
     settingsRef,
     updateSettings,
     persistSettings,
@@ -71,6 +72,7 @@ export function OptionsTabPanels({
     home: (
       <HomeTab
         settings={settings}
+        isSettingsLoaded={isSettingsLoaded}
         updateSettings={updateSettings}
         persistSettings={persistSettings}
         settingsRef={settingsRef}

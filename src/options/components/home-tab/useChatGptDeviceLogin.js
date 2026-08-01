@@ -18,6 +18,8 @@ export function useChatGptDeviceLogin({
   isChatGpt,
   settingsRef,
   updateConnectionStatus,
+  providerOverride = "",
+  onAvailabilityInvalidated,
 }) {
   const [deviceLoginStatus, setDeviceLoginStatus] =
     useState("正在读取登录状态…");
@@ -74,11 +76,17 @@ export function useChatGptDeviceLogin({
       setUserCode("");
       setVerificationUri("");
       setDeviceLoginStatus(formatLoggedInStatus(summary));
-      await updateConnectionStatus(settingsRef.current, {
-        preserveTestMessage: false,
-        updateBannerStatus: true,
-        showTestPending: true,
-      });
+      await updateConnectionStatus(
+        {
+          ...settingsRef.current,
+          provider: providerOverride || settingsRef.current.provider,
+        },
+        {
+          preserveTestMessage: false,
+          updateBannerStatus: true,
+          showTestPending: true,
+        },
+      );
     } catch (error) {
       if (controller.signal.aborted) {
         setDeviceLoginStatus("已取消 ChatGPT 设备登录。");
@@ -104,15 +112,22 @@ export function useChatGptDeviceLogin({
     setDeviceLoginBusy(true);
     try {
       await logoutChatGpt();
+      onAvailabilityInvalidated?.();
       setIsLoggedIn(false);
       setUserCode("");
       setVerificationUri("");
       setDeviceLoginStatus("已退出 ChatGPT，设备登录令牌已从本机清除。");
-      await updateConnectionStatus(settingsRef.current, {
-        preserveTestMessage: false,
-        updateBannerStatus: true,
-        showTestPending: false,
-      });
+      await updateConnectionStatus(
+        {
+          ...settingsRef.current,
+          provider: providerOverride || settingsRef.current.provider,
+        },
+        {
+          preserveTestMessage: false,
+          updateBannerStatus: true,
+          showTestPending: false,
+        },
+      );
     } catch (error) {
       setDeviceLoginStatus(
         error?.message || "清除 ChatGPT 登录状态失败。",

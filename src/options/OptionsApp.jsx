@@ -23,6 +23,7 @@ export function OptionsApp() {
 
   const {
     settings,
+    isSettingsLoaded,
     settingsRef,
     autoSaveStatus,
     showAutoSaveStatus,
@@ -67,6 +68,7 @@ export function OptionsApp() {
 
   const settingsController = {
     settings,
+    isSettingsLoaded,
     settingsRef,
     updateSettings,
     persistSettings,

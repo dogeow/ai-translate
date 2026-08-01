@@ -225,3 +225,48 @@ test("translation cache is reused within a context and isolated after switching"
     cleanupDom();
   }
 });
+
+test("switching original, translation, and bilingual modes preserves translated content", async () => {
+  const cleanupDom = installDom("<body><p id='content'>中文内容</p></body>");
+  let requestCount = 0;
+  const translator = createTranslator({
+    requestChunkTranslation: async (text) => {
+      requestCount += 1;
+      return { ok: true, translation: `saved:${text}` };
+    },
+  });
+
+  try {
+    translator.start();
+    await waitFor(() => {
+      assert.equal(
+        document.querySelector("#content .ollama-pt-trans")?.textContent,
+        "saved:中文内容",
+      );
+    });
+    assert.equal(requestCount, 1);
+
+    for (const mode of ["original", "translation", "bilingual"]) {
+      translator.setDisplayMode(mode);
+      assert.equal(translator.getDisplayMode(), mode);
+      assert.equal(
+        document.documentElement.classList.contains(
+          `ollama-pt-mode-${mode}`,
+        ),
+        true,
+      );
+      assert.equal(
+        document.querySelector("#content .ollama-pt-orig")?.textContent,
+        "中文内容",
+      );
+      assert.equal(
+        document.querySelector("#content .ollama-pt-trans")?.textContent,
+        "saved:中文内容",
+      );
+      assert.equal(requestCount, 1);
+    }
+  } finally {
+    translator.stop();
+    cleanupDom();
+  }
+});

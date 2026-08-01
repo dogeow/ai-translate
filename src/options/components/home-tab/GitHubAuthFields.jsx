@@ -4,6 +4,7 @@ import {
 } from "../common/AutoSaveField.jsx";
 import { FIELD_IDS } from "./constants.js";
 import { useGitHubDeviceLogin } from "./useGitHubDeviceLogin.js";
+import { FieldLabel } from "../common/InfoTip.jsx";
 
 export function GitHubAuthFields({
   isGitHub,
@@ -13,6 +14,7 @@ export function GitHubAuthFields({
   settingsRef,
   showAutoSaveStatus,
   updateConnectionStatus,
+  providerOverride = "",
 }) {
   const {
     deviceLoginStatus,
@@ -24,14 +26,16 @@ export function GitHubAuthFields({
     updateSettings,
     persistSettings,
     updateConnectionStatus,
+    providerOverride,
   });
 
   return (
     <ConditionalFields condition={isGitHub}>
       <AutoSaveInputField
         id={FIELD_IDS.githubOAuthClientId}
-        label="GitHub OAuth App Client ID"
-        placeholder="输入已启用 Device Flow 的 GitHub OAuth App Client ID"
+        label="OAuth Client ID"
+        tip="填写已启用 Device Flow 的 GitHub OAuth App Client ID。"
+        placeholder="输入 Client ID"
         value={settings.githubOAuthClientId}
         settingKey="githubOAuthClientId"
         updateSettings={updateSettings}
@@ -40,9 +44,22 @@ export function GitHubAuthFields({
         showAutoSaveStatus={showAutoSaveStatus}
       />
 
-      <div className="field">
-        <label>设备登录</label>
-        <div className="field-row" style={{ marginTop: 10 }}>
+      <div className="field provider-auth">
+        <div className="provider-auth__heading">
+          <FieldLabel tip="设备授权完成后，令牌只保存在扩展设置中。">
+            GitHub 登录
+          </FieldLabel>
+          <span
+            className={`provider-auth__status ${settings.githubDeviceToken ? "provider-auth__status--ok" : ""}`.trim()}
+          >
+            {deviceLoginBusy
+              ? "登录中"
+              : settings.githubDeviceToken
+                ? "已登录"
+                : "未登录"}
+          </span>
+        </div>
+        <div className="field-row provider-auth__actions">
           <button
             type="button"
             className="btn btn-secondary"
@@ -51,28 +68,24 @@ export function GitHubAuthFields({
               void startDeviceLogin();
             }}
           >
-            {deviceLoginBusy ? "登录中…" : "开始设备登录"}
+            {deviceLoginBusy ? "登录中…" : "登录"}
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={deviceLoginBusy || !settings.githubDeviceToken}
-            onClick={() => {
-              void clearDeviceLogin();
-            }}
-          >
-            清除登录
-          </button>
+          {settings.githubDeviceToken ? (
+            <button
+              type="button"
+              className="btn btn-secondary provider-auth__logout"
+              disabled={deviceLoginBusy}
+              onClick={() => {
+                void clearDeviceLogin();
+              }}
+            >
+              退出
+            </button>
+          ) : null}
         </div>
-        <div
-          className={`field-validation ${settings.githubDeviceToken ? "" : "field-validation--error"}`.trim()}
-          style={{ marginTop: 8 }}
-        >
-          {deviceLoginStatus ||
-            (settings.githubDeviceToken
-              ? "已保存设备登录令牌。"
-              : "尚未完成设备登录。")}
-        </div>
+        {deviceLoginStatus ? (
+          <div className="field-validation">{deviceLoginStatus}</div>
+        ) : null}
       </div>
     </ConditionalFields>
   );

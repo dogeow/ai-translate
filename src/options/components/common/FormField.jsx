@@ -2,6 +2,7 @@
  * 通用表单字段组件
  * 提供统一的样式和行为
  */
+import { FieldLabel } from "./InfoTip.jsx";
 
 /**
  * 输入框字段组件
@@ -15,12 +16,17 @@ export function InputField({
   onChange,
   onBlur,
   error,
+  tip,
   className = "",
   ...props
 }) {
   return (
     <div className="field">
-      {label && <label htmlFor={id}>{label}</label>}
+      {label && (
+        <FieldLabel htmlFor={id} tip={tip}>
+          {label}
+        </FieldLabel>
+      )}
       <input
         id={id}
         type={type}
@@ -50,12 +56,17 @@ export function SelectField({
   value,
   onChange,
   options,
+  tip,
   className = "",
   ...props
 }) {
   return (
     <div className="field">
-      {label && <label htmlFor={id}>{label}</label>}
+      {label && (
+        <FieldLabel htmlFor={id} tip={tip}>
+          {label}
+        </FieldLabel>
+      )}
       <select
         id={id}
         className={`select ${className}`}

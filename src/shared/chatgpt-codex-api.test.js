@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -7,7 +8,11 @@ import {
   generateChatGptStreamingCompletion,
   parseChatGptCodexEvent,
 } from "./chatgpt-codex-api.js";
-import { DEFAULT_CHATGPT_MODEL } from "./constants.js";
+import {
+  CHATGPT_CODEX_ORIGINATOR,
+  CHATGPT_CODEX_USER_AGENT,
+  DEFAULT_CHATGPT_MODEL,
+} from "./constants.js";
 
 test("ChatGPT Codex request defaults to gpt-5.3-codex-spark", () => {
   const body = buildChatGptCodexRequestBody("", "Translate this");
@@ -31,7 +36,32 @@ test("ChatGPT Codex headers include account context without exposing refresh tok
   assert.equal(headers.Authorization, "Bearer access-token");
   assert.equal(headers["ChatGPT-Account-Id"], "account-1");
   assert.equal(headers["X-OpenAI-FedRamp"], "true");
+  assert.equal(headers.Originator, CHATGPT_CODEX_ORIGINATOR);
+  assert.equal(headers["User-Agent"], CHATGPT_CODEX_USER_AGENT);
+  assert.equal("Version" in headers, false);
   assert.equal(JSON.stringify(headers).includes("must-not-appear"), false);
+});
+
+test("Chromium rewrites the Codex User-Agent to the supported client version", () => {
+  const rules = JSON.parse(
+    readFileSync(
+      new URL(
+        "../rules/chatgpt-codex-client-headers.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const userAgentRule = rules[0]?.action?.requestHeaders?.find(
+    (header) => header.header.toLowerCase() === "user-agent",
+  );
+
+  assert.equal(userAgentRule?.operation, "set");
+  assert.equal(userAgentRule?.value, CHATGPT_CODEX_USER_AGENT);
+  assert.equal(
+    rules[0]?.condition?.urlFilter,
+    "||chatgpt.com/backend-api/codex/",
+  );
 });
 
 test("ChatGPT Codex SSE events expose text deltas and completed output", () => {

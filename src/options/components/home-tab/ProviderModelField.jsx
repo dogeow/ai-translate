@@ -19,6 +19,7 @@ export function ProviderModelField({
   modelDropdownOpen,
   setModelDropdownOpen,
   modelDropdownRef,
+  allowManualOllamaModel = false,
 }) {
   if (isMiniMax) {
     return (
@@ -79,6 +80,7 @@ export function ProviderModelField({
         <AutoSaveInputField
           id={FIELD_IDS.providerModel}
           label="模型"
+          tip={`默认使用 ${DEFAULT_CHATGPT_MODEL}，需要账号具备该模型的使用权限。`}
           placeholder={DEFAULT_CHATGPT_MODEL}
           value={settings.chatgptModel}
           settingKey="chatgptModel"
@@ -87,10 +89,23 @@ export function ProviderModelField({
           settingsRef={settingsRef}
           showAutoSaveStatus={showAutoSaveStatus}
         />
-        <p className="hint" style={{ marginTop: 8 }}>
-          默认使用 {DEFAULT_CHATGPT_MODEL}。该预览模型需要账号具备相应使用权限。
-        </p>
       </>
+    );
+  }
+
+  if (allowManualOllamaModel && models.length === 0) {
+    return (
+      <AutoSaveInputField
+        id={FIELD_IDS.providerModel}
+        label="模型"
+        placeholder="输入 Ollama 模型，例如 qwen2.5:7b"
+        value={settings.ollamaModel}
+        settingKey="ollamaModel"
+        updateSettings={updateSettings}
+        persistSettings={persistSettings}
+        settingsRef={settingsRef}
+        showAutoSaveStatus={showAutoSaveStatus}
+      />
     );
   }
 

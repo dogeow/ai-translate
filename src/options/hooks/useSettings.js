@@ -14,6 +14,7 @@ import { migrateSettingsIfNeeded } from "../../shared/settings.js";
  */
 export function useSettings() {
   const [settings, setSettings] = useState(() => getInitialSettings());
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
   const { status: autoSaveStatus, showStatus: showAutoSaveStatus } =
     useTransientStatus();
   const settingsRef = useRef(settings);
@@ -97,11 +98,13 @@ export function useSettings() {
     lastSavedSettingsRef.current = JSON.stringify(
       getSettingsSnapshot(nextSettings),
     );
+    setIsSettingsLoaded(true);
     return nextSettings;
   }, []);
 
   return {
     settings,
+    isSettingsLoaded,
     settingsRef,
     autoSaveStatus,
     showAutoSaveStatus,

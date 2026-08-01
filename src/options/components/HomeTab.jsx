@@ -1,202 +1,228 @@
-import { useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LANG_OPTIONS,
-  MINIMAX_REGION_CN,
-  MINIMAX_REGION_GLOBAL,
-  PROVIDER_MINIMAX_CN,
-  PROVIDER_MINIMAX_GLOBAL,
-  TRANSLATE_PROVIDER_OPTIONS,
+  PROVIDER_CHATGPT,
+  PROVIDER_CHROME_AI,
 } from "../../shared/constants.js";
-import {
-  getDefaultMiniMaxApiUrlByRegion,
-  isMiniMaxProvider,
-  isGitHubModelsProvider,
-  isChatGptProvider,
-  isChromeAiProvider,
-} from "../../shared/settings.js";
+import { detectChromeAiRuntimeAvailability } from "../../shared/chrome-ai-verification.js";
 import { Card } from "./common/Card.jsx";
-import {
-  AutoSaveInputField,
-  AutoSaveSelectField,
-} from "./common/AutoSaveField.jsx";
-import { useOutsideClick } from "../hooks/useOutsideClick.js";
-import {
-  getConnectionResultClass,
-  getMiniMaxConfig,
-  isMiniMaxKeyMissing as checkMiniMaxKeyMissing,
-} from "../lib/homeTabUtils.js";
-import { ChromeAiPanel } from "./home-tab/ChromeAiPanel.jsx";
-import { ConnectionTestField } from "./home-tab/ConnectionTestField.jsx";
 import { FIELD_IDS } from "./home-tab/constants.js";
-import { GitHubAuthFields } from "./home-tab/GitHubAuthFields.jsx";
-import { ChatGptAuthFields } from "./home-tab/ChatGptAuthFields.jsx";
-import { MiniMaxApiKeyField } from "./home-tab/MiniMaxApiKeyField.jsx";
-import { ProviderModelField } from "./home-tab/ProviderModelField.jsx";
+import { ProviderCards } from "./home-tab/ProviderCards.jsx";
+import { ProviderModal } from "./home-tab/ProviderModal.jsx";
+import {
+  buildActivatedProviderSettings,
+  buildRemovedProviderSettings,
+  buildSavedProviderSettings,
+  getAvailableProviders,
+  getProviderLabel,
+} from "./home-tab/providerUi.js";
 
 export function HomeTab({
   settings,
+  isSettingsLoaded,
   updateSettings,
-  persistSettings,
   settingsRef,
-  showAutoSaveStatus,
   setOriginsModalOpen,
   testConnectionResult,
   updateConnectionStatus,
   models,
-  modelDropdownOpen,
-  setModelDropdownOpen,
 }) {
-  const modelDropdownRef = useRef(null);
-  useOutsideClick(
-    modelDropdownRef,
-    () => setModelDropdownOpen(false),
-    modelDropdownOpen,
-  );
-  const isMiniMax = isMiniMaxProvider(settings.provider);
-  const isGitHub = isGitHubModelsProvider(settings.provider);
-  const isChatGpt = isChatGptProvider(settings.provider);
-  const isChromeAi = isChromeAiProvider(settings.provider);
-  const testConnectionClassName = getConnectionResultClass(
-    testConnectionResult.tone,
-  );
-  const minimaxConfig = getMiniMaxConfig(settings);
-  const isMiniMaxKeyMissing = checkMiniMaxKeyMissing(settings);
-  const isGitHubTokenMissing =
-    isGitHub && !String(settings.githubDeviceToken || "").trim();
-  const minimaxKeyMissingHint = `请先填写${minimaxConfig.apiKeyLabel}`;
+  const [providerModalState, setProviderModalState] = useState(null);
+  const [providerCardsRefreshKey, setProviderCardsRefreshKey] = useState(0);
+  const [chromeAiRuntimeState, setChromeAiRuntimeState] =
+    useState("unknown");
+  const providerSetupLinkHandledRef = useRef(false);
+  const availableProviders = getAvailableProviders(settings);
+  const addedProvidersKey = (settings.addedProviders || []).join("|");
 
-  const handleProviderChange = (event, newProvider) => {
-    const nextSettings = {
-      ...settingsRef.current,
-      provider: newProvider,
+  useEffect(() => {
+    if (!isSettingsLoaded) return undefined;
+    let active = true;
+    setChromeAiRuntimeState("checking");
+    void detectChromeAiRuntimeAvailability(settings).then((result) => {
+      if (!active) return;
+      setChromeAiRuntimeState(
+        result.checked
+          ? result.ready
+            ? "ready"
+            : "unavailable"
+          : "unknown",
+      );
+    });
+    return () => {
+      active = false;
     };
-    if (
-      newProvider === PROVIDER_MINIMAX_CN ||
-      newProvider === PROVIDER_MINIMAX_GLOBAL
-    ) {
-      const region =
-        newProvider === PROVIDER_MINIMAX_GLOBAL
-          ? MINIMAX_REGION_GLOBAL
-          : MINIMAX_REGION_CN;
-      nextSettings.minimaxRegion = region;
-      nextSettings.minimaxApiUrl = getDefaultMiniMaxApiUrlByRegion(region);
-    }
+  }, [
+    addedProvidersKey,
+    isSettingsLoaded,
+    providerCardsRefreshKey,
+    settings.translateTargetLang,
+  ]);
+
+  const closeProviderModal = useCallback(() => {
+    setProviderModalState(null);
+    setProviderCardsRefreshKey((value) => value + 1);
+  }, []);
+
+  const switchProvider = (provider) => {
+    if (provider === settingsRef.current.provider) return;
+    const nextSettings = buildActivatedProviderSettings(
+      settingsRef.current,
+      provider,
+    );
     updateSettings(() => nextSettings, "now");
     void updateConnectionStatus(nextSettings, {
       preserveTestMessage: false,
-      updateBannerStatus: false,
+      updateBannerStatus: true,
       showTestPending: true,
     });
   };
 
+  const openAddProvider = () => {
+    const firstAvailable = getAvailableProviders(settingsRef.current)[0];
+    if (!firstAvailable) return;
+    setProviderModalState({
+      mode: "add",
+      provider: firstAvailable.value,
+    });
+  };
+
+  const openProviderSettings = (provider) => {
+    setProviderModalState({ mode: "edit", provider });
+  };
+
+  const removeProvider = (provider) => {
+    const label = getProviderLabel(provider);
+    if (
+      !window.confirm(
+        `删除 ${label}？已填写的配置会保留，之后可以重新添加。`,
+      )
+    ) {
+      return;
+    }
+
+    const previousSettings = settingsRef.current;
+    const nextSettings = buildRemovedProviderSettings(
+      previousSettings,
+      provider,
+    );
+    updateSettings(() => nextSettings, "now");
+
+    if (
+      previousSettings.provider === provider ||
+      nextSettings.addedProviders.length === 0
+    ) {
+      void updateConnectionStatus(nextSettings, {
+        preserveTestMessage: false,
+        updateBannerStatus: true,
+        showTestPending: true,
+      });
+    }
+  };
+
+  const invalidateProviderVerification = useCallback(
+    (provider) => {
+      updateSettings(
+        (previous) => ({
+          ...previous,
+          verifiedProviders: (previous.verifiedProviders || []).filter(
+            (item) => item !== provider,
+          ),
+        }),
+        "now",
+      );
+    },
+    [updateSettings],
+  );
+
+  useEffect(() => {
+    if (!isSettingsLoaded || providerSetupLinkHandledRef.current) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("add-provider") !== "1") return;
+
+    providerSetupLinkHandledRef.current = true;
+    const firstAvailable = getAvailableProviders(settingsRef.current)[0];
+    if (firstAvailable) {
+      setProviderModalState({
+        mode: "add",
+        provider: firstAvailable.value,
+      });
+    }
+    url.searchParams.delete("add-provider");
+    history.replaceState(
+      null,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, [isSettingsLoaded, settingsRef]);
+
+  const saveProvider = (
+    draft,
+    {
+      connectionTested = false,
+      connectionVerified = false,
+    } = {},
+  ) => {
+    const isAdding = providerModalState?.mode === "add";
+    const previousProvider = settingsRef.current.provider;
+    const nextSettings = buildSavedProviderSettings(
+      settingsRef.current,
+      draft,
+      isAdding,
+      connectionVerified,
+      connectionTested,
+    );
+
+    updateSettings(() => nextSettings, "now");
+    closeProviderModal();
+
+    if (!isAdding && draft.provider === previousProvider) {
+      void updateConnectionStatus(nextSettings, {
+        preserveTestMessage: false,
+        updateBannerStatus: true,
+        showTestPending: true,
+      });
+    }
+  };
+
   return (
     <>
+      <ProviderModal
+        key={
+          providerModalState
+            ? `${providerModalState.mode}:${providerModalState.provider}`
+            : "provider-modal-closed"
+        }
+        state={providerModalState}
+        settings={settings}
+        providerOptions={availableProviders}
+        onClose={closeProviderModal}
+        onSubmit={saveProvider}
+        testConnectionResult={testConnectionResult}
+        updateConnectionStatus={updateConnectionStatus}
+        models={
+          providerModalState?.provider === settings.provider ? models : []
+        }
+        setOriginsModalOpen={(isOpen) => {
+          if (isOpen) closeProviderModal();
+          setOriginsModalOpen(isOpen);
+        }}
+        onAvailabilityInvalidated={() =>
+          invalidateProviderVerification(PROVIDER_CHATGPT)
+        }
+      />
+
       <Card title="翻译引擎">
-        <AutoSaveSelectField
-          id={FIELD_IDS.provider}
-          label="API 厂家"
-          value={settings.provider}
-          options={TRANSLATE_PROVIDER_OPTIONS}
-          settingKey="provider"
-          updateSettings={updateSettings}
-          onChange={handleProviderChange}
-        />
-
-        {!isGitHub && !isChatGpt && !isChromeAi ? (
-          <AutoSaveInputField
-            id={FIELD_IDS.providerApiUrl}
-            label={isMiniMax ? "MiniMax API 地址" : "Ollama API 地址"}
-            placeholder={
-              isMiniMax ? minimaxConfig.urlPlaceholder : "http://127.0.0.1:11434"
-            }
-            value={isMiniMax ? settings.minimaxApiUrl : settings.ollamaUrl}
-            settingKey={isMiniMax ? "minimaxApiUrl" : "ollamaUrl"}
-            updateSettings={updateSettings}
-            persistSettings={persistSettings}
-            settingsRef={settingsRef}
-            showAutoSaveStatus={showAutoSaveStatus}
-          />
-        ) : null}
-
-        {isChromeAi ? (
-          <>
-            <p className="hint" style={{ marginTop: 8 }}>
-              使用 Chrome 内置翻译模型，免费、离线、无 API Key。需 Chrome 138+
-              （含 Edge）。Firefox 暂不支持。
-            </p>
-            <ChromeAiPanel
-              isChromeAi={isChromeAi}
-              targetLang={settings.translateTargetLang}
-              onAfterDownload={() => {
-                void updateConnectionStatus(settingsRef.current, {
-                  preserveTestMessage: false,
-                  updateBannerStatus: true,
-                  showTestPending: false,
-                });
-              }}
-            />
-          </>
-        ) : null}
-
-        <MiniMaxApiKeyField
-          isMiniMax={isMiniMax}
-          minimaxConfig={minimaxConfig}
-          isMiniMaxKeyMissing={isMiniMaxKeyMissing}
-          minimaxKeyMissingHint={minimaxKeyMissingHint}
-          updateSettings={updateSettings}
-          persistSettings={persistSettings}
-          settingsRef={settingsRef}
-          showAutoSaveStatus={showAutoSaveStatus}
-        />
-
-        <GitHubAuthFields
-          isGitHub={isGitHub}
+        <ProviderCards
           settings={settings}
-          updateSettings={updateSettings}
-          persistSettings={persistSettings}
-          settingsRef={settingsRef}
-          showAutoSaveStatus={showAutoSaveStatus}
-          updateConnectionStatus={updateConnectionStatus}
+          refreshKey={providerCardsRefreshKey}
+          chromeAiRuntimeState={chromeAiRuntimeState}
+          onSwitch={switchProvider}
+          onConfigure={openProviderSettings}
+          onRemove={removeProvider}
+          onAdd={openAddProvider}
+          canAdd={availableProviders.length > 0}
         />
-
-        <ChatGptAuthFields
-          isChatGpt={isChatGpt}
-          settingsRef={settingsRef}
-          updateConnectionStatus={updateConnectionStatus}
-        />
-
-        {!isChromeAi ? (
-          <ProviderModelField
-            isMiniMax={isMiniMax}
-            isGitHub={isGitHub}
-            isChatGpt={isChatGpt}
-            settings={settings}
-            updateSettings={updateSettings}
-            persistSettings={persistSettings}
-            settingsRef={settingsRef}
-            showAutoSaveStatus={showAutoSaveStatus}
-            models={models}
-            modelDropdownOpen={modelDropdownOpen}
-            setModelDropdownOpen={setModelDropdownOpen}
-            modelDropdownRef={modelDropdownRef}
-          />
-        ) : null}
-
-        {!isChromeAi ? (
-          <ConnectionTestField
-            isMiniMax={isMiniMax}
-            isGitHub={isGitHub}
-            isChatGpt={isChatGpt}
-            isChromeAi={isChromeAi}
-            isMiniMaxKeyMissing={isMiniMaxKeyMissing}
-            isGitHubTokenMissing={isGitHubTokenMissing}
-            testConnectionClassName={testConnectionClassName}
-            testConnectionResult={testConnectionResult}
-            settingsRef={settingsRef}
-            updateConnectionStatus={updateConnectionStatus}
-            setOriginsModalOpen={setOriginsModalOpen}
-          />
-        ) : null}
       </Card>
 
       <div className="card">
@@ -209,7 +235,15 @@ export function HomeTab({
             value={settings.translateTargetLang}
             onChange={(event) => {
               updateSettings(
-                { translateTargetLang: event.target.value },
+                (previous) => ({
+                  ...previous,
+                  translateTargetLang: event.target.value,
+                  verifiedProviders: (
+                    previous.verifiedProviders || []
+                  ).filter(
+                    (provider) => provider !== PROVIDER_CHROME_AI,
+                  ),
+                }),
                 "now",
               );
             }}

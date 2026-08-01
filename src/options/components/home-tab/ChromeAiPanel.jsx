@@ -5,6 +5,7 @@ import {
   prepareChromeAiTranslator,
   probeChromeAiAvailablePairs,
 } from "../../../shared/chrome-ai-api.js";
+import { InfoTip } from "../common/InfoTip.jsx";
 
 function StatusRow({ label, tone, text, action }) {
   return (
@@ -32,6 +33,7 @@ export function ChromeAiPanel({
   isChromeAi,
   targetLang,
   onAfterDownload,
+  onAvailabilityChange,
 }) {
   const [supported, setSupported] = useState(true);
   const [translator, setTranslator] = useState("checking");
@@ -53,6 +55,10 @@ export function ChromeAiPanel({
     if (!sup) {
       setTranslator("unsupported");
       setAvailablePairs([]);
+      onAvailabilityChange?.({
+        ready: false,
+        status: { supported: false, translator: "unsupported" },
+      });
       return;
     }
     setTranslator("checking");
@@ -65,11 +71,19 @@ export function ChromeAiPanel({
       setSourceCode(status.sourceCode);
       setTargetCode(status.targetCode);
       setAvailablePairs(pairs);
+      onAvailabilityChange?.({
+        ready: status.translator === "available",
+        status,
+      });
     } catch (_) {
       setTranslator("unavailable");
       setAvailablePairs([]);
+      onAvailabilityChange?.({
+        ready: false,
+        status: null,
+      });
     }
-  }, [isChromeAi, targetLang]);
+  }, [isChromeAi, onAvailabilityChange, targetLang]);
 
   useEffect(() => {
     if (!isChromeAi) return;
@@ -160,7 +174,10 @@ export function ChromeAiPanel({
   return (
     <div className="chrome-ai-panel">
       <div className="chrome-ai-panel-header">
-        <strong>Chrome 内置 AI 模型</strong>
+        <span className="chrome-ai-panel-title">
+          <strong>Chrome 内置 AI</strong>
+          <InfoTip text="免费、离线且无需 API Key，需要 Chrome 138+ 或同等版本 Edge。" />
+        </span>
         <button
           type="button"
           className="chrome-ai-link-btn"

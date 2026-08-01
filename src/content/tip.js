@@ -148,6 +148,21 @@ async function handleTranslateWithModel(result, modelName) {
   }).catch(() => {});
 }
 
+function getWordLearningStatus(word) {
+  return sendRuntimeMessage({
+    action: "getWordLearningStatus",
+    word,
+  });
+}
+
+function setWordLearningStatus(word, status) {
+  return sendRuntimeMessage({
+    action: "setWordLearningStatus",
+    word,
+    status,
+  });
+}
+
 export function hideTip() {
   cleanupDocumentListeners();
   renderToken += 1;
@@ -185,6 +200,8 @@ export function showTip(result, lastTipRect) {
       onClose: hideTip,
       onTranslateWithModel: (modelName) =>
         handleTranslateWithModel(result, modelName),
+      onGetWordLearningStatus: getWordLearningStatus,
+      onSetWordLearningStatus: setWordLearningStatus,
     }),
   );
 

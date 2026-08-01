@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1,
+    "priority": 100,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "User-Agent",
+          "operation": "set",
+          "value": "Codex Desktop/0.146.0 (Chrome Extension; ai-translate)"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||chatgpt.com/backend-api/codex/",
+      "resourceTypes": [
+        "xmlhttprequest"
+      ]
+    }
+  }
+]

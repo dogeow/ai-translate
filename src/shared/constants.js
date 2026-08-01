@@ -62,11 +62,18 @@ export const GITHUB_MODEL_WHITELIST = Object.freeze([
 export const DEFAULT_CHATGPT_CODEX_API_URL =
   "https://chatgpt.com/backend-api/codex";
 export const DEFAULT_CHATGPT_MODEL = "gpt-5.3-codex-spark";
+// ChatGPT 会从 Codex 客户端标识中判断是否支持预览模型。
+// 这是 Codex 协议兼容版本，不是浏览器扩展自身的 manifest 版本。
+export const CHATGPT_CODEX_CLIENT_VERSION = "0.146.0";
+export const CHATGPT_CODEX_ORIGINATOR = "Codex Desktop";
+export const CHATGPT_CODEX_USER_AGENT =
+  `Codex Desktop/${CHATGPT_CODEX_CLIENT_VERSION} (Chrome Extension; ai-translate)`;
 
 // 翻译配置
 export const DEFAULT_TRANSLATE_TARGET_LANG = "Chinese";
 export const DEFAULT_AUTO_TRANSLATE_MODE = "hotkey";
 export const DEFAULT_HOVER_TRANSLATE_SCOPE = "word";
+export const DEFAULT_HOVER_TRANSLATE_MODIFIER_KEY = "alt";
 export const DEFAULT_HOVER_TRANSLATE_DELAY_MS = 200;
 export const DEFAULT_PAGE_TRANSLATE_CONCURRENCY = 1;
 /** 页面翻译每批最少字符数，达到后不再继续加条；默认 128，用户可设置 */
@@ -110,6 +117,34 @@ export const HOVER_TRANSLATE_SCOPE_OPTIONS = [
     label: "翻译整段话",
     title: "翻译整段话",
     hint: "适合整段阅读和快速理解上下文。",
+  },
+];
+
+export const HOVER_TRANSLATE_MODIFIER_OPTIONS = [
+  {
+    value: "alt",
+    label: "Option / Alt",
+    title: "Option / Alt",
+  },
+  {
+    value: "shift",
+    label: "Shift",
+    title: "Shift",
+  },
+  {
+    value: "control",
+    label: "Control",
+    title: "Control",
+  },
+  {
+    value: "meta",
+    label: "Command / Win",
+    title: "Command / Win",
+  },
+  {
+    value: "none",
+    label: "关闭临时切换",
+    title: "关闭临时切换",
   },
 ];
 

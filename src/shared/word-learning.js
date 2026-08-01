@@ -28,6 +28,7 @@
 export const KNOWN_WORDS_STORAGE_KEY = "knownWords";
 export const STUDYING_WORDS_STORAGE_KEY = "studyingWords";
 export const WORD_MARKING_ENABLED_KEY = "wordMarkingEnabled";
+export const WORD_RECOGNITION_MODE_ENABLED_KEY = "wordRecognitionModeEnabled";
 
 const HOUR = 60 * 60 * 1000;
 export const INTERVAL_LEVELS = [
@@ -44,7 +45,7 @@ export function normalizeWord(raw) {
   const text = String(raw).trim().toLowerCase();
   // 仅允许英文字母 / 连字符 / 撇号；过滤纯数字/符号
   if (!/^[a-z][a-z'\-]*$/i.test(text)) return "";
-  if (text.length < 2) return "";
+  if (text.length < 2 && text !== "a" && text !== "i") return "";
   return text;
 }
 
@@ -103,6 +104,53 @@ export async function loadAllWords() {
         ? stored[STUDYING_WORDS_STORAGE_KEY]
         : {},
   };
+}
+
+export function resolveWordLearningStatus(rawWord, known, studying) {
+  const word = normalizeWord(rawWord);
+  if (!word) return "unmarked";
+  if (known?.[word]) return "known";
+  if (studying?.[word]) return "studying";
+  return "unmarked";
+}
+
+export async function getWordLearningStatus(rawWord) {
+  const word = normalizeWord(rawWord);
+  if (!word) return null;
+  const { known, studying } = await loadAllWords();
+  return {
+    word,
+    status: resolveWordLearningStatus(word, known, studying),
+  };
+}
+
+export async function setWordLearningStatus(rawWord, status) {
+  const word = normalizeWord(rawWord);
+  if (!word || (status !== "known" && status !== "studying")) return null;
+
+  const { known, studying } = await loadAllWords();
+  const now = Date.now();
+
+  if (status === "known") {
+    known[word] = { addedAt: known[word]?.addedAt || now };
+    delete studying[word];
+  } else {
+    delete known[word];
+    studying[word] = studying[word] || {
+      addedAt: now,
+      level: -1,
+      lastReviewedAt: null,
+      nextReviewAt: null,
+      lastAction: null,
+      history: [],
+    };
+  }
+
+  await setLocal({
+    [KNOWN_WORDS_STORAGE_KEY]: known,
+    [STUDYING_WORDS_STORAGE_KEY]: studying,
+  });
+  return { word, status };
 }
 
 export async function addKnownWord(rawWord) {

@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TARGET_LANG_LABELS } from "../constants.js";
 import { getModelName, getModelDisplay } from "../../shared/model-utils.js";
 import { getOllamaErrorMessage } from "../../shared/ollama-errors.js";
+import { buildYoudaoAudioUrl } from "../../shared/youdao-api.js";
 import {
-  buildYoudaoAudioUrl,
-  isPronounceableEnglishWord,
-} from "../../shared/youdao-api.js";
+  getSingleEnglishWord,
+  isEditableShortcutTarget,
+  resolveWordLearningShortcut,
+  WORD_LEARNING_STATUS,
+} from "./wordLearningActions.js";
 
 function getThinkingLines(text) {
   return String(text || "")
@@ -40,7 +43,8 @@ function SpeakerIcon({ playing }) {
 
 function OriginalTextSection({ text }) {
   const normalizedText = String(text || "").trim();
-  const canPronounce = isPronounceableEnglishWord(normalizedText);
+  const pronounceableWord = getSingleEnglishWord(normalizedText);
+  const canPronounce = !!pronounceableWord;
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
 
@@ -68,7 +72,7 @@ function OriginalTextSection({ text }) {
       return;
     }
 
-    const audio = new Audio(buildYoudaoAudioUrl(normalizedText, 2));
+    const audio = new Audio(buildYoudaoAudioUrl(pronounceableWord, 2));
     audioRef.current = audio;
     setPlaying(true);
 
@@ -104,6 +108,131 @@ function OriginalTextSection({ text }) {
           </button>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function WordLearningActions({
+  word,
+  onGetWordLearningStatus,
+  onSetWordLearningStatus,
+}) {
+  const [status, setStatus] = useState(WORD_LEARNING_STATUS.UNMARKED);
+  const [loading, setLoading] = useState(true);
+  const [savingStatus, setSavingStatus] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+
+    Promise.resolve(onGetWordLearningStatus?.(word))
+      .then((response) => {
+        if (cancelled) return;
+        if (!response?.ok) {
+          throw new Error(response?.error || "load_failed");
+        }
+        const nextStatus = Object.values(WORD_LEARNING_STATUS).includes(
+          response?.status,
+        )
+          ? response.status
+          : WORD_LEARNING_STATUS.UNMARKED;
+        setStatus(nextStatus);
+      })
+      .catch(() => {
+        if (!cancelled) setError("读取状态失败");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onGetWordLearningStatus, word]);
+
+  const updateStatus = useCallback(
+    async (nextStatus) => {
+      if (loading || savingStatus || status === nextStatus) return;
+      setSavingStatus(nextStatus);
+      setError("");
+      try {
+        const response = await onSetWordLearningStatus?.(word, nextStatus);
+        if (!response?.ok) {
+          throw new Error(response?.error || "save_failed");
+        }
+        setStatus(nextStatus);
+      } catch (_) {
+        setError("保存失败，请重试");
+      } finally {
+        setSavingStatus("");
+      }
+    },
+    [
+      loading,
+      onSetWordLearningStatus,
+      savingStatus,
+      status,
+      word,
+    ],
+  );
+
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (isEditableShortcutTarget(event.target)) return;
+      const nextStatus = resolveWordLearningShortcut(event);
+      if (!nextStatus) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void updateStatus(nextStatus);
+    }
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [updateStatus]);
+
+  const isStudying = status === WORD_LEARNING_STATUS.STUDYING;
+  const isKnown = status === WORD_LEARNING_STATUS.KNOWN;
+  const busy = loading || !!savingStatus;
+
+  return (
+    <div
+      className={`ollama-tip-word-learning${error ? " has-error" : ""}`}
+      role="group"
+      aria-label="单词学习状态"
+    >
+      <button
+        type="button"
+        className={`ollama-tip-word-status ollama-tip-word-status--studying${
+          isStudying ? " is-active" : ""
+        }`}
+        aria-pressed={isStudying}
+        disabled={busy || isStudying}
+        title="标记为生词（Option+1）"
+        onClick={() => void updateStatus(WORD_LEARNING_STATUS.STUDYING)}
+      >
+        <span>{isStudying ? "学习中" : isKnown ? "改为生词" : "生词"}</span>
+        <kbd>⌥1</kbd>
+      </button>
+      <button
+        type="button"
+        className={`ollama-tip-word-status ollama-tip-word-status--known${
+          isKnown ? " is-active" : ""
+        }`}
+        aria-pressed={isKnown}
+        disabled={busy || isKnown}
+        title="标记为熟词（Option+2）"
+        onClick={() => void updateStatus(WORD_LEARNING_STATUS.KNOWN)}
+      >
+        <span>{isKnown ? "已掌握" : "我会"}</span>
+        <kbd>⌥2</kbd>
+      </button>
+      {error ? (
+        <span className="ollama-tip-word-learning-error" role="status">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -307,9 +436,16 @@ function NeedModelSection({ result, onTranslateWithModel }) {
   );
 }
 
-export function TipView({ result, onClose, onTranslateWithModel }) {
+export function TipView({
+  result,
+  onClose,
+  onTranslateWithModel,
+  onGetWordLearningStatus,
+  onSetWordLearningStatus,
+}) {
   const [copied, setCopied] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const learningWord = getSingleEnglishWord(result.original);
   const targetLabel =
     (result.targetLang && TARGET_LANG_LABELS[result.targetLang]) ||
     result.targetLang ||
@@ -392,6 +528,13 @@ export function TipView({ result, onClose, onTranslateWithModel }) {
               ) : null}
             </div>
           </div>
+          {!result.error && result.translation && learningWord ? (
+            <WordLearningActions
+              word={learningWord}
+              onGetWordLearningStatus={onGetWordLearningStatus}
+              onSetWordLearningStatus={onSetWordLearningStatus}
+            />
+          ) : null}
           {result.thinking ? (
             <ThinkingCollapsedSection
               thinking={result.thinking}

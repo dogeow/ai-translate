@@ -98,6 +98,28 @@ export function useConnectionStatus({
         showTestPending = false,
       } = options;
       const requestId = ++connectionRequestIdRef.current;
+      if (
+        Array.isArray(nextSettings.addedProviders) &&
+        nextSettings.addedProviders.length === 0
+      ) {
+        applyConnectionStatus(
+          {
+            kind: "err",
+            text: "暂无翻译引擎，请先新增",
+            showAction: false,
+          },
+          updateBannerStatus,
+        );
+        setModels([]);
+        if (!preserveTestMessage) {
+          setTestConnectionResult({
+            text: "请先新增并完成可用性测试。",
+            tone: "err",
+            showAction: false,
+          });
+        }
+        return;
+      }
       const provider = getConfig(nextSettings).provider;
       const providerLabel = isChromeAiProvider(provider)
         ? "Chrome 内置 AI"

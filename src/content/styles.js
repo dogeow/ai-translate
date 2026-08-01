@@ -1,5 +1,11 @@
 /** 注入滑词翻译用到的全局样式 */
-import { BUTTON_ID, TIP_ID, STYLE_ID, SHORTCUT_HINT_ID } from "./constants.js";
+import {
+  BUTTON_ID,
+  HOVER_TARGET_INDICATOR_ID,
+  TIP_ID,
+  STYLE_ID,
+  SHORTCUT_HINT_ID,
+} from "./constants.js";
 
 export function injectStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -121,6 +127,30 @@ export function injectStyles() {
     background: var(--ollama-button-gradient-hover);
     transform: scale(1.03);
     box-shadow: var(--ollama-button-shadow-hover);
+}
+
+/* ===== Hover translation target ===== */
+#${HOVER_TARGET_INDICATOR_ID} {
+    position: fixed;
+    z-index: 2147483645;
+    box-sizing: border-box;
+    pointer-events: none;
+    border: 1px solid rgba(99, 102, 241, 0.72);
+    border-radius: 5px;
+    background: rgba(99, 102, 241, 0.09);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.08);
+    transition:
+        left 0.08s ease,
+        top 0.08s ease,
+        width 0.08s ease,
+        height 0.08s ease,
+        background 0.08s ease;
+}
+
+#${HOVER_TARGET_INDICATOR_ID}[data-scope="paragraph"] {
+    border-color: rgba(99, 102, 241, 0.58);
+    border-radius: 8px;
+    background: rgba(99, 102, 241, 0.055);
 }
 
 /* ===== Tip container ===== */
@@ -573,6 +603,82 @@ export function injectStyles() {
     color: var(--ollama-text-muted);
     background: transparent;
     border: none;
+}
+
+/* ===== Word learning actions ===== */
+#${TIP_ID} .ollama-tip-word-learning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--ollama-border);
+}
+
+#${TIP_ID} .ollama-tip-word-status {
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 10px;
+    color: var(--ollama-text-secondary);
+    background: var(--ollama-panel);
+    border: 1px solid var(--ollama-border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition:
+        color 0.15s ease,
+        background 0.15s ease,
+        border-color 0.15s ease;
+}
+
+#${TIP_ID} .ollama-tip-word-status:hover:not(:disabled) {
+    color: var(--ollama-text-strong);
+    border-color: var(--ollama-border-soft-hover);
+}
+
+#${TIP_ID} .ollama-tip-word-status:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--ollama-focus-ring);
+}
+
+#${TIP_ID} .ollama-tip-word-status:disabled {
+    cursor: default;
+}
+
+#${TIP_ID} .ollama-tip-word-status--studying.is-active {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.38);
+}
+
+#${TIP_ID} .ollama-tip-word-status--known.is-active {
+    color: #4ade80;
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.38);
+}
+
+#${TIP_ID} .ollama-tip-word-status kbd {
+    flex: 0 0 auto;
+    color: var(--ollama-text-disabled);
+    background: transparent;
+    border: 0;
+    font: inherit;
+    font-size: 10px;
+}
+
+#${TIP_ID} .ollama-tip-word-learning-error {
+    flex: 0 0 100%;
+    color: var(--ollama-error-text);
+    font-size: 11px;
+}
+
+#${TIP_ID} .ollama-tip-word-learning.has-error {
+    flex-wrap: wrap;
 }
 
 /* ===== Grammar / Sentence Study Section ===== */

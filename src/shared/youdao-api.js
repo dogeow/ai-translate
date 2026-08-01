@@ -5,7 +5,7 @@
  * 注意：该接口为有道网页版内部使用，可能随时变动；仅做最佳努力解析。
  */
 
-const YOUDAO_LOOKUP_URL = "https://dict.youdao.com/jsonapi_s?doctype=json&jsonversion=4";
+export const YOUDAO_LOOKUP_BASE = "https://dict.youdao.com/jsonapi_s";
 
 export const YOUDAO_AUDIO_BASE = "https://dict.youdao.com/dictvoice";
 
@@ -20,6 +20,15 @@ export function isPronounceableEnglishWord(word) {
   return /^[A-Za-z]+(?:['’-][A-Za-z]+)*$/.test(normalizedWord);
 }
 
+export function buildYoudaoLookupUrl(word) {
+  const params = new URLSearchParams({
+    q: String(word || "").trim(),
+    le: "en",
+    client: "mobile",
+  });
+  return `${YOUDAO_LOOKUP_BASE}?${params.toString()}`;
+}
+
 /**
  * 查询单词，返回 { word, ukphone, usphone, phone, translations[], raw }
  */
@@ -28,19 +37,11 @@ export async function lookupYoudao(word, { signal } = {}) {
   if (!trimmed) {
     throw new Error("empty_word");
   }
-  const body = new URLSearchParams({
-    q: trimmed,
-    le: "en",
-    t: String(Date.now()),
-    keyfrom: "webdict",
-  });
-  const response = await fetch(YOUDAO_LOOKUP_URL, {
-    method: "POST",
+  const response = await fetch(buildYoudaoLookupUrl(trimmed), {
+    method: "GET",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
       Accept: "application/json",
     },
-    body,
     signal,
   });
   if (!response.ok) {

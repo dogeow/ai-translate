@@ -14,6 +14,8 @@ test("getPopupSettingsState 返回 popup 默认状态", () => {
     provider: POPUP_SETTINGS_STORAGE_DEFAULTS.provider,
     autoTranslateMode: POPUP_SETTINGS_STORAGE_DEFAULTS.autoTranslateMode,
     hoverTranslateScope: POPUP_SETTINGS_STORAGE_DEFAULTS.hoverTranslateScope,
+    hoverTranslateModifierKey:
+      POPUP_SETTINGS_STORAGE_DEFAULTS.hoverTranslateModifierKey,
     appEnabled: true,
   });
 });
@@ -41,6 +43,7 @@ test("migrateSettingsIfNeeded 后 getPopupSettingsState 可读取迁移结果", 
       provider: "minimax-global",
       autoTranslateMode: "selection",
       hoverTranslateScope: "paragraph",
+      hoverTranslateModifierKey: "alt",
       appEnabled: false,
     },
   );
@@ -51,6 +54,7 @@ test("normalizeAllSettings 不再直接读取 legacy 通用键", () => {
     ollamaProvider: "minimax",
     ollamaAutoTranslateSelection: true,
     ollamaHoverTranslateScope: "paragraph",
+    ollamaHoverTranslateModifierKey: "shift",
     ollamaHoverTranslateDelayMs: "640",
   });
 
@@ -63,6 +67,10 @@ test("normalizeAllSettings 不再直接读取 legacy 通用键", () => {
     normalized.hoverTranslateScope,
     POPUP_SETTINGS_STORAGE_DEFAULTS.hoverTranslateScope,
   );
+  assert.equal(
+    normalized.hoverTranslateModifierKey,
+    POPUP_SETTINGS_STORAGE_DEFAULTS.hoverTranslateModifierKey,
+  );
 });
 
 test("normalizeAllSettings 优先使用 canonical 键而不是 legacy 键", () => {
@@ -73,6 +81,8 @@ test("normalizeAllSettings 优先使用 canonical 键而不是 legacy 键", () =
     ollamaAutoTranslateMode: "selection",
     hoverTranslateScope: "paragraph",
     ollamaHoverTranslateScope: "word",
+    hoverTranslateModifierKey: "control",
+    ollamaHoverTranslateModifierKey: "shift",
     hoverTranslateDelayMs: "640",
     ollamaHoverTranslateDelayMs: "120",
     pageTranslateConcurrency: "6",
@@ -84,6 +94,7 @@ test("normalizeAllSettings 优先使用 canonical 键而不是 legacy 键", () =
   assert.equal(normalized.provider, "github-models");
   assert.equal(normalized.autoTranslateMode, "hover");
   assert.equal(normalized.hoverTranslateScope, "paragraph");
+  assert.equal(normalized.hoverTranslateModifierKey, "control");
   assert.equal(normalized.hoverTranslateDelayMs, 640);
   assert.equal(normalized.pageTranslateConcurrency, 6);
   assert.equal(normalized.pageTranslateBatchChars, 512);
@@ -95,6 +106,7 @@ test("buildSettingsMigration 会把 legacy 键迁移成 canonical 键", () => {
     minimaxRegion: "global",
     ollamaAutoTranslateSelection: true,
     ollamaHoverTranslateScope: "paragraph",
+    ollamaHoverTranslateModifierKey: "shift",
     ollamaHoverTranslateDelayMs: "750",
     ollamaPageTranslateConcurrency: "5",
     ollamaPageTranslateBatchChars: "420",
@@ -106,6 +118,7 @@ test("buildSettingsMigration 会把 legacy 键迁移成 canonical 键", () => {
     provider: "minimax-global",
     autoTranslateMode: "selection",
     hoverTranslateScope: "paragraph",
+    hoverTranslateModifierKey: "shift",
     hoverTranslateDelayMs: 750,
     pageTranslateConcurrency: 5,
     pageTranslateBatchChars: 420,
@@ -144,6 +157,7 @@ test("buildSettingsMigration 在 canonical 键已存在时不覆盖新值", () =
     autoTranslateMode: "hover",
     ollamaAutoTranslateMode: "selection",
     hoverTranslateScope: "paragraph",
+    hoverTranslateModifierKey: "meta",
     hoverTranslateDelayMs: 640,
     pageTranslateConcurrency: 4,
     pageTranslateBatchChars: 320,

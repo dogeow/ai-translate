@@ -5,25 +5,34 @@ export function ConnectionTestField({
   isChromeAi,
   isMiniMaxKeyMissing,
   isGitHubTokenMissing,
+  isModelMissing,
   testConnectionClassName,
   testConnectionResult,
   settingsRef,
+  connectionSettings = null,
   updateConnectionStatus,
   setOriginsModalOpen,
 }) {
   return (
-    <div className="field">
-      <div className="field-row" style={{ marginTop: 10 }}>
+    <div className="field provider-connection-test">
+      <div className="field-row">
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={isMiniMaxKeyMissing || isGitHubTokenMissing}
+          disabled={
+            isMiniMaxKeyMissing ||
+            isGitHubTokenMissing ||
+            isModelMissing
+          }
           onClick={async () => {
-            await updateConnectionStatus(settingsRef.current, {
-              preserveTestMessage: false,
-              updateBannerStatus: false,
-              showTestPending: true,
-            });
+            await updateConnectionStatus(
+              connectionSettings || settingsRef.current,
+              {
+                preserveTestMessage: false,
+                updateBannerStatus: false,
+                showTestPending: true,
+              },
+            );
           }}
         >
           {isChromeAi ? "检查可用性" : "测试连接"}

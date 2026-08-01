@@ -1,7 +1,8 @@
 /** 选区与光标处文本的工具函数 */
 
-const BLOCK_CONTAINER_SELECTOR =
-  "article, aside, blockquote, dd, div, dl, dt, figcaption, footer, h1, h2, h3, h4, h5, h6, header, li, main, nav, p, pre, section, td, th";
+const PARAGRAPH_CONTAINER_SELECTOR =
+  "blockquote, dd, dt, figcaption, h1, h2, h3, h4, h5, h6, li, p, pre, td, th";
+const MAX_FALLBACK_PARAGRAPH_CHARS = 1200;
 const BLOCK_DISPLAY_VALUES = new Set([
   "block",
   "list-item",
@@ -146,7 +147,7 @@ function getWordInfoAtOffset(text, offset) {
 function getParagraphContainer(element) {
   if (!element) return null;
   if (element.closest) {
-    const block = element.closest(BLOCK_CONTAINER_SELECTOR);
+    const block = element.closest(PARAGRAPH_CONTAINER_SELECTOR);
     if (block && block !== document.body) return block;
   }
   let current = element;
@@ -154,12 +155,60 @@ function getParagraphContainer(element) {
     if (current instanceof HTMLElement) {
       const display = window.getComputedStyle(current).display;
       if (BLOCK_DISPLAY_VALUES.has(display)) {
-        return current;
+        const text = getElementFullText(current);
+        if (text && text.length <= MAX_FALLBACK_PARAGRAPH_CHARS) {
+          return current;
+        }
       }
     }
     current = current.parentElement;
   }
-  return element;
+  return null;
+}
+
+export function resolveHoverTranslateScope(
+  configuredScope = "word",
+  modifierActive = false,
+) {
+  const normalizedScope =
+    configuredScope === "paragraph" ? "paragraph" : "word";
+  if (!modifierActive) return normalizedScope;
+  return normalizedScope === "paragraph" ? "word" : "paragraph";
+}
+
+export function resolveShortcutTranslationTarget({
+  currentElement,
+  currentText,
+  lastTranslatedElement,
+  lastTranslatedText,
+}) {
+  const normalizedText = String(currentText || "").trim();
+  const isRepeatedTarget =
+    !!currentElement &&
+    currentElement === lastTranslatedElement &&
+    normalizedText === String(lastTranslatedText || "").trim();
+
+  if (isRepeatedTarget) {
+    const paragraph = getParagraphContainer(currentElement);
+    const paragraphText = getElementFullText(paragraph);
+    if (paragraph && paragraphText) {
+      return {
+        anchorElement: currentElement,
+        anchorText: normalizedText,
+        targetElement: paragraph,
+        text: paragraphText,
+        source: "expand",
+      };
+    }
+  }
+
+  return {
+    anchorElement: currentElement || null,
+    anchorText: normalizedText,
+    targetElement: currentElement || null,
+    text: normalizedText,
+    source: currentElement ? "selection" : "",
+  };
 }
 
 /**
@@ -213,8 +262,10 @@ export function getCurrentElementAndText(lastMouseX, lastMouseY) {
 }
 
 export function getElementFullText(el) {
-  if (!el || !el.innerText) return "";
-  return el.innerText.trim().slice(0, 15000);
+  if (!el) return "";
+  const text =
+    typeof el.innerText === "string" ? el.innerText : el.textContent || "";
+  return text.trim().slice(0, 15000);
 }
 
 export function getWordAtOffset(text, offset) {

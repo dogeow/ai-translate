@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Panel } from "./Panel.jsx";
-import { WORD_MARKING_ENABLED_KEY } from "../../shared/word-learning.js";
+import {
+  WORD_MARKING_ENABLED_KEY,
+  WORD_RECOGNITION_MODE_ENABLED_KEY,
+} from "../../shared/word-learning.js";
 
 function getActiveTab() {
   return new Promise((resolve) => {
@@ -16,16 +19,30 @@ export function UiRewriteAndLearningPanel() {
   const [status, setStatus] = useState("");
   const [statusTone, setStatusTone] = useState("neutral");
   const [wordMarkingEnabled, setWordMarkingEnabled] = useState(false);
+  const [recognitionModeEnabled, setRecognitionModeEnabled] = useState(false);
 
   useEffect(() => {
-    chrome.storage.sync.get([WORD_MARKING_ENABLED_KEY], (value) => {
-      setWordMarkingEnabled(value?.[WORD_MARKING_ENABLED_KEY] === true);
-    });
-    function onChanged(changes, area) {
-      if (area === "sync" && WORD_MARKING_ENABLED_KEY in changes) {
-        setWordMarkingEnabled(
-          changes[WORD_MARKING_ENABLED_KEY].newValue === true,
+    chrome.storage.sync.get(
+      [WORD_MARKING_ENABLED_KEY, WORD_RECOGNITION_MODE_ENABLED_KEY],
+      (value) => {
+        setWordMarkingEnabled(value?.[WORD_MARKING_ENABLED_KEY] === true);
+        setRecognitionModeEnabled(
+          value?.[WORD_RECOGNITION_MODE_ENABLED_KEY] === true,
         );
+      },
+    );
+    function onChanged(changes, area) {
+      if (area === "sync") {
+        if (WORD_MARKING_ENABLED_KEY in changes) {
+          setWordMarkingEnabled(
+            changes[WORD_MARKING_ENABLED_KEY].newValue === true,
+          );
+        }
+        if (WORD_RECOGNITION_MODE_ENABLED_KEY in changes) {
+          setRecognitionModeEnabled(
+            changes[WORD_RECOGNITION_MODE_ENABLED_KEY].newValue === true,
+          );
+        }
       }
     }
     chrome.storage.onChanged.addListener(onChanged);
@@ -83,6 +100,14 @@ export function UiRewriteAndLearningPanel() {
     chrome.storage.sync.set({ [WORD_MARKING_ENABLED_KEY]: next });
   }
 
+  function toggleRecognitionMode() {
+    const next = !recognitionModeEnabled;
+    setRecognitionModeEnabled(next);
+    chrome.storage.sync.set({
+      [WORD_RECOGNITION_MODE_ENABLED_KEY]: next,
+    });
+  }
+
   return (
     <Panel
       title="AI 页面改造 / 英语学习"
@@ -117,6 +142,14 @@ export function UiRewriteAndLearningPanel() {
           onChange={toggleMark}
         />
         <span>开启生词标记（在网页上为学习中的单词加下划线）</span>
+      </label>
+      <label className="popup-rewrite__toggle">
+        <input
+          type="checkbox"
+          checked={recognitionModeEnabled}
+          onChange={toggleRecognitionMode}
+        />
+        <span>开启认词模式（除熟词外全部加下划线）</span>
       </label>
     </Panel>
   );

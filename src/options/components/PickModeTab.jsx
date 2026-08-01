@@ -3,6 +3,7 @@ import { SettingNumberInput } from "./common/NumberInput.jsx";
 import { normalizeHoverTranslateDelayMs } from "../../shared/settings.js";
 import {
   AUTO_TRANSLATE_MODE_OPTIONS,
+  HOVER_TRANSLATE_MODIFIER_OPTIONS,
   HOVER_TRANSLATE_SCOPE_OPTIONS,
 } from "../../shared/constants.js";
 
@@ -40,7 +41,23 @@ export function PickModeTab({
             options={HOVER_TRANSLATE_SCOPE_OPTIONS}
           />
           <span className="hint">
-            悬停模式下，决定自动发送给 Ollama 的文本范围。
+            这是未按临时切换键时使用的默认范围。
+          </span>
+
+          <SelectField
+            id="hoverTranslateModifierKey"
+            label="悬停临时切换键"
+            value={settings.hoverTranslateModifierKey}
+            onChange={(event) =>
+              updateSettings(
+                { hoverTranslateModifierKey: event.target.value },
+                "now",
+              )
+            }
+            options={HOVER_TRANSLATE_MODIFIER_OPTIONS}
+          />
+          <span className="hint">
+            按住选定按键可临时切换单词和整段；默认使用 Option / Alt。
           </span>
 
           <SettingNumberInput
@@ -64,4 +81,3 @@ export function PickModeTab({
     </div>
   );
 }
-

@@ -40,7 +40,8 @@
     "tabs",
     "scripting",
     "activeTab",
-    "alarms"
+    "alarms",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "<all_urls>",
@@ -53,6 +54,20 @@
     "https://raw.githubusercontent.com/dogeow/ai-translate/*",
     "https://dict.youdao.com/*"
   ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "chatgpt_codex_client_headers",
+        "enabled": true,
+        "path": "rules/chatgpt-codex-client-headers.json"
+      },
+      {
+        "id": "youdao_request_headers",
+        "enabled": true,
+        "path": "rules/youdao-request-headers.json"
+      }
+    ]
+  },
   "commands": {
     "translate-selection": {
       "suggested_key": {

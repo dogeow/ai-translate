@@ -4,6 +4,7 @@
  * 功能：
  *  - 加载 studyingWords，对其中"当前可见"（已过 nextReviewAt）的词
  *    在文本节点中用 <span class="ai-tr-word"> 包裹，显示虚下划线。
+ *  - 认词模式下，除 knownWords 外的英文单词都会显示下划线。
  *  - 鼠标悬停 + 短停留 → 弹出小卡片：音标、发音按钮、记得/忘记/我知道按钮。
  *  - 监听 wordsChanged / 设置开关变化，做增量重渲染（简单粗暴：移除并重扫）。
  */
@@ -11,14 +12,38 @@ import {
   STUDYING_WORDS_STORAGE_KEY,
   KNOWN_WORDS_STORAGE_KEY,
   WORD_MARKING_ENABLED_KEY,
-  isStudyingVisibleNow,
+  WORD_RECOGNITION_MODE_ENABLED_KEY,
   normalizeWord,
 } from "../shared/word-learning.js";
 import { buildYoudaoAudioUrl } from "../shared/youdao-api.js";
+import {
+  isWordMarkerActive,
+  resolveWordMarkKind,
+  WORD_MARK_KIND,
+} from "./wordMarkerPolicy.js";
+import { resolveWordMarkerCardShortcut } from "./wordMarkerShortcuts.js";
+import { WORD_LEARNING_STATUS } from "./tip/wordLearningActions.js";
+import {
+  BUTTON_ID,
+  HOVER_TARGET_INDICATOR_ID,
+  SHORTCUT_HINT_ID,
+  TIP_ID,
+  WORD_MARKER_CARD_ID,
+  WORD_MARKER_SPAN_CLASS,
+} from "./constants.js";
 
-const WORD_SPAN_CLASS = "ai-tr-word";
+const WORD_SPAN_CLASS = WORD_MARKER_SPAN_CLASS;
 const WORD_STYLE_TAG_ID = "__ai_translate_word_marker_style__";
-const CARD_ID = "__ai_translate_word_card__";
+const CARD_ID = WORD_MARKER_CARD_ID;
+const EXTENSION_UI_SELECTOR = [
+  `#${BUTTON_ID}`,
+  `#${TIP_ID}`,
+  `#${SHORTCUT_HINT_ID}`,
+  `#${HOVER_TARGET_INDICATOR_ID}`,
+  `#${WORD_MARKER_CARD_ID}`,
+  "#__ai_translate_ui_rewrite_overlay__",
+  "#ollama-pt-bar",
+].join(", ");
 const SKIP_TAGS = new Set([
   "SCRIPT",
   "STYLE",
@@ -32,7 +57,7 @@ const SKIP_TAGS = new Set([
   "BUTTON",
 ]);
 
-const WORD_REGEX = /[A-Za-z][A-Za-z'\-]{1,30}/g;
+const WORD_REGEX = /[A-Za-z][A-Za-z'\-]{0,30}/g;
 
 function ensureWordStyles() {
   if (document.getElementById(WORD_STYLE_TAG_ID)) return;
@@ -40,8 +65,11 @@ function ensureWordStyles() {
   style.id = WORD_STYLE_TAG_ID;
   style.textContent = `
     .${WORD_SPAN_CLASS}{
-      border-bottom:1px dashed #f59e0b;
+      border-bottom:1px dashed rgba(99,102,241,.72);
       cursor:help;
+    }
+    .${WORD_SPAN_CLASS}.${WORD_SPAN_CLASS}--studying{
+      border-bottom-color:#f59e0b;
     }
     #${CARD_ID}{
       position:absolute; z-index:2147483645;
@@ -55,9 +83,12 @@ function ensureWordStyles() {
     #${CARD_ID} .ai-tr-card-word{font-size:15px;font-weight:600;margin-bottom:4px;color:#fff}
     #${CARD_ID} .ai-tr-card-phon{color:#a1a1aa;font-size:12px;margin-bottom:6px;display:flex;gap:10px;flex-wrap:wrap}
     #${CARD_ID} .ai-tr-card-phon button{background:transparent;border:0;color:#8ab4f8;cursor:pointer;padding:0;font:inherit}
+    #${CARD_ID} .ai-tr-card-phon button.is-playing{color:#a5b4fc}
+    #${CARD_ID} .ai-tr-card-phon button.is-error{color:#fca5a5}
     #${CARD_ID} .ai-tr-card-tr{color:#d4d4d8;font-size:12px;margin-bottom:8px;max-height:96px;overflow:auto}
     #${CARD_ID} .ai-tr-card-actions{display:flex;gap:6px;flex-wrap:wrap}
-    #${CARD_ID} .ai-tr-card-actions button{flex:1 1 auto;border:1px solid #27272a;background:#222228;color:#fafafa;border-radius:6px;padding:5px 8px;font:inherit;cursor:pointer;font-size:12px}
+    #${CARD_ID} .ai-tr-card-actions button{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #27272a;background:#222228;color:#fafafa;border-radius:6px;padding:5px 8px;font:inherit;cursor:pointer;font-size:12px}
+    #${CARD_ID} .ai-tr-card-actions kbd{color:#71717a;background:transparent;border:0;font:inherit;font-size:10px}
     #${CARD_ID} .ai-tr-card-actions button.primary{background:linear-gradient(135deg,#22c55e,#16a34a);border-color:transparent}
     #${CARD_ID} .ai-tr-card-actions button.warn{background:#3a2a2a;border-color:#5a2a2a;color:#fca5a5}
     #${CARD_ID} .ai-tr-card-actions button.known{background:#1f3a2a;border-color:#22c55e44;color:#86efac}
@@ -72,7 +103,7 @@ function ensureWordStyles() {
   (document.head || document.documentElement).appendChild(style);
 }
 
-function shouldSkipNode(node) {
+export function shouldSkipWordMarkerNode(node) {
   if (!node || !node.parentNode) return true;
   let p = node.parentNode;
   while (p && p.nodeType === 1) {
@@ -80,21 +111,10 @@ function shouldSkipNode(node) {
     if (p.isContentEditable) return true;
     if (p.classList?.contains(WORD_SPAN_CLASS)) return true;
     if (p.id === CARD_ID) return true;
-    if (p.id === "__ai_translate_ui_rewrite_overlay__") return true;
-    if (p.closest?.("#ollama-pt-bar, #ollama-translate-tip, #ollama-translate-button"))
-      return true;
+    if (p.closest?.(EXTENSION_UI_SELECTOR)) return true;
     p = p.parentNode;
   }
   return false;
-}
-
-function collectVisibleWords(studyingMap) {
-  const set = new Set();
-  const now = Date.now();
-  for (const [word, entry] of Object.entries(studyingMap || {})) {
-    if (isStudyingVisibleNow(entry, now)) set.add(word.toLowerCase());
-  }
-  return set;
 }
 
 function unwrapAllMarks(root = document.body) {
@@ -106,9 +126,9 @@ function unwrapAllMarks(root = document.body) {
   });
 }
 
-function markTextNode(node, visibleWords) {
+function markTextNode(node, markerContext) {
   const text = node.nodeValue;
-  if (!text || text.length < 2) return;
+  if (!text) return;
   WORD_REGEX.lastIndex = 0;
   let match;
   let lastIndex = 0;
@@ -116,7 +136,8 @@ function markTextNode(node, visibleWords) {
   while ((match = WORD_REGEX.exec(text)) !== null) {
     const raw = match[0];
     const lower = raw.toLowerCase();
-    if (!visibleWords.has(lower)) continue;
+    const markKind = resolveWordMarkKind(lower, markerContext);
+    if (!markKind) continue;
     if (!frag) frag = document.createDocumentFragment();
     if (match.index > lastIndex) {
       frag.appendChild(
@@ -124,8 +145,9 @@ function markTextNode(node, visibleWords) {
       );
     }
     const span = document.createElement("span");
-    span.className = WORD_SPAN_CLASS;
+    span.className = `${WORD_SPAN_CLASS} ${WORD_SPAN_CLASS}--${markKind}`;
     span.dataset.word = lower;
+    span.dataset.markKind = markKind;
     span.textContent = raw;
     frag.appendChild(span);
     lastIndex = match.index + raw.length;
@@ -138,12 +160,12 @@ function markTextNode(node, visibleWords) {
   }
 }
 
-function scanAndMark(root, visibleWords) {
-  if (!root || visibleWords.size === 0) return;
+function scanAndMark(root, markerContext) {
+  if (!root || !isWordMarkerActive(markerContext)) return;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if (shouldSkipNode(node)) return NodeFilter.FILTER_REJECT;
-      if (!node.nodeValue || node.nodeValue.length < 2) {
+      if (shouldSkipWordMarkerNode(node)) return NodeFilter.FILTER_REJECT;
+      if (!node.nodeValue) {
         return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
@@ -152,17 +174,46 @@ function scanAndMark(root, visibleWords) {
   const nodes = [];
   let n;
   while ((n = walker.nextNode())) nodes.push(n);
-  for (const node of nodes) markTextNode(node, visibleWords);
+  for (const node of nodes) markTextNode(node, markerContext);
 }
 
 let cardEl = null;
 let cardWord = "";
+let cardMarkKind = "";
+let pronunciationAudio = null;
+let pronunciationButton = null;
+
+function restorePronunciationButton(button = pronunciationButton) {
+  if (!button) return;
+  button.textContent = button.dataset.idleLabel || button.textContent;
+  button.classList.remove("is-playing", "is-error");
+  button.title = "播放发音";
+}
+
+function stopPronunciation() {
+  const audio = pronunciationAudio;
+  pronunciationAudio = null;
+  if (audio) {
+    audio.onended = null;
+    audio.onerror = null;
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+    } catch (_) {
+      // 某些浏览器在音频元数据尚未加载时不允许修改 currentTime。
+    }
+  }
+  restorePronunciationButton();
+  pronunciationButton = null;
+}
 
 function hideCard() {
+  stopPronunciation();
   if (cardEl) {
     cardEl.remove();
     cardEl = null;
     cardWord = "";
+    cardMarkKind = "";
   }
 }
 
@@ -179,12 +230,60 @@ function sendBg(message) {
   });
 }
 
-function playAudio(word, type) {
+function playAudio(word, type, button) {
   try {
+    if (pronunciationAudio && pronunciationButton === button) {
+      stopPronunciation();
+      return;
+    }
+    stopPronunciation();
+
     const audio = new Audio(buildYoudaoAudioUrl(word, type));
-    audio.crossOrigin = "anonymous";
-    audio.play().catch(() => {});
-  } catch (_) {}
+    const idleLabel = button?.textContent || "▶︎";
+    if (button) {
+      button.dataset.idleLabel = idleLabel;
+      button.textContent = idleLabel.replace("▶︎", "■");
+      button.classList.add("is-playing");
+      button.title = "停止播放";
+    }
+    pronunciationAudio = audio;
+    pronunciationButton = button || null;
+
+    const finish = () => {
+      if (pronunciationAudio !== audio) return;
+      pronunciationAudio = null;
+      restorePronunciationButton(button);
+      pronunciationButton = null;
+    };
+    const fail = () => {
+      if (pronunciationAudio !== audio) return;
+      pronunciationAudio = null;
+      if (button) {
+        button.textContent = idleLabel.replace("▶︎", "重试");
+        button.classList.remove("is-playing");
+        button.classList.add("is-error");
+        button.title = "播放失败，点击重试";
+        window.setTimeout(() => {
+          if (!pronunciationAudio && button.isConnected) {
+            restorePronunciationButton(button);
+          }
+        }, 1200);
+      }
+      pronunciationButton = null;
+    };
+    audio.onended = finish;
+    audio.onerror = fail;
+    audio.play().catch(fail);
+  } catch (_) {
+    pronunciationAudio = null;
+    pronunciationButton = null;
+    if (button) {
+      button.textContent = button.dataset.idleLabel || button.textContent;
+      button.classList.remove("is-playing");
+      button.classList.add("is-error");
+      button.title = "播放失败，点击重试";
+    }
+  }
 }
 
 function positionCard(card, anchor) {
@@ -195,15 +294,24 @@ function positionCard(card, anchor) {
   card.style.left = `${left}px`;
 }
 
-function buildCardHtml(word) {
+function buildCardHtml(word, markKind) {
+  const actions =
+    markKind === WORD_MARK_KIND.STUDYING
+      ? `
+        <button data-act="forget" class="warn" title="点击后 1h 内仍标记">忘记</button>
+        <button data-act="remember" class="primary" title="点击后按记忆梯度延后">记得</button>
+        <button data-act="known" class="known" title="加入「我知道的单词」">我会</button>
+      `
+      : `
+        <button data-act="studying" class="warn" title="加入生词（Option+1）"><span>加入生词</span><kbd>⌥1</kbd></button>
+        <button data-act="known" class="known" title="标记为熟词（Option+2）"><span>我会</span><kbd>⌥2</kbd></button>
+      `;
   return `
     <div class="ai-tr-card-word">${escapeHtml(word)}</div>
     <div class="ai-tr-card-phon" data-role="phon">加载中…</div>
     <div class="ai-tr-card-tr" data-role="tr"></div>
     <div class="ai-tr-card-actions">
-      <button data-act="forget" class="warn" title="点击后 1h 内仍标记">忘记</button>
-      <button data-act="remember" class="primary" title="点击后按记忆梯度延后">记得</button>
-      <button data-act="known" class="known" title="加入「我知道的单词」">我会</button>
+      ${actions}
     </div>
   `;
 }
@@ -220,26 +328,28 @@ function escapeHtml(text) {
   });
 }
 
-async function showCardFor(span, word) {
+async function showCardFor(span, word, markKind) {
   ensureWordStyles();
-  if (cardEl && cardWord === word) {
+  if (cardEl && cardWord === word && cardMarkKind === markKind) {
     positionCard(cardEl, span);
     return;
   }
   hideCard();
   const card = document.createElement("div");
   card.id = CARD_ID;
-  card.innerHTML = buildCardHtml(word);
+  card.innerHTML = buildCardHtml(word, markKind);
   document.body.appendChild(card);
   cardEl = card;
   cardWord = word;
+  cardMarkKind = markKind;
   positionCard(card, span);
 
   card.addEventListener("mouseleave", scheduleHide);
   card.addEventListener("mouseenter", cancelHide);
 
   card.addEventListener("click", async (event) => {
-    const act = event.target?.dataset?.act;
+    const actionElement = event.target?.closest?.("[data-act]");
+    const act = actionElement?.dataset?.act;
     if (!act) return;
     if (act === "remember") {
       await sendBg({ action: "reviewWord", word, reviewAction: "remember" });
@@ -247,13 +357,17 @@ async function showCardFor(span, word) {
     } else if (act === "forget") {
       await sendBg({ action: "reviewWord", word, reviewAction: "forget" });
       hideCard();
+    } else if (act === "studying") {
+      await setCardWordLearningStatus(
+        word,
+        WORD_LEARNING_STATUS.STUDYING,
+      );
     } else if (act === "known") {
-      await sendBg({ action: "addKnownWord", word });
-      hideCard();
+      await setCardWordLearningStatus(word, WORD_LEARNING_STATUS.KNOWN);
     } else if (act === "play-uk") {
-      playAudio(word, 1);
+      playAudio(word, 1, actionElement);
     } else if (act === "play-us") {
-      playAudio(word, 2);
+      playAudio(word, 2, actionElement);
     }
   });
 
@@ -297,6 +411,15 @@ async function showCardFor(span, word) {
   }
 }
 
+async function setCardWordLearningStatus(word, status) {
+  await sendBg({
+    action: "setWordLearningStatus",
+    word,
+    status,
+  });
+  hideCard();
+}
+
 let hoverTimer = 0;
 let hideTimer = 0;
 function scheduleHide() {
@@ -308,6 +431,15 @@ function cancelHide() {
     clearTimeout(hideTimer);
     hideTimer = 0;
   }
+}
+
+export function dismissWordMarkerCard() {
+  if (hoverTimer) {
+    clearTimeout(hoverTimer);
+    hoverTimer = 0;
+  }
+  cancelHide();
+  hideCard();
 }
 
 function onMouseOver(event) {
@@ -325,8 +457,9 @@ function onMouseOver(event) {
   if (hoverTimer) clearTimeout(hoverTimer);
   const word = span.dataset.word || normalizeWord(span.textContent || "");
   if (!word) return;
+  const markKind = span.dataset.markKind || WORD_MARK_KIND.RECOGNITION;
   hoverTimer = window.setTimeout(() => {
-    void showCardFor(span, word);
+    void showCardFor(span, word, markKind);
   }, 180);
 }
 
@@ -351,17 +484,25 @@ function onScroll() {
 
 let mutationObserver = null;
 let mutationDebounce = 0;
-let visibleWordsCache = new Set();
-let enabled = false;
+let rescanVersion = 0;
+let markerContextCache = {
+  knownWords: {},
+  studyingWords: {},
+  wordMarkingEnabled: false,
+  recognitionModeEnabled: false,
+};
 
 function ensureMutationObserver() {
   if (mutationObserver) return;
   mutationObserver = new MutationObserver((mutations) => {
-    if (!enabled || visibleWordsCache.size === 0) return;
+    if (!isWordMarkerActive(markerContextCache)) return;
     const roots = new Set();
     for (const m of mutations) {
       for (const node of m.addedNodes || []) {
-        if (node.nodeType === 1 && !shouldSkipNode(node.firstChild || node)) {
+        if (
+          node.nodeType === 1 &&
+          !shouldSkipWordMarkerNode(node.firstChild || node)
+        ) {
           roots.add(node);
         }
       }
@@ -369,7 +510,7 @@ function ensureMutationObserver() {
     if (roots.size === 0) return;
     if (mutationDebounce) clearTimeout(mutationDebounce);
     mutationDebounce = window.setTimeout(() => {
-      for (const root of roots) scanAndMark(root, visibleWordsCache);
+      for (const root of roots) scanAndMark(root, markerContextCache);
     }, 250);
   });
   mutationObserver.observe(document.body, {
@@ -379,25 +520,40 @@ function ensureMutationObserver() {
 }
 
 async function rescan() {
-  if (!enabled) {
+  const nextVersion = ++rescanVersion;
+  if (!isWordMarkerActive(markerContextCache)) {
     unwrapAllMarks();
     hideCard();
     return;
   }
   ensureWordStyles();
   unwrapAllMarks();
-  const res = await sendBg({ action: "getStudyingWords" });
-  visibleWordsCache = collectVisibleWords(res?.words || {});
-  if (visibleWordsCache.size === 0) return;
-  scanAndMark(document.body, visibleWordsCache);
+  const res = await sendBg({ action: "getAllWords" });
+  if (nextVersion !== rescanVersion || !isWordMarkerActive(markerContextCache)) {
+    return;
+  }
+  if (!res?.ok) return;
+  markerContextCache = {
+    ...markerContextCache,
+    knownWords: res?.known || {},
+    studyingWords: res?.studying || {},
+  };
+  scanAndMark(document.body, markerContextCache);
   ensureMutationObserver();
 }
 
-async function readEnabled() {
+async function readMarkerSettings() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get([WORD_MARKING_ENABLED_KEY], (v) => {
-      resolve(v?.[WORD_MARKING_ENABLED_KEY] === true);
-    });
+    chrome.storage.sync.get(
+      [WORD_MARKING_ENABLED_KEY, WORD_RECOGNITION_MODE_ENABLED_KEY],
+      (value) => {
+        resolve({
+          wordMarkingEnabled: value?.[WORD_MARKING_ENABLED_KEY] === true,
+          recognitionModeEnabled:
+            value?.[WORD_RECOGNITION_MODE_ENABLED_KEY] === true,
+        });
+      },
+    );
   });
 }
 
@@ -405,28 +561,57 @@ export function initWordMarker() {
   ensureWordStyles();
 
   void (async () => {
-    enabled = await readEnabled();
-    if (enabled) await rescan();
+    markerContextCache = {
+      ...markerContextCache,
+      ...(await readMarkerSettings()),
+    };
+    if (isWordMarkerActive(markerContextCache)) await rescan();
   })();
 
   document.addEventListener("mouseover", onMouseOver, true);
   document.addEventListener("mouseout", onMouseOut, true);
+  document.addEventListener("keydown", onWordMarkerShortcut, true);
   window.addEventListener("scroll", onScroll, { passive: true });
+
+  function onWordMarkerShortcut(event) {
+    const shortcut = resolveWordMarkerCardShortcut(event, cardWord);
+    if (!shortcut || !cardEl?.isConnected) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void setCardWordLearningStatus(shortcut.word, shortcut.status);
+  }
 
   function onMessage(msg) {
     if (!msg) return;
     if (msg.action === "wordsChanged") {
       void rescan();
     } else if (msg.action === "wordMarkingEnabledChanged") {
-      enabled = !!msg.enabled;
+      markerContextCache = {
+        ...markerContextCache,
+        wordMarkingEnabled: !!msg.enabled,
+      };
       void rescan();
     }
   }
   chrome.runtime.onMessage.addListener(onMessage);
 
   function onStorage(changes, area) {
-    if (area === "sync" && WORD_MARKING_ENABLED_KEY in changes) {
-      enabled = changes[WORD_MARKING_ENABLED_KEY].newValue === true;
+    if (
+      area === "sync" &&
+      (WORD_MARKING_ENABLED_KEY in changes ||
+        WORD_RECOGNITION_MODE_ENABLED_KEY in changes)
+    ) {
+      markerContextCache = {
+        ...markerContextCache,
+        wordMarkingEnabled:
+          WORD_MARKING_ENABLED_KEY in changes
+            ? changes[WORD_MARKING_ENABLED_KEY].newValue === true
+            : markerContextCache.wordMarkingEnabled,
+        recognitionModeEnabled:
+          WORD_RECOGNITION_MODE_ENABLED_KEY in changes
+            ? changes[WORD_RECOGNITION_MODE_ENABLED_KEY].newValue === true
+            : markerContextCache.recognitionModeEnabled,
+      };
       void rescan();
     }
     if (area === "local") {
@@ -443,6 +628,7 @@ export function initWordMarker() {
   return function cleanup() {
     document.removeEventListener("mouseover", onMouseOver, true);
     document.removeEventListener("mouseout", onMouseOut, true);
+    document.removeEventListener("keydown", onWordMarkerShortcut, true);
     window.removeEventListener("scroll", onScroll);
     chrome.runtime.onMessage.removeListener(onMessage);
     chrome.storage.onChanged.removeListener(onStorage);
@@ -450,6 +636,11 @@ export function initWordMarker() {
       mutationObserver.disconnect();
       mutationObserver = null;
     }
+    if (mutationDebounce) {
+      clearTimeout(mutationDebounce);
+      mutationDebounce = 0;
+    }
+    rescanVersion += 1;
     unwrapAllMarks();
     hideCard();
   };

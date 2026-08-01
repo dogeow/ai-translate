@@ -13,6 +13,8 @@ import {
   loadKnownWords,
   loadStudyingWords,
   normalizeWord,
+  getWordLearningStatus,
+  setWordLearningStatus,
 } from "../shared/word-learning.js";
 
 const youdaoCache = new Map(); // word -> { at, data }
@@ -32,9 +34,13 @@ export async function lookupWordCached(rawWord) {
     youdaoCache.set(word, { at: Date.now(), data });
     return { ok: true, ...data };
   } catch (error) {
+    const rawError = error?.message || String(error) || "查询失败";
     return {
       ok: false,
-      error: error?.message || String(error) || "查询失败",
+      error:
+        rawError === "youdao_http_403"
+          ? "有道查词请求被拒绝（403），请重新加载扩展后重试。"
+          : rawError,
     };
   }
 }
@@ -68,6 +74,19 @@ export async function handleWordLearningMessage(msg) {
   if (msg.action === "getStudyingWords") {
     const studying = await loadStudyingWords();
     return { ok: true, words: studying };
+  }
+  if (msg.action === "getWordLearningStatus") {
+    const result = await getWordLearningStatus(msg.word);
+    return result
+      ? { ok: true, ...result }
+      : { ok: false, error: "无效的单词。" };
+  }
+  if (msg.action === "setWordLearningStatus") {
+    const result = await setWordLearningStatus(msg.word, msg.status);
+    if (result) await broadcastWordsChanged();
+    return result
+      ? { ok: true, ...result }
+      : { ok: false, error: "无效的单词状态。" };
   }
   if (msg.action === "addKnownWord") {
     const word = await addKnownWord(msg.word);

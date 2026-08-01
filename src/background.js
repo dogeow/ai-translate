@@ -30,7 +30,7 @@ import {
 import { handleTranslationRuntimeMessage } from "./background/translationMessageHandlers.js";
 import { handleUiRewriteMessage } from "./background/uiRewriteService.js";
 import { handleWordLearningMessage } from "./background/wordLearningService.js";
-import { addKnownWord, addStudyingWord } from "./shared/word-learning.js";
+import { setWordLearningStatus } from "./shared/word-learning.js";
 
 const LOG_PREFIX = "[Ollama 翻译]";
 
@@ -302,22 +302,24 @@ chrome.contextMenus.onClicked.addListener(async (info, clickedTab) => {
     if (!word) return;
     const tabId = clickedTab?.id;
     if (info.menuItemId === MENU_LEARN_KNOWN) {
-      const added = await addKnownWord(word);
+      const result = await setWordLearningStatus(word, "known");
       if (tabId) {
         sendTabMessageSafe(tabId, {
           action: "showShortcutHint",
-          message: added ? `已入「我知道的单词」：${added}` : "不是有效的英文单词",
+          message: result
+            ? `已入「我知道的单词」：${result.word}`
+            : "不是有效的英文单词",
         });
         sendTabMessageSafe(tabId, { action: "wordsChanged" });
       }
     } else {
-      const added = await addStudyingWord(word);
+      const result = await setWordLearningStatus(word, "studying");
       if (tabId) {
         sendTabMessageSafe(tabId, {
           action: "showShortcutHint",
-          message: added
-            ? `已加入生词：${added}`
-            : "不是有效单词或已在「我知道的单词」里",
+          message: result
+            ? `已加入生词：${result.word}`
+            : "不是有效的英文单词",
         });
         sendTabMessageSafe(tabId, { action: "wordsChanged" });
       }
@@ -394,6 +396,8 @@ const WORD_LEARNING_ACTIONS = new Set([
   "getAllWords",
   "getKnownWords",
   "getStudyingWords",
+  "getWordLearningStatus",
+  "setWordLearningStatus",
   "addKnownWord",
   "removeKnownWord",
   "addStudyingWord",

@@ -8,7 +8,6 @@ export function MiniMaxApiKeyField({
   isMiniMax,
   minimaxConfig,
   isMiniMaxKeyMissing,
-  minimaxKeyMissingHint,
   updateSettings,
   persistSettings,
   settingsRef,
@@ -18,7 +17,8 @@ export function MiniMaxApiKeyField({
     <ConditionalFields condition={isMiniMax}>
       <AutoSaveInputField
         id={FIELD_IDS.minimaxRegionApiKey}
-        label={minimaxConfig.apiKeyLabel}
+        label="API Key"
+        tip={minimaxConfig.apiKeyLabel}
         placeholder={`输入${minimaxConfig.isGlobal ? "海外" : "国内"} sk- 开头的 MiniMax API Key`}
         value={minimaxConfig.apiKeyValue}
         settingKey={
@@ -28,7 +28,7 @@ export function MiniMaxApiKeyField({
         persistSettings={persistSettings}
         settingsRef={settingsRef}
         showAutoSaveStatus={showAutoSaveStatus}
-        error={isMiniMaxKeyMissing ? minimaxKeyMissingHint : null}
+        error={isMiniMaxKeyMissing ? "请填写 API Key" : null}
       />
     </ConditionalFields>
   );

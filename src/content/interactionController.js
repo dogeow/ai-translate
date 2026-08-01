@@ -1,15 +1,19 @@
 import {
   BUTTON_ID,
+  HOVER_TARGET_INDICATOR_ID,
   SHORTCUT_HINT_ID,
   STYLE_ID,
   TIP_ID,
+  WORD_MARKER_CARD_ID,
+  WORD_MARKER_SPAN_CLASS,
 } from "./constants.js";
 import {
   getCurrentElementAndText,
   getHoverTranslateTarget,
   getSelectionText,
   getSelectionRect,
-  getElementFullText,
+  resolveHoverTranslateScope,
+  resolveShortcutTranslationTarget,
 } from "./selection.js";
 import {
   showButton,
@@ -21,6 +25,17 @@ import { showTip, hideTip, setTipHideHandler } from "./tip.js";
 import { showShortcutHint } from "./shortcutHint.js";
 import { SELECTION_AUTO_TRANSLATE_DELAY_MS } from "../shared/constants.js";
 import { logDebug, sendMessageSafe } from "./runtimeShared.js";
+import {
+  hideHoverTargetIndicator,
+  removeHoverTargetIndicator,
+  showHoverTargetIndicator,
+} from "./hoverTargetIndicator.js";
+import {
+  isHoverModifierActive,
+  isHoverModifierKeyEvent,
+} from "./hoverModifier.js";
+import { dismissWordMarkerCard } from "./wordMarker.js";
+import { shouldPreferWordMarkerCard } from "./wordMarkerPolicy.js";
 
 export function createInteractionController({
   state,
@@ -47,6 +62,7 @@ export function createInteractionController({
     state.hoverPendingKey = "";
     state.hoverInFlightKey = "";
     state.activeHoverRequestId = "";
+    hideHoverTargetIndicator();
     if (!preserveLastResolved) {
       state.hoverLastResolvedKey = "";
     }
@@ -68,7 +84,9 @@ export function createInteractionController({
     return !!(
       target &&
       target.closest &&
-      target.closest(`#${BUTTON_ID}, #${TIP_ID}, #${SHORTCUT_HINT_ID}`)
+      target.closest(
+        `#${BUTTON_ID}, #${TIP_ID}, #${SHORTCUT_HINT_ID}, #${HOVER_TARGET_INDICATOR_ID}, #${WORD_MARKER_CARD_ID}`,
+      )
     );
   }
 
@@ -138,6 +156,7 @@ export function createInteractionController({
         state.dismissedTipRequestId = "";
       }
       state.activeTipRequestId = msg.requestId || "";
+      dismissWordMarkerCard();
       showTip({ ...msg, pending: true }, state.lastTipRect);
       return;
     }
@@ -155,6 +174,7 @@ export function createInteractionController({
         state.dismissedTipRequestId = "";
       }
       state.activeTipRequestId = msg.requestId || state.activeTipRequestId;
+      dismissWordMarkerCard();
       showTip(msg, state.lastTipRect);
       return;
     }
@@ -187,7 +207,20 @@ export function createInteractionController({
 
     if (msg.action === "startVisualPageTranslate") {
       pageTranslator.start();
-      sendResponse({ ok: true, active: pageTranslator.isActive() });
+      sendResponse({
+        ok: true,
+        active: pageTranslator.isActive(),
+        mode: pageTranslator.getDisplayMode?.() || "translation",
+      });
+      return true;
+    }
+
+    if (msg.action === "getPageTranslateState") {
+      sendResponse({
+        ok: true,
+        active: pageTranslator.isActive(),
+        mode: pageTranslator.getDisplayMode?.() || "translation",
+      });
       return true;
     }
 
@@ -224,7 +257,12 @@ export function createInteractionController({
 
     if (msg.action === "setPageTranslateMode" && msg.mode) {
       pageTranslator.setDisplayMode?.(msg.mode);
-      sendResponse({ ok: true, mode: msg.mode });
+      const mode = pageTranslator.getDisplayMode?.() || "translation";
+      sendResponse({
+        ok: mode === msg.mode,
+        active: pageTranslator.isActive(),
+        mode,
+      });
       return true;
     }
 
@@ -237,46 +275,35 @@ export function createInteractionController({
         return true;
       }
 
-      let text = "";
-      let source = "";
+      const target = resolveShortcutTranslationTarget({
+        currentElement,
+        currentText,
+        lastTranslatedElement: state.lastTranslatedElement,
+        lastTranslatedText: state.lastTranslatedText,
+      });
+      const { text, source } = target;
+      state.lastTranslatedElement = target.anchorElement;
+      state.lastTranslatedText = target.anchorText;
 
-      if (
-        state.lastTranslatedElement &&
-        currentElement === state.lastTranslatedElement
-      ) {
-        let parent = state.lastTranslatedElement.parentElement;
-        if (parent === document.documentElement) parent = document.body;
-        if (!parent) {
-          text = currentText;
-          source = "selection";
-        } else {
-          text = getElementFullText(parent);
-          state.lastTranslatedElement = parent;
-          source = "expand";
-          const r = parent.getBoundingClientRect();
-          state.lastTipRect = {
-            top: r.top,
-            bottom: r.bottom,
-            left: r.left,
-            right: r.right,
-            width: r.width,
-            height: r.height,
-          };
-        }
-      } else {
-        text = currentText;
-        state.lastTranslatedElement = currentElement;
-        source = currentElement ? "selection" : "";
-        if (text && !getSelectionText()) {
-          state.lastTipRect = {
-            bottom: state.lastMouseY + 4,
-            left: state.lastMouseX,
-            top: state.lastMouseY - 4,
-            right: state.lastMouseX + 4,
-            width: 0,
-            height: 0,
-          };
-        }
+      if (source === "expand" && target.targetElement) {
+        const r = target.targetElement.getBoundingClientRect();
+        state.lastTipRect = {
+          top: r.top,
+          bottom: r.bottom,
+          left: r.left,
+          right: r.right,
+          width: r.width,
+          height: r.height,
+        };
+      } else if (text && !getSelectionText()) {
+        state.lastTipRect = {
+          bottom: state.lastMouseY + 4,
+          left: state.lastMouseX,
+          top: state.lastMouseY - 4,
+          right: state.lastMouseX + 4,
+          width: 0,
+          height: 0,
+        };
       }
 
       if (!text.trim()) {
@@ -344,6 +371,7 @@ export function createInteractionController({
       state.lastTipRect = anchorRect || state.lastTipRect;
       if (translatedElement) {
         state.lastTranslatedElement = translatedElement;
+        state.lastTranslatedText = text;
       }
       logDebug(`双击/三击触发翻译：text="${text.substring(0, 20)}..."`);
       sendMessageSafe({ action: "translate", text }, () => {
@@ -363,25 +391,49 @@ export function createInteractionController({
   }
 
   function onResize() {
+    if (state.autoTranslateMode === "hover") {
+      clearHoverAutoTranslateTimer({ preserveLastResolved: true });
+    }
     pageTranslator.handleViewportChanged();
   }
 
-  function onMouseMove(e) {
-    state.lastMouseX = e.clientX;
-    state.lastMouseY = e.clientY;
-
+  function updateHoverAtPoint(clientX, clientY, buttons, eventTarget) {
     if (!isInteractionEnabled()) return;
     if (state.autoTranslateMode !== "hover") return;
-    if (e.buttons !== 0 || getSelectionText() || isExtensionUiTarget(e.target)) {
+    if (
+      buttons !== 0 ||
+      getSelectionText() ||
+      isExtensionUiTarget(eventTarget)
+    ) {
       resetHoverResolvedKeyIfLeaving("");
       clearHoverAutoTranslateTimer({ preserveLastResolved: true });
       return;
     }
 
-    const hoverTarget = getHoverTranslateTarget(
-      e.clientX,
-      e.clientY,
+    const effectiveScope = resolveHoverTranslateScope(
       state.hoverTranslateScope,
+      state.hoverModifierActive,
+    );
+    const isMarkedWord = !!eventTarget?.closest?.(
+      `.${WORD_MARKER_SPAN_CLASS}`,
+    );
+    if (
+      shouldPreferWordMarkerCard({
+        isMarkedWord,
+        effectiveScope,
+      })
+    ) {
+      if (state.activeTipRequestId?.startsWith("hover:")) {
+        hideTip();
+      }
+      resetHoverResolvedKeyIfLeaving("");
+      clearHoverAutoTranslateTimer({ preserveLastResolved: true });
+      return;
+    }
+    const hoverTarget = getHoverTranslateTarget(
+      clientX,
+      clientY,
+      effectiveScope,
     );
     const key = hoverTarget?.key || "";
     const hoverText = (hoverTarget?.text || "").trim();
@@ -403,8 +455,11 @@ export function createInteractionController({
       state.hoverPendingKey = "";
       state.hoverInFlightKey = "";
       state.activeHoverRequestId = "";
+      hideHoverTargetIndicator();
       return;
     }
+
+    showHoverTargetIndicator(hoverTarget.rect, effectiveScope);
 
     if (key !== state.hoverCurrentKey) {
       resetHoverResolvedKeyIfLeaving(key);
@@ -448,6 +503,7 @@ export function createInteractionController({
       state.activeHoverRequestId = requestId;
       state.lastCompletedHoverRequestId = "";
       state.lastTranslatedElement = hoverTarget.element || null;
+      state.lastTranslatedText = hoverText;
       state.lastTipRect = hoverTarget.rect || {
         bottom: state.lastMouseY + 4,
         left: state.lastMouseX,
@@ -475,7 +531,62 @@ export function createInteractionController({
           }
         },
       );
-    }, state.hoverTranslateDelayMs);
+    }, Math.max(
+      state.hoverTranslateDelayMs,
+      effectiveScope === "paragraph" ? 400 : 0,
+    ));
+  }
+
+  function onMouseMove(e) {
+    state.lastMouseX = e.clientX;
+    state.lastMouseY = e.clientY;
+    state.lastMouseTarget = e.target;
+    state.lastMouseButtons = e.buttons;
+    state.hoverModifierActive = isHoverModifierActive(
+      e,
+      state.hoverTranslateModifierKey,
+    );
+    updateHoverAtPoint(e.clientX, e.clientY, e.buttons, e.target);
+  }
+
+  function refreshHoverForModifierChange() {
+    if (state.autoTranslateMode !== "hover" || !state.lastMouseTarget) return;
+    clearHoverAutoTranslateTimer({ preserveLastResolved: true });
+    updateHoverAtPoint(
+      state.lastMouseX,
+      state.lastMouseY,
+      state.lastMouseButtons,
+      state.lastMouseTarget,
+    );
+  }
+
+  function onKeyDown(e) {
+    if (
+      !isHoverModifierKeyEvent(e, state.hoverTranslateModifierKey) ||
+      state.hoverModifierActive
+    ) {
+      return;
+    }
+    state.hoverModifierActive = true;
+    refreshHoverForModifierChange();
+  }
+
+  function onKeyUp(e) {
+    if (
+      !isHoverModifierKeyEvent(e, state.hoverTranslateModifierKey) ||
+      !state.hoverModifierActive
+    ) {
+      return;
+    }
+    state.hoverModifierActive = false;
+    refreshHoverForModifierChange();
+  }
+
+  function onWindowBlur() {
+    state.hoverModifierActive = false;
+    if (state.autoTranslateMode === "hover") {
+      clearHoverAutoTranslateTimer({ preserveLastResolved: true });
+    }
   }
 
   function onSelectionChangedEvent() {
@@ -493,7 +604,10 @@ export function createInteractionController({
   document.addEventListener("selectionchange", onSelectionChangedEvent, true);
   document.addEventListener("scroll", onScroll, true);
   document.addEventListener("mousemove", onMouseMove, true);
+  document.addEventListener("keydown", onKeyDown, true);
+  document.addEventListener("keyup", onKeyUp, true);
   window.addEventListener("resize", onResize);
+  window.addEventListener("blur", onWindowBlur);
 
   return {
     clearSelectionAutoTranslateTimer,
@@ -514,7 +628,11 @@ export function createInteractionController({
       );
       document.removeEventListener("scroll", onScroll, true);
       document.removeEventListener("mousemove", onMouseMove, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("blur", onWindowBlur);
+      removeHoverTargetIndicator();
       if (btn._ollamaClickHandler) {
         btn.removeEventListener("click", btn._ollamaClickHandler);
         delete btn._ollamaClickHandler;
