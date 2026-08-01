@@ -65,7 +65,7 @@ export function Sidebar({ activeTab, onTabChange, currentVersion }) {
         <div className="sidebar-brand__icon">
           <IconBrand />
         </div>
-        <span className="sidebar-brand__text">Ollama 翻译</span>
+        <span className="sidebar-brand__text">英语学习和AI翻译</span>
       </div>
       <nav
         className="sidebar-nav"

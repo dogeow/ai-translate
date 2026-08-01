@@ -1,14 +1,15 @@
-# AI 翻译 - 浏览器扩展
+# 英语学习和AI翻译 - 浏览器扩展
 
 在网页中翻译选中文字或整页内容，支持本地 Ollama、云端 MiniMax、GitHub Copilot、ChatGPT、Chrome 内置 AI，并提供可选的句型学习与单词学习功能。
 
 ## 功能
 
-- **右键翻译**：选中文字后右键「Ollama 翻译选中内容」
-- **页面翻译（可视区域优先）**：左键打开扩展弹窗后点击「开始页面翻译」，或在网页右键选择「Ollama 翻译整个页面（可视区域优先）」，先翻译当前可视区域，滚动后继续翻译新出现内容
-- **快捷键翻译**：`Alt+T` 翻译当前选中内容（可在扩展快捷方式中修改）
+- **右键翻译**：选中文字后右键「英语学习和AI翻译选中内容」
+- **页面翻译（可视区域优先）**：左键打开扩展弹窗后点击「翻译该页面」，或在网页右键选择「英语学习和AI翻译整个页面（可视区域优先）」，先翻译当前可视区域，滚动后继续翻译新出现内容；可在弹窗中停止后续翻译
+- **快捷键操作**：`Alt+T` 翻译当前选中内容；扩展开关、页面翻译、取词方式、学习模式、生词标记和认词模式等都可在扩展快捷方式中绑定按键
 - **多厂家切换**：`Ollama（本地）`、`MiniMax（云端）`、`GitHub Copilot`、`ChatGPT（设备登录）`、`Chrome 内置 AI`
-- **模型选择**：Ollama 使用本地模型列表；MiniMax / GitHub Copilot / ChatGPT 可手动指定模型；ChatGPT 默认模型为 `gpt-5.3-codex-spark`
+- **独立模型选择**：翻译、AI 页面改造和英语学习可分别选择已经验证的模型，互不影响；Ollama 使用本地模型列表，MiniMax / GitHub Copilot / ChatGPT 可手动指定模型
+- **AI 页面改造**：支持专注阅读、护眼配色、正文放大等快捷模板，并可在弹窗中一键恢复当前网页原版
 - **中英双向翻译**：默认目标为中文时，英文等内容译为中文；识别到中文原文时自动改译英语。中英文混合页面会按每段语言分别处理
 - **单词朗读**：英文单词翻译结果支持美式发音，使用有道词典音频接口
 - **翻译偏好**：默认翻译语言在「翻译偏好」卡片中设置
@@ -75,15 +76,16 @@ npm start
 
 版本号现在以 `package.json` 为单一来源。执行 `npm run dev`、`npm run build`、`npm start` 或 `npm version patch|minor|major` 时，会自动把版本同步到 `src/manifest.json`，不再需要手动维护两份。
 
-## 更新提醒
+## 自动更新与发布
 
-扩展默认启用“发现新版本后提醒用户手动更新”，但**不会自动安装新包**。
+Chrome 版本通过 Chrome Web Store 以“非公开（Unlisted）”方式发布。用户通过商店直达链接完成首次安装后，Chrome 会定期检查新版本，并在扩展空闲时自动安装更新。
 
-版本清单 URL 已内置为：
+```bash
+# 构建并生成商店上传包
+npm run package:chrome
+```
 
-`https://raw.githubusercontent.com/dogeow/ai-translate/main/latest.json`
-
-发布新版本时，同步更新仓库根目录的 `latest.json` 即可。后台会定期检查该文件；如果发现更高版本，弹窗和设置页的「关于」页签都会提示用户打开更新页面。
+上传包输出到 `artifacts/ai-translate-chrome-web-store-<版本号>.zip`。首次发布和后续更新流程见 [Chrome Web Store 非公开发布指南](docs/chrome-web-store-unlisted.md)。
 
 ## 安装
 

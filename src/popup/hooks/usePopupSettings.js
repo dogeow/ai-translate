@@ -9,6 +9,7 @@ import {
   migrateSettingsIfNeeded,
   normalizeAllSettings,
   normalizeAutoTranslateMode,
+  normalizeFeatureProvider,
   normalizeHoverTranslateModifierKey,
   normalizeHoverTranslateScope,
 } from "../../shared/settings.js";
@@ -43,6 +44,12 @@ export function usePopupSettings() {
   const [provider, setProvider] = useState(
     () => getPopupSettingsState().provider,
   );
+  const [uiRewriteProvider, setUiRewriteProvider] = useState(
+    () => getPopupSettingsState().uiRewriteProvider,
+  );
+  const [learningProvider, setLearningProvider] = useState(
+    () => getPopupSettingsState().learningProvider,
+  );
   const [autoTranslateMode, setAutoTranslateMode] = useState(
     () => getPopupSettingsState().autoTranslateMode,
   );
@@ -67,6 +74,8 @@ export function usePopupSettings() {
     const nextState = getPopupSettingsState(value);
     setSettings(normalizeAllSettings(value));
     setProvider(nextState.provider);
+    setUiRewriteProvider(nextState.uiRewriteProvider);
+    setLearningProvider(nextState.learningProvider);
     setAutoTranslateMode(nextState.autoTranslateMode);
     setHoverTranslateScope(nextState.hoverTranslateScope);
     setHoverTranslateModifierKey(nextState.hoverTranslateModifierKey);
@@ -140,6 +149,36 @@ export function usePopupSettings() {
     [syncSettings],
   );
 
+  const updateUiRewriteProvider = useCallback(
+    (nextProvider) => {
+      const normalized = normalizeFeatureProvider(nextProvider);
+      setUiRewriteProvider(normalized);
+      setSettings((previous) =>
+        normalizeAllSettings({
+          ...previous,
+          uiRewriteProvider: normalized,
+        }),
+      );
+      syncSettings({ uiRewriteProvider: normalized });
+    },
+    [syncSettings],
+  );
+
+  const updateLearningProvider = useCallback(
+    (nextProvider) => {
+      const normalized = normalizeFeatureProvider(nextProvider);
+      setLearningProvider(normalized);
+      setSettings((previous) =>
+        normalizeAllSettings({
+          ...previous,
+          learningProvider: normalized,
+        }),
+      );
+      syncSettings({ learningProvider: normalized });
+    },
+    [syncSettings],
+  );
+
   // 更新自动翻译模式
   const updateAutoTranslateMode = useCallback(
     (mode) => {
@@ -183,6 +222,8 @@ export function usePopupSettings() {
     isSettingsLoaded,
     chromeAiReady,
     provider,
+    uiRewriteProvider,
+    learningProvider,
     autoTranslateMode,
     hoverTranslateScope,
     hoverTranslateModifierKey,
@@ -191,6 +232,8 @@ export function usePopupSettings() {
     saveStatusText,
     saveStatusIsError,
     updateProvider,
+    updateUiRewriteProvider,
+    updateLearningProvider,
     updateAutoTranslateMode,
     updateHoverTranslateScope,
     updateHoverTranslateModifierKey,
@@ -226,7 +269,7 @@ function getActiveTabInfo() {
  * 管理页面翻译功能的 Hook
  */
 export function usePageTranslate(appEnabled) {
-  const [isStarting, setIsStarting] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
   const [isChangingDisplayMode, setIsChangingDisplayMode] = useState(false);
   const [isPageTranslateActive, setIsPageTranslateActive] = useState(false);
   const [displayMode, setDisplayMode] = useState("translation");
@@ -237,16 +280,37 @@ export function usePageTranslate(appEnabled) {
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    let refreshId = 0;
+
+    async function refreshActiveTabState() {
+      const requestId = ++refreshId;
       const info = await getActiveTabInfo();
-      if (cancelled || !info) return;
+      if (cancelled || requestId !== refreshId) return;
+      if (!info) {
+        setActiveOrigin("");
+        setSiteEnabled(false);
+        setIsPageTranslateActive(false);
+        setDisplayMode("translation");
+        return;
+      }
       setActiveOrigin(info.origin);
+      setSiteEnabled(false);
+      setIsPageTranslateActive(false);
+      setDisplayMode("translation");
 
       chrome.tabs.sendMessage(
         info.tabId,
         { action: "getPageTranslateState" },
         (response) => {
-          if (cancelled || chrome.runtime.lastError || !response?.ok) return;
+          const lastError = chrome.runtime.lastError;
+          if (
+            cancelled ||
+            requestId !== refreshId ||
+            lastError ||
+            !response?.ok
+          ) {
+            return;
+          }
           const nextState = resolvePageTranslateState(response, {
             active: false,
             mode: "translation",
@@ -264,51 +328,85 @@ export function usePageTranslate(appEnabled) {
         "../../shared/always-translate-origins.js"
       );
       const enabled = await isAlwaysTranslateOrigin(info.origin);
-      if (!cancelled) setSiteEnabled(enabled);
-    })();
+      if (!cancelled && requestId === refreshId) setSiteEnabled(enabled);
+    }
+
+    function handleTabActivated() {
+      void refreshActiveTabState();
+    }
+
+    function handleTabUpdated(_tabId, changeInfo, tab) {
+      if (tab?.active && (changeInfo.url || changeInfo.status === "complete")) {
+        void refreshActiveTabState();
+      }
+    }
+
+    void refreshActiveTabState();
+    chrome.tabs.onActivated?.addListener(handleTabActivated);
+    chrome.tabs.onUpdated?.addListener(handleTabUpdated);
+
     return () => {
       cancelled = true;
+      chrome.tabs.onActivated?.removeListener(handleTabActivated);
+      chrome.tabs.onUpdated?.removeListener(handleTabUpdated);
     };
   }, []);
 
-  const startPageTranslate = useCallback(() => {
-    if (isStarting) return;
+  const togglePageTranslate = useCallback(() => {
+    if (isToggling) return;
     if (!appEnabled) {
       showStatus("应用已关闭，请先开启应用。");
       return;
     }
-    setIsStarting(true);
+    const shouldStop = isPageTranslateActive;
+    setIsToggling(true);
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs?.[0]?.id;
       if (!tabId) {
-        setIsStarting(false);
+        setIsToggling(false);
         showStatus("未找到当前标签页。");
         return;
       }
       chrome.tabs.sendMessage(
         tabId,
-        { action: "startVisualPageTranslate" },
+        {
+          action: shouldStop
+            ? "stopVisualPageTranslate"
+            : "startVisualPageTranslate",
+        },
         (response) => {
-          setIsStarting(false);
+          setIsToggling(false);
           if (chrome.runtime.lastError) {
             showStatus("当前页面不支持页面翻译。");
             return;
           }
           if (response?.ok) {
             const nextState = resolvePageTranslateState(response, {
-              active: true,
+              active: !shouldStop,
               mode: displayMode,
             });
             setIsPageTranslateActive(nextState.active);
             setDisplayMode(nextState.mode);
-            showStatus("已启动：先翻译可视区域，滚动后继续。");
+            showStatus(
+              shouldStop
+                ? "已停止继续翻译，已完成的译文会保留。"
+                : "已启动：先翻译可视区域，滚动后继续。",
+            );
             return;
           }
-          showStatus("启动失败，请重试。");
+          showStatus(
+            shouldStop ? "停止失败，请重试。" : "启动失败，请重试。",
+          );
         },
       );
     });
-  }, [appEnabled, displayMode, isStarting, showStatus]);
+  }, [
+    appEnabled,
+    displayMode,
+    isPageTranslateActive,
+    isToggling,
+    showStatus,
+  ]);
 
   const changeDisplayMode = useCallback(
     (mode) => {
@@ -377,19 +475,25 @@ export function usePageTranslate(appEnabled) {
     if (result.enabled) {
       showStatus(`已加入自动翻译：${activeOrigin}`);
       // 同时立即翻译当前页
-      startPageTranslate();
+      if (!isPageTranslateActive) togglePageTranslate();
     } else {
       showStatus(`已移出自动翻译：${activeOrigin}`);
     }
-  }, [appEnabled, activeOrigin, showStatus, startPageTranslate]);
+  }, [
+    appEnabled,
+    activeOrigin,
+    isPageTranslateActive,
+    showStatus,
+    togglePageTranslate,
+  ]);
 
   return {
-    isStarting,
+    isToggling,
     isChangingDisplayMode,
     isPageTranslateActive,
     displayMode,
     status,
-    startPageTranslate,
+    togglePageTranslate,
     changeDisplayMode,
     toggleSiteAutoTranslate,
     siteAutoTranslateEnabled: siteEnabled,

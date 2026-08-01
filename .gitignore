@@ -1,5 +1,8 @@
 node_modules/
 dist/
+artifacts/
+output/playwright/
+.playwright-cli/
 
 .extension-dev-profile/
 

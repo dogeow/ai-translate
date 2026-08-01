@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  createDefaultUpdateState,
-  UPDATE_STATE_KEY,
-} from "../shared/update.js";
-import {
   AUTO_TRANSLATE_MODE_OPTIONS,
   HOVER_TRANSLATE_MODIFIER_OPTIONS,
   HOVER_TRANSLATE_SCOPE_OPTIONS,
@@ -13,14 +9,14 @@ import {
   HoverTranslateScopePanel,
   PopupHero,
   QuickActionsPanel,
-  UpdateBanner,
   UiRewriteAndLearningPanel,
 } from "./components/index.js";
 import {
   usePopupSettings,
   usePageTranslate,
 } from "./hooks/usePopupSettings.js";
-import { getVerifiedProviderOptions } from "./lib/providerAvailability.js";
+import { getVerifiedModelOptions } from "./lib/providerAvailability.js";
+import { getSidePanelSupport, openSidePanel } from "./lib/sidePanel.js";
 
 // 为 popup 创建简洁版选项（使用 shortTitle）
 const AUTO_MODE_OPTIONS = AUTO_TRANSLATE_MODE_OPTIONS.map((option) => ({
@@ -40,69 +36,110 @@ const HOVER_MODIFIER_OPTIONS = HOVER_TRANSLATE_MODIFIER_OPTIONS.map(
   }),
 );
 
-export function PopupApp() {
+export function PopupApp({ surface = "popup" }) {
   const currentVersion = chrome.runtime.getManifest().version;
-  const [updateState, setUpdateState] = useState(
-    createDefaultUpdateState(currentVersion),
-  );
+  const isPopup = surface === "popup";
+  const sidePanelSupport = getSidePanelSupport();
+  const [currentWindowId, setCurrentWindowId] = useState(null);
 
   // 使用自定义 hooks 管理状态
   const popupSettings = usePopupSettings();
   const pageTranslate = usePageTranslate(popupSettings.appEnabled);
-  const availableProviders = getVerifiedProviderOptions(
+  const availableModels = getVerifiedModelOptions(
     popupSettings.settings,
     { chromeAiReady: popupSettings.chromeAiReady },
   );
+  const availableGenerativeModels = getVerifiedModelOptions(
+    popupSettings.settings,
+    {
+      chromeAiReady: popupSettings.chromeAiReady,
+      includeChromeAi: false,
+    },
+  );
+
+  useEffect(() => {
+    if (!isPopup || !sidePanelSupport.chrome) return;
+    chrome.windows.getCurrent((currentWindow) => {
+      if (chrome.runtime.lastError) return;
+      setCurrentWindowId(currentWindow?.id ?? null);
+    });
+  }, [isPopup, sidePanelSupport.chrome]);
 
   useEffect(() => {
     if (
       !popupSettings.isSettingsLoaded ||
-      availableProviders.length === 0 ||
-      availableProviders.some(
+      availableModels.length === 0 ||
+      availableModels.some(
         (option) => option.value === popupSettings.provider,
       )
     ) {
       return;
     }
-    popupSettings.updateProvider(availableProviders[0].value);
+    popupSettings.updateProvider(availableModels[0].value);
   }, [
-    availableProviders,
+    availableModels,
     popupSettings.isSettingsLoaded,
     popupSettings.provider,
     popupSettings.updateProvider,
   ]);
 
-  // 加载更新状态
   useEffect(() => {
-    chrome.storage.local.get(UPDATE_STATE_KEY, (value) => {
-      setUpdateState({
-        ...createDefaultUpdateState(currentVersion),
-        ...(value[UPDATE_STATE_KEY] || {}),
-      });
-    });
-  }, [currentVersion]);
+    if (
+      !popupSettings.isSettingsLoaded ||
+      availableGenerativeModels.length === 0
+    ) {
+      return;
+    }
+    const fallbackProvider = availableGenerativeModels[0].value;
+    if (
+      !availableGenerativeModels.some(
+        (option) => option.value === popupSettings.uiRewriteProvider,
+      )
+    ) {
+      popupSettings.updateUiRewriteProvider(fallbackProvider);
+    }
+    if (
+      !availableGenerativeModels.some(
+        (option) => option.value === popupSettings.learningProvider,
+      )
+    ) {
+      popupSettings.updateLearningProvider(fallbackProvider);
+    }
+  }, [
+    availableGenerativeModels,
+    popupSettings.isSettingsLoaded,
+    popupSettings.learningProvider,
+    popupSettings.uiRewriteProvider,
+    popupSettings.updateLearningProvider,
+    popupSettings.updateUiRewriteProvider,
+  ]);
 
   function openOptionsPage() {
     chrome.tabs.create({
       url: chrome.runtime.getURL("options/index.html"),
     });
-    window.close();
+    if (isPopup) window.close();
   }
 
   function openProviderSetup() {
     chrome.tabs.create({
       url: chrome.runtime.getURL("options/index.html?add-provider=1"),
     });
-    window.close();
+    if (isPopup) window.close();
   }
 
-  function openUpdatePage() {
-    if (!updateState.updateUrl) return;
-    chrome.tabs.create({
-      url: updateState.updateUrl,
-    });
-    window.close();
+  function openPersistentSidePanel() {
+    void openSidePanel({ windowId: currentWindowId })
+      .then(() => window.close())
+      .catch((error) => {
+        console.error("Open side panel failed:", error);
+      });
   }
+
+  const showSidePanelButton =
+    isPopup && (sidePanelSupport.chrome || sidePanelSupport.firefox);
+  const sidePanelButtonDisabled =
+    sidePanelSupport.chrome && currentWindowId === null;
 
   const showSaveStatus =
     popupSettings.isSaving || Boolean(popupSettings.saveStatusText);
@@ -116,34 +153,31 @@ export function PopupApp() {
       : "success";
 
   return (
-    <div className="popup">
+    <div className={`popup popup--${surface}`}>
       <PopupHero
+        surface={surface}
         appEnabled={popupSettings.appEnabled}
         onToggleApp={popupSettings.toggleAppEnabled}
         onOpenSettings={openOptionsPage}
+        showSidePanelButton={showSidePanelButton}
+        sidePanelButtonDisabled={sidePanelButtonDisabled}
+        onOpenSidePanel={openPersistentSidePanel}
       />
-      {updateState.status === "available" && (
-        <UpdateBanner
-          latestVersion={updateState.latestVersion}
-          currentVersion={currentVersion}
-          onOpenUpdate={openUpdatePage}
-        />
-      )}
       <QuickActionsPanel
         appEnabled={popupSettings.appEnabled}
-        isStartingPageTranslate={pageTranslate.isStarting}
+        isTogglingPageTranslate={pageTranslate.isToggling}
         isChangingPageDisplayMode={pageTranslate.isChangingDisplayMode}
         isPageTranslateActive={pageTranslate.isPageTranslateActive}
         pageDisplayMode={pageTranslate.displayMode}
         pageTranslateStatus={pageTranslate.status}
-        onStartPageTranslate={pageTranslate.startPageTranslate}
+        onTogglePageTranslate={pageTranslate.togglePageTranslate}
         onPageDisplayModeChange={pageTranslate.changeDisplayMode}
         onToggleSiteAutoTranslate={pageTranslate.toggleSiteAutoTranslate}
         siteAutoTranslateEnabled={pageTranslate.siteAutoTranslateEnabled}
         activeOrigin={pageTranslate.activeOrigin}
         provider={popupSettings.provider}
         onProviderChange={popupSettings.updateProvider}
-        availableProviders={availableProviders}
+        availableProviders={availableModels}
         providersLoading={!popupSettings.isSettingsLoaded}
         onOpenProviderSetup={openProviderSetup}
         showStatus={showSaveStatus}
@@ -165,7 +199,15 @@ export function PopupApp() {
           onModifierChange={popupSettings.updateHoverTranslateModifierKey}
         />
       )}
-      <UiRewriteAndLearningPanel />
+      <UiRewriteAndLearningPanel
+        uiRewriteProvider={popupSettings.uiRewriteProvider}
+        learningProvider={popupSettings.learningProvider}
+        onUiRewriteProviderChange={popupSettings.updateUiRewriteProvider}
+        onLearningProviderChange={popupSettings.updateLearningProvider}
+        availableModels={availableGenerativeModels}
+        modelsLoading={!popupSettings.isSettingsLoaded}
+        onOpenProviderSetup={openProviderSetup}
+      />
       <p className="popup-version">当前版本 {currentVersion}</p>
     </div>
   );

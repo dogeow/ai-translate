@@ -881,10 +881,39 @@ html.ollama-pt-mode-bilingual .ollama-pt-trans::before {
     user-select: none;
 }
 
+#ollama-pt-bar.ollama-pt-bar--recognition-only {
+    gap: 0;
+    min-width: 0;
+    padding: 4px;
+    border-radius: 999px;
+}
+
 #ollama-pt-bar .ollama-pt-bar-row {
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+#ollama-pt-bar .ollama-pt-bar-row[hidden] {
+    display: none;
+}
+
+#ollama-pt-bar .ollama-pt-bar-recognition-row {
+    justify-content: center;
+    padding: 2px;
+}
+
+#ollama-pt-bar .ollama-pt-bar-recognition-label {
+    width: auto;
+    padding: 5px 10px;
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
 }
 
 #ollama-pt-bar .ollama-pt-bar-progress-row {

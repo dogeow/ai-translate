@@ -4,7 +4,6 @@ import { commandsGetAll, storageLocalGet } from "../lib/chrome.js";
 
 export function useInitializeOptionsPage({
   loadSettings,
-  loadUpdateState,
   updateConnectionStatus,
   setTestTargetLang,
   setTranslateResult,
@@ -12,7 +11,6 @@ export function useInitializeOptionsPage({
 }) {
   const initActionsRef = useRef({
     loadSettings,
-    loadUpdateState,
     updateConnectionStatus,
     setTestTargetLang,
     setTranslateResult,
@@ -21,7 +19,6 @@ export function useInitializeOptionsPage({
 
   initActionsRef.current = {
     loadSettings,
-    loadUpdateState,
     updateConnectionStatus,
     setTestTargetLang,
     setTranslateResult,
@@ -35,7 +32,6 @@ export function useInitializeOptionsPage({
       try {
         const {
           loadSettings,
-          loadUpdateState,
           updateConnectionStatus,
           setTestTargetLang,
           setTranslateResult,
@@ -52,9 +48,6 @@ export function useInitializeOptionsPage({
         setTestTargetLang(nextSettings.translateTargetLang);
         setTranslateResult(storedTranslateResult || {});
         setShortcuts(commandList);
-
-        await loadUpdateState();
-        if (cancelled) return;
 
         await updateConnectionStatus(nextSettings);
       } catch (error) {

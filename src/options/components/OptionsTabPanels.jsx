@@ -43,7 +43,7 @@ export function OptionsTabPanels({
   connectionState,
   translateTestState,
   shortcuts,
-  updateInfo,
+  currentVersion,
 }) {
   const {
     settings,
@@ -61,13 +61,6 @@ export function OptionsTabPanels({
     testConnectionResult,
     updateConnectionStatus,
   } = connectionState;
-  const {
-    currentVersion,
-    updateState,
-    runExtensionUpdateCheck,
-    openUpdatePage,
-  } = updateInfo;
-
   const panelContentById = {
     home: (
       <HomeTab
@@ -117,14 +110,7 @@ export function OptionsTabPanels({
     ),
     "ui-rewrite": <UiRewriteTab />,
     "word-learning": <WordLearningTab />,
-    about: (
-      <AboutTab
-        currentVersion={currentVersion}
-        updateState={updateState}
-        runExtensionUpdateCheck={runExtensionUpdateCheck}
-        openUpdatePage={openUpdatePage}
-      />
-    ),
+    about: <AboutTab currentVersion={currentVersion} />,
   };
 
   return (

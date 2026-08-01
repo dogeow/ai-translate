@@ -4,7 +4,8 @@
  */
 import { migrateSettingsIfNeeded } from "../shared/settings.js";
 import {
-  resolveProviderRuntime,
+  PROVIDER_PURPOSE,
+  resolvePurposeProviderRuntime,
   buildMissingCredentialError,
   normalizeRuntimeSettings,
 } from "./translationSettings.js";
@@ -41,7 +42,10 @@ export async function generateUiRewriteCss({ url, title, prompt }) {
     return { ok: false, error: "请输入改造需求。" };
   }
   const settings = await getRuntimeSettings();
-  const runtime = resolveProviderRuntime(settings);
+  const runtime = resolvePurposeProviderRuntime(
+    settings,
+    PROVIDER_PURPOSE.UI_REWRITE,
+  );
   if (runtime.provider === PROVIDER_CHROME_AI) {
     return {
       ok: false,

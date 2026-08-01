@@ -17,3 +17,18 @@ export function isHoverModifierKeyEvent(event, modifierKey) {
   const eventKey = MODIFIER_EVENT_KEYS[modifierKey];
   return !!eventKey && event?.key === eventKey;
 }
+
+export function resolveHoverModifierActiveForTarget({
+  modifierActive = false,
+  modifierKey = "alt",
+  recognitionModeWord = false,
+} = {}) {
+  if (
+    modifierActive &&
+    modifierKey === "alt" &&
+    recognitionModeWord
+  ) {
+    return false;
+  }
+  return !!modifierActive;
+}

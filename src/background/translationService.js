@@ -5,7 +5,8 @@ import {
 } from "./sentenceStudy.js";
 import {
   normalizeRuntimeSettings,
-  resolveProviderRuntime,
+  PROVIDER_PURPOSE,
+  resolvePurposeProviderRuntime,
   buildMissingCredentialError,
 } from "./translationSettings.js";
 import { migrateSettingsIfNeeded } from "../shared/settings.js";
@@ -101,7 +102,14 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
   } = options;
   const resolvedRequestId = createTranslateRequestId(requestId);
   registerLatestTranslateRequest(tabId, resolvedRequestId);
-  const baseProviderRuntime = resolveProviderRuntime(settings);
+  const baseProviderRuntime = resolvePurposeProviderRuntime(
+    settings,
+    PROVIDER_PURPOSE.TRANSLATION,
+  );
+  const learningProviderRuntime = resolvePurposeProviderRuntime(
+    settings,
+    PROVIDER_PURPOSE.LEARNING,
+  );
   const providerRuntime = {
     ...baseProviderRuntime,
     targetLang: resolveTranslationTargetLang(
@@ -109,8 +117,15 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
       baseProviderRuntime.targetLang,
     ),
   };
+  const learningCredentialError = buildMissingCredentialError(
+    learningProviderRuntime,
+    settings,
+  );
   const learningModeEnabled =
-    !providerRuntime.isChromeAi &&
+    !learningProviderRuntime.isChromeAi &&
+    !learningCredentialError &&
+    (learningProviderRuntime.provider !== PROVIDER_OLLAMA ||
+      !!learningProviderRuntime.selectedModel) &&
     (typeof learningModeOverride === "boolean"
       ? learningModeOverride
       : !!settings.learningModeEnabled);
@@ -175,11 +190,7 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
   let latestTranslateResult = null;
   let stopPendingUpdates = false;
   const MIN_SENTENCE_STUDY_THINK_PREVIEW_MS = 260;
-  const sentenceStudyApiKey = providerRuntime.isMiniMax
-    ? providerRuntime.minimaxApiKey
-    : providerRuntime.isGitHub
-      ? providerRuntime.githubToken
-      : "";
+  const sentenceStudyApiKey = learningProviderRuntime.apiKey;
   let sentenceStudyPromise = null;
 
   async function sendPendingProgress(force = false) {
@@ -242,12 +253,12 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
 
   if (learningModeEnabled) {
     sentenceStudyPromise = analyzeSentenceStudy(
-      providerRuntime.base,
-      providerRuntime.selectedModel,
+      learningProviderRuntime.base,
+      learningProviderRuntime.selectedModel,
       text,
       "",
       {
-        provider: providerRuntime.provider,
+        provider: learningProviderRuntime.provider,
         apiKey: sentenceStudyApiKey,
         onThinkingProgress: pushSentenceStudyThinking,
       },

@@ -1,15 +1,24 @@
 {
   "manifest_version": 3,
-  "name": "Ollama 翻译",
-  "version": "0.0.2",
-  "description": "Ollama 翻译扩展",
+  "name": "英语学习和AI翻译",
+  "version": "0.0.3",
+  "description": "支持英语学习和多种 AI 服务的网页翻译扩展",
   "action": {
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"
     },
-    "default_title": "Ollama 翻译快捷面板",
+    "default_title": "英语学习和AI翻译快捷面板",
     "default_popup": "popup.html"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "firefox:sidebar_action": {
+    "default_title": "英语学习和AI翻译侧边栏",
+    "default_panel": "sidepanel.html",
+    "default_icon": "icons/icon-32.png",
+    "open_at_install": false
   },
   "icons": {
     "16": "icons/icon-16.png",
@@ -40,8 +49,16 @@
     "tabs",
     "scripting",
     "activeTab",
-    "alarms",
     "declarativeNetRequestWithHostAccess"
+  ],
+  "chrome:permissions": [
+    "storage",
+    "contextMenus",
+    "tabs",
+    "scripting",
+    "activeTab",
+    "declarativeNetRequestWithHostAccess",
+    "sidePanel"
   ],
   "host_permissions": [
     "<all_urls>",
@@ -51,7 +68,6 @@
     "https://models.github.ai/*",
     "https://auth.openai.com/*",
     "https://chatgpt.com/*",
-    "https://raw.githubusercontent.com/dogeow/ai-translate/*",
     "https://dict.youdao.com/*"
   ],
   "declarative_net_request": {
@@ -105,6 +121,21 @@
     },
     "toggle-translate-site": {
       "description": "始终翻译该网站（加入/移出自动翻译白名单）"
+    },
+    "cycle-auto-translate-mode": {
+      "description": "切换取词模式：热键 → 双击/三击 → 悬停"
+    },
+    "toggle-hover-translate-scope": {
+      "description": "切换悬停翻译范围：单词/整段"
+    },
+    "toggle-learning-mode": {
+      "description": "开启/关闭句型学习模式"
+    },
+    "toggle-word-marking": {
+      "description": "开启/关闭生词标记"
+    },
+    "toggle-word-recognition-mode": {
+      "description": "开启/关闭认词模式"
     }
   }
 }

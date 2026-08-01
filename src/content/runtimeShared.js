@@ -1,4 +1,4 @@
-const LOG_PREFIX = "[Ollama 翻译-Content]";
+const LOG_PREFIX = "[英语学习和AI翻译-Content]";
 
 export function logDebug(...args) {
   console.log(LOG_PREFIX, ...args);

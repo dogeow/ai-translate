@@ -20,7 +20,7 @@ export function ShortcutsTab({ shortcuts }) {
       <div className="card shortcuts-card">
         <h2>快捷键</h2>
         <p className="shortcuts-desc">
-          选中页面文字后，可使用快捷键直接翻译（需在浏览器中先绑定按键）。
+          翻译、页面显示和各项模式开关都可以绑定快捷键。显示“未设置”的命令，需要先在浏览器中绑定按键。
         </p>
 
         <ShortcutsList
@@ -44,8 +44,7 @@ export function ShortcutsTab({ shortcuts }) {
         </div>
       </div>
       <p className="shortcuts-hint">
-        使用方式：选中文字后按快捷键；或将鼠标悬停在单词上按快捷键；或右键
-        「Ollama 翻译选中内容」
+        模式切换后会在当前页面显示结果提示；生词标记、认词模式和学习模式的状态会与弹窗及设置页同步。
       </p>
     </>
   );

@@ -1,16 +1,17 @@
 import { Panel } from "./Panel.jsx";
+import { PopupModelField } from "./PopupModelField.jsx";
 import { PAGE_TRANSLATE_DISPLAY_MODE_OPTIONS } from "../lib/pageTranslateState.js";
 
 const PROVIDER_SELECT_ID = "popup-provider-select";
 
 export function QuickActionsPanel({
   appEnabled,
-  isStartingPageTranslate,
+  isTogglingPageTranslate,
   isChangingPageDisplayMode,
   isPageTranslateActive,
   pageDisplayMode,
   pageTranslateStatus,
-  onStartPageTranslate,
+  onTogglePageTranslate,
   onPageDisplayModeChange,
   onToggleSiteAutoTranslate,
   siteAutoTranslateEnabled,
@@ -24,15 +25,11 @@ export function QuickActionsPanel({
   statusText,
   statusTone,
 }) {
-  const selectedProvider = availableProviders.some(
-    (option) => option.value === provider,
-  )
-    ? provider
-    : availableProviders[0]?.value || "";
   return (
     <Panel
       title="快速操作"
       isSubtle
+      className="popup-panel--quick"
       showStatus={showStatus}
       statusText={statusText}
       statusTone={statusTone}
@@ -40,12 +37,22 @@ export function QuickActionsPanel({
       <div className="popup-page-translate-actions">
         <button
           type="button"
-          className="btn btn-primary popup-page-translate-btn"
-          onClick={onStartPageTranslate}
-          disabled={!appEnabled || isStartingPageTranslate}
-          title="只翻译当前页面，离开后不会自动翻译"
+          className={`btn popup-page-translate-btn${isPageTranslateActive ? " btn-secondary popup-page-translate-btn--stop" : " btn-primary"}`}
+          onClick={onTogglePageTranslate}
+          disabled={!appEnabled || isTogglingPageTranslate}
+          title={
+            isPageTranslateActive
+              ? "停止继续翻译，已完成的译文会保留"
+              : "只翻译当前页面，离开后不会自动翻译"
+          }
         >
-          {isStartingPageTranslate ? "启动中..." : "翻译该页面"}
+          {isTogglingPageTranslate
+            ? isPageTranslateActive
+              ? "停止中..."
+              : "启动中..."
+            : isPageTranslateActive
+              ? "停止翻译"
+              : "翻译该页面"}
         </button>
         <button
           type="button"
@@ -101,44 +108,15 @@ export function QuickActionsPanel({
           {pageTranslateStatus}
         </div>
       )}
-      <div className="popup-field">
-        <label className="popup-field__label" htmlFor={PROVIDER_SELECT_ID}>
-          翻译引擎
-        </label>
-        {providersLoading ? (
-          <button
-            id={PROVIDER_SELECT_ID}
-            type="button"
-            className="popup-provider-select popup-provider-select--loading"
-            disabled
-          >
-            正在检测可用引擎…
-          </button>
-        ) : availableProviders.length > 0 ? (
-          <select
-            id={PROVIDER_SELECT_ID}
-            className="popup-provider-select"
-            value={selectedProvider}
-            onChange={(event) => onProviderChange(event.target.value)}
-          >
-            {availableProviders.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <button
-            id={PROVIDER_SELECT_ID}
-            type="button"
-            className="popup-provider-empty"
-            onClick={onOpenProviderSetup}
-          >
-            <span>暂无可用引擎</span>
-            <strong>前往新增</strong>
-          </button>
-        )}
-      </div>
+      <PopupModelField
+        id={PROVIDER_SELECT_ID}
+        label="翻译模型"
+        value={provider}
+        onChange={onProviderChange}
+        options={availableProviders}
+        isLoading={providersLoading}
+        onOpenSetup={onOpenProviderSetup}
+      />
     </Panel>
   );
 }

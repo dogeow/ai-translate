@@ -7,5 +7,4 @@ export {
   Panel,
   PopupHero,
   QuickActionsPanel,
-  UpdateBanner,
 } from "./index.js";

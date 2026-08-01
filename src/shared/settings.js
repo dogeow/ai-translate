@@ -48,6 +48,8 @@ import {
  */
 export const DEFAULT_SETTINGS = {
   provider: DEFAULT_TRANSLATE_PROVIDER,
+  uiRewriteProvider: DEFAULT_TRANSLATE_PROVIDER,
+  learningProvider: DEFAULT_TRANSLATE_PROVIDER,
   addedProviders: [DEFAULT_TRANSLATE_PROVIDER],
   verifiedProviders: [],
   ollamaUrl: DEFAULT_OLLAMA_URL,
@@ -90,6 +92,8 @@ export const CANONICAL_SETTINGS_KEYS = Object.freeze(
 
 export const POPUP_SETTINGS_STORAGE_DEFAULTS = Object.freeze({
   provider: DEFAULT_SETTINGS.provider,
+  uiRewriteProvider: DEFAULT_SETTINGS.uiRewriteProvider,
+  learningProvider: DEFAULT_SETTINGS.learningProvider,
   autoTranslateMode: DEFAULT_SETTINGS.autoTranslateMode,
   hoverTranslateScope: DEFAULT_SETTINGS.hoverTranslateScope,
   hoverTranslateModifierKey: DEFAULT_SETTINGS.hoverTranslateModifierKey,
@@ -137,6 +141,25 @@ export function normalizeVerifiedProviders(value, addedProviders = []) {
         .map((provider) => normalizeTranslateProvider(provider)),
     ),
   );
+}
+
+export function normalizeFeatureProvider(
+  value,
+  fallbackProvider = DEFAULT_SETTINGS.provider,
+  addedProviders = null,
+) {
+  const normalizedFallback = normalizeTranslateProvider(fallbackProvider);
+  const raw = String(value || "").trim();
+  const normalized = CANONICAL_PROVIDER_VALUES.has(raw)
+    ? normalizeTranslateProvider(raw)
+    : normalizedFallback;
+
+  if (!Array.isArray(addedProviders) || addedProviders.length === 0) {
+    return normalized;
+  }
+  if (addedProviders.includes(normalized)) return normalized;
+  if (addedProviders.includes(normalizedFallback)) return normalizedFallback;
+  return addedProviders[0];
 }
 
 function hasOwnSetting(input, key) {
@@ -530,6 +553,16 @@ function normalizeSettings(settings = {}, options = {}) {
     settings.verifiedProviders,
     addedProviders,
   );
+  const uiRewriteProvider = normalizeFeatureProvider(
+    settings.uiRewriteProvider,
+    provider,
+    addedProviders,
+  );
+  const learningProvider = normalizeFeatureProvider(
+    settings.learningProvider,
+    provider,
+    addedProviders,
+  );
   const minimaxRegion = resolveMiniMaxRegionFromInput({
     ...settings,
     provider,
@@ -573,6 +606,8 @@ function normalizeSettings(settings = {}, options = {}) {
 
   return {
     provider,
+    uiRewriteProvider,
+    learningProvider,
     addedProviders,
     verifiedProviders,
     ollamaUrl: String(
@@ -693,6 +728,8 @@ export function getPopupSettingsState(stored = {}) {
 
   return {
     provider: normalized.provider,
+    uiRewriteProvider: normalized.uiRewriteProvider,
+    learningProvider: normalized.learningProvider,
     autoTranslateMode: normalized.autoTranslateMode,
     hoverTranslateScope: normalized.hoverTranslateScope,
     hoverTranslateModifierKey: normalized.hoverTranslateModifierKey,

@@ -214,7 +214,11 @@ export function initContentRuntime() {
   void loadAutoTranslateSettings().then(() => maybeAutoStartForAllowedOrigin());
 
   const cleanupUiRewrite = initUiRewrite();
-  const cleanupWordMarker = initWordMarker();
+  const cleanupWordMarker = initWordMarker({
+    onRecognitionStatsChange: (stats) => {
+      pageTranslateBar.setRecognitionStats(stats);
+    },
+  });
 
   function onStorageChanged(changes, area) {
     if (area !== "sync") return;
@@ -251,6 +255,7 @@ export function initContentRuntime() {
     chrome.storage.onChanged.removeListener(onStorageChanged);
     try { cleanupUiRewrite?.(); } catch (_) {}
     try { cleanupWordMarker?.(); } catch (_) {}
+    pageTranslateBar.destroy();
   };
 }
 

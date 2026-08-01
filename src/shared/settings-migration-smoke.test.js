@@ -57,6 +57,8 @@ test("legacy 通用设置升级后 popup、菜单、运行时和 options 形状�
 
   assert.deepEqual(popupState, {
     provider: "minimax-global",
+    uiRewriteProvider: "minimax-global",
+    learningProvider: "minimax-global",
     autoTranslateMode: "selection",
     hoverTranslateScope: "paragraph",
     hoverTranslateModifierKey: "shift",

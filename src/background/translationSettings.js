@@ -1,5 +1,8 @@
 import {
   getMiniMaxApiKeyLabel,
+  getDefaultMiniMaxApiUrlByRegion,
+  getMiniMaxRegionFromProvider,
+  isMiniMaxGlobalApiUrl,
   normalizeAllSettings,
   normalizeTranslateProvider,
   resolveMiniMaxApiKey,
@@ -37,6 +40,8 @@ import { normalizeGitHubModelsBaseUrl } from "../shared/github-models-api.js";
 
 export const SYNC_SETTINGS_DEFAULTS = {
   provider: DEFAULT_TRANSLATE_PROVIDER,
+  uiRewriteProvider: DEFAULT_TRANSLATE_PROVIDER,
+  learningProvider: DEFAULT_TRANSLATE_PROVIDER,
   addedProviders: [DEFAULT_TRANSLATE_PROVIDER],
   verifiedProviders: [],
   ollamaUrl: DEFAULT_OLLAMA_URL,
@@ -58,6 +63,12 @@ export const SYNC_SETTINGS_DEFAULTS = {
   appEnabled: DEFAULT_APP_ENABLED,
 };
 
+export const PROVIDER_PURPOSE = Object.freeze({
+  TRANSLATION: "translation",
+  UI_REWRITE: "uiRewrite",
+  LEARNING: "learning",
+});
+
 export function normalizeRuntimeSettings(settings = {}) {
   const normalized = normalizeAllSettings(settings);
   return {
@@ -68,10 +79,10 @@ export function normalizeRuntimeSettings(settings = {}) {
   };
 }
 
-export function resolveProviderRuntime(settings) {
+export function resolveProviderRuntime(settings, options = {}) {
   const normalized = normalizeRuntimeSettings(settings);
   const provider = normalizeTranslateProvider(
-    normalized.provider,
+    options.provider ?? normalized.provider,
     normalized.minimaxRegion,
   );
   const isProviderAdded = normalized.addedProviders.includes(provider);
@@ -88,16 +99,30 @@ export function resolveProviderRuntime(settings) {
         : isChatGpt
           ? normalized.chatgptModel || DEFAULT_CHATGPT_MODEL
         : normalized.ollamaModel;
+  const featureMiniMaxRegion = isMiniMax
+    ? getMiniMaxRegionFromProvider(provider)
+    : normalized.minimaxRegion;
+  const storedMiniMaxUrlMatchesProvider = isMiniMax
+    ? isMiniMaxGlobalApiUrl(normalized.minimaxApiUrl) ===
+      (featureMiniMaxRegion === "global")
+    : false;
+  const minimaxBaseUrl = storedMiniMaxUrlMatchesProvider
+    ? normalized.minimaxApiUrl
+    : getDefaultMiniMaxApiUrlByRegion(featureMiniMaxRegion);
   const base = isChromeAi
     ? ""
     : isMiniMax
-      ? normalizeMiniMaxBaseUrl(normalized.minimaxApiUrl)
+      ? normalizeMiniMaxBaseUrl(minimaxBaseUrl)
       : isGitHub
         ? normalizeGitHubModelsBaseUrl(normalized.githubApiUrl)
         : isChatGpt
           ? DEFAULT_CHATGPT_CODEX_API_URL
         : String(normalized.ollamaUrl || DEFAULT_OLLAMA_URL).replace(/\/$/, "");
-  const minimaxApiKey = resolveMiniMaxApiKey(normalized);
+  const minimaxApiKey = resolveMiniMaxApiKey({
+    ...normalized,
+    provider,
+    minimaxRegion: featureMiniMaxRegion,
+  });
   const githubToken = resolveGitHubToken(normalized);
   const apiKey = isMiniMax ? minimaxApiKey : isGitHub ? githubToken : "";
 
@@ -118,13 +143,30 @@ export function resolveProviderRuntime(settings) {
   };
 }
 
+export function resolvePurposeProviderRuntime(
+  settings,
+  purpose = PROVIDER_PURPOSE.TRANSLATION,
+) {
+  const normalized = normalizeRuntimeSettings(settings);
+  const provider =
+    purpose === PROVIDER_PURPOSE.UI_REWRITE
+      ? normalized.uiRewriteProvider
+      : purpose === PROVIDER_PURPOSE.LEARNING
+        ? normalized.learningProvider
+        : normalized.provider;
+  return resolveProviderRuntime(normalized, { provider });
+}
+
 export function buildMissingCredentialError(providerRuntime, settings) {
   if (!providerRuntime.isProviderAdded) {
     return "请先新增并验证翻译引擎。";
   }
   if (providerRuntime.provider === PROVIDER_OLLAMA) return "";
   if (providerRuntime.isMiniMax && !providerRuntime.apiKey) {
-    return `请先填写${getMiniMaxApiKeyLabel(settings)}。`;
+    return `请先填写${getMiniMaxApiKeyLabel({
+      ...settings,
+      provider: providerRuntime.provider,
+    })}。`;
   }
   if (providerRuntime.isGitHub && !providerRuntime.apiKey) {
     return getGitHubDeviceLoginPrompt(settings);

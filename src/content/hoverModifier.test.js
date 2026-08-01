@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isHoverModifierActive,
   isHoverModifierKeyEvent,
+  resolveHoverModifierActiveForTarget,
 } from "./hoverModifier.js";
 
 test("Option or Alt is the default hover modifier", () => {
@@ -29,4 +30,31 @@ test("disabled hover modifier never activates", () => {
     false,
   );
   assert.equal(isHoverModifierKeyEvent({ key: "Alt" }, "none"), false);
+});
+
+test("认词单词上的 Option 留给单词分类快捷键", () => {
+  assert.equal(
+    resolveHoverModifierActiveForTarget({
+      modifierActive: true,
+      modifierKey: "alt",
+      recognitionModeWord: true,
+    }),
+    false,
+  );
+  assert.equal(
+    resolveHoverModifierActiveForTarget({
+      modifierActive: true,
+      modifierKey: "alt",
+      recognitionModeWord: false,
+    }),
+    true,
+  );
+  assert.equal(
+    resolveHoverModifierActiveForTarget({
+      modifierActive: true,
+      modifierKey: "shift",
+      recognitionModeWord: true,
+    }),
+    true,
+  );
 });

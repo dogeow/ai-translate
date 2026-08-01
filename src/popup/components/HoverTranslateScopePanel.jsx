@@ -25,6 +25,7 @@ export function HoverTranslateScopePanel({
       title="悬停翻译范围"
       hint={modifierHint}
       isSubtle
+      className="popup-panel--hover"
       showStatus={showStatus}
       statusText={statusText}
       statusTone={statusTone}

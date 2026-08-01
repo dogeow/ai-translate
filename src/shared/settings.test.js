@@ -12,6 +12,8 @@ import {
 test("getPopupSettingsState 返回 popup 默认状态", () => {
   assert.deepEqual(getPopupSettingsState(), {
     provider: POPUP_SETTINGS_STORAGE_DEFAULTS.provider,
+    uiRewriteProvider: POPUP_SETTINGS_STORAGE_DEFAULTS.uiRewriteProvider,
+    learningProvider: POPUP_SETTINGS_STORAGE_DEFAULTS.learningProvider,
     autoTranslateMode: POPUP_SETTINGS_STORAGE_DEFAULTS.autoTranslateMode,
     hoverTranslateScope: POPUP_SETTINGS_STORAGE_DEFAULTS.hoverTranslateScope,
     hoverTranslateModifierKey:
@@ -41,12 +43,37 @@ test("migrateSettingsIfNeeded 后 getPopupSettingsState 可读取迁移结果", 
     getPopupSettingsState(migration.settings),
     {
       provider: "minimax-global",
+      uiRewriteProvider: "minimax-global",
+      learningProvider: "minimax-global",
       autoTranslateMode: "selection",
       hoverTranslateScope: "paragraph",
       hoverTranslateModifierKey: "alt",
       appEnabled: false,
     },
   );
+});
+
+test("三个 AI 用途可以保存独立的模型来源", () => {
+  const normalized = normalizeAllSettings({
+    provider: "chrome-ai",
+    uiRewriteProvider: "chatgpt",
+    learningProvider: "github-models",
+    addedProviders: ["chrome-ai", "chatgpt", "github-models"],
+  });
+
+  assert.equal(normalized.provider, "chrome-ai");
+  assert.equal(normalized.uiRewriteProvider, "chatgpt");
+  assert.equal(normalized.learningProvider, "github-models");
+});
+
+test("旧设置缺少独立用途时沿用当前翻译模型来源", () => {
+  const normalized = normalizeAllSettings({
+    provider: "chatgpt",
+    addedProviders: ["chatgpt"],
+  });
+
+  assert.equal(normalized.uiRewriteProvider, "chatgpt");
+  assert.equal(normalized.learningProvider, "chatgpt");
 });
 
 test("normalizeAllSettings 不再直接读取 legacy 通用键", () => {

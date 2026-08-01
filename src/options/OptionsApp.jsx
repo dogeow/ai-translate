@@ -8,11 +8,11 @@ import { OPTIONS_DEFAULT_TAB } from "./components/optionsNavigation.js";
 import { useSettings } from "./hooks/useSettings.js";
 import { useInitializeOptionsPage } from "./hooks/useInitializeOptionsPage.js";
 import { useConnectionStatus } from "./hooks/useConnectionStatus.js";
-import { useUpdateCheck } from "./hooks/useUpdateCheck.js";
 import { useTranslateTest } from "./hooks/useTranslateTest.js";
 import { detectPlatform, getConfig } from "./lib/utils.js";
 
 export function OptionsApp() {
+  const currentVersion = chrome.runtime.getManifest().version;
   const [view, setView] = useState(
     window.location.hash === "#translate" ? "translate-result" : "options",
   );
@@ -33,14 +33,6 @@ export function OptionsApp() {
   } = useSettings();
 
   const {
-    currentVersion,
-    updateState,
-    loadUpdateState,
-    runExtensionUpdateCheck,
-    openUpdatePage,
-  } = useUpdateCheck();
-
-  const {
     connectionStatus,
     setConnectionStatus,
     models,
@@ -59,7 +51,6 @@ export function OptionsApp() {
 
   useInitializeOptionsPage({
     loadSettings,
-    loadUpdateState,
     updateConnectionStatus,
     setTestTargetLang: translateTest.setTestTargetLang,
     setTranslateResult,
@@ -87,13 +78,6 @@ export function OptionsApp() {
     models,
     defaultModel: getConfig(settings).model,
   };
-  const updateInfo = {
-    currentVersion,
-    updateState,
-    runExtensionUpdateCheck,
-    openUpdatePage,
-  };
-
   function openOptionsView() {
     history.replaceState(null, "", window.location.pathname);
     setView("options");
@@ -121,7 +105,7 @@ export function OptionsApp() {
         />
 
         <main className="options-content">
-          <h1>Ollama 翻译设置</h1>
+          <h1>英语学习和AI翻译设置</h1>
           <ConnectionStatusBanner
             status={connectionStatus}
             onOpenOrigins={() => setOriginsModalOpen(true)}
@@ -132,7 +116,7 @@ export function OptionsApp() {
             connectionState={connectionState}
             translateTestState={translateTestState}
             shortcuts={shortcuts}
-            updateInfo={updateInfo}
+            currentVersion={currentVersion}
           />
         </main>
         <p

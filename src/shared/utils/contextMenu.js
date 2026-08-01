@@ -61,13 +61,13 @@ export async function createContextMenus() {
 
   chrome.contextMenus.create({
     id: MENU_TRANSLATE_SELECTION,
-    title: "Ollama 翻译选中内容",
+    title: "英语学习和AI翻译选中内容",
     contexts: ["selection"],
   });
 
   chrome.contextMenus.create({
     id: MENU_TRANSLATE_PAGE,
-    title: "Ollama 翻译整个页面（可视区域优先）",
+    title: "英语学习和AI翻译整个页面（可视区域优先）",
     contexts: ["page"],
   });
 

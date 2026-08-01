@@ -33,6 +33,7 @@ import {
 import {
   isHoverModifierActive,
   isHoverModifierKeyEvent,
+  resolveHoverModifierActiveForTarget,
 } from "./hoverModifier.js";
 import { dismissWordMarkerCard } from "./wordMarker.js";
 import { shouldPreferWordMarkerCard } from "./wordMarkerPolicy.js";
@@ -210,6 +211,16 @@ export function createInteractionController({
       sendResponse({
         ok: true,
         active: pageTranslator.isActive(),
+        mode: pageTranslator.getDisplayMode?.() || "translation",
+      });
+      return true;
+    }
+
+    if (msg.action === "stopVisualPageTranslate") {
+      pageTranslator.stop();
+      sendResponse({
+        ok: true,
+        active: false,
         mode: pageTranslator.getDisplayMode?.() || "translation",
       });
       return true;
@@ -410,12 +421,19 @@ export function createInteractionController({
       return;
     }
 
+    const markedWordElement = eventTarget?.closest?.(
+      `.${WORD_MARKER_SPAN_CLASS}`,
+    );
+    const isMarkedWord = !!markedWordElement;
+    const effectiveModifierActive = resolveHoverModifierActiveForTarget({
+      modifierActive: state.hoverModifierActive,
+      modifierKey: state.hoverTranslateModifierKey,
+      recognitionModeWord:
+        markedWordElement?.dataset?.recognitionMode === "true",
+    });
     const effectiveScope = resolveHoverTranslateScope(
       state.hoverTranslateScope,
-      state.hoverModifierActive,
-    );
-    const isMarkedWord = !!eventTarget?.closest?.(
-      `.${WORD_MARKER_SPAN_CLASS}`,
+      effectiveModifierActive,
     );
     if (
       shouldPreferWordMarkerCard({

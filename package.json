@@ -1,14 +1,15 @@
 {
   "name": "ai-translate",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
-  "description": "AI 翻译",
+  "description": "英语学习和AI翻译",
   "scripts": {
     "version:sync": "node tools/sync-version.mjs",
     "predev": "node tools/sync-version.mjs",
     "dev": "extension dev",
     "prebuild": "node tools/sync-version.mjs",
     "build": "extension build",
+    "package:chrome": "npm run build && node tools/package-chrome-web-store.mjs",
     "test": "node --test",
     "prestart": "node tools/sync-version.mjs",
     "start": "extension start",

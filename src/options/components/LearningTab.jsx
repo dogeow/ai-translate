@@ -1,19 +1,19 @@
-import { isChromeAiProvider } from "../../shared/settings.js";
+import { isLearningModeSupported } from "../lib/learningSettings.js";
 
 export function LearningTab({ settings, updateSettings }) {
-  const isChromeAi = isChromeAiProvider(settings.provider);
-  const checked = !isChromeAi && !!settings.learningModeEnabled;
+  const isSupported = isLearningModeSupported(settings);
+  const checked = isSupported && !!settings.learningModeEnabled;
 
   return (
     <div className="card">
       <h2>学习模式</h2>
       <div className="field">
         <label
-          className={`checkbox-label${isChromeAi ? " checkbox-label--disabled" : ""}`}
+          className={`checkbox-label${isSupported ? "" : " checkbox-label--disabled"}`}
           htmlFor="learningModeEnabled"
           title={
-            isChromeAi
-              ? "Chrome 内置 AI 仅支持翻译，不支持句型分析。请切换到 Ollama / MiniMax / GitHub Copilot 等厂家。"
+            !isSupported
+              ? "Chrome 内置 AI 仅支持翻译，不支持句型分析。请切换学习模型。"
               : undefined
           }
         >
@@ -21,7 +21,7 @@ export function LearningTab({ settings, updateSettings }) {
             id="learningModeEnabled"
             type="checkbox"
             checked={checked}
-            disabled={isChromeAi}
+            disabled={!isSupported}
             onChange={(event) =>
               updateSettings(
                 { learningModeEnabled: event.target.checked },
@@ -31,10 +31,9 @@ export function LearningTab({ settings, updateSettings }) {
           />
           <span>启用学习模式</span>
         </label>
-        {isChromeAi ? (
+        {!isSupported ? (
           <span className="hint hint--warn">
-            当前厂家是 Chrome 内置 AI，仅支持翻译，不支持句型分析。请切换到 Ollama
-            / MiniMax / GitHub Copilot 等厂家以使用学习模式。
+            当前学习模型是 Chrome 内置 AI，仅支持翻译，不支持句型分析。请在弹窗中切换学习模型。
           </span>
         ) : (
           <span className="hint">

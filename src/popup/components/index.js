@@ -5,6 +5,6 @@ export { ChoiceGrid } from "./ChoiceGrid.jsx";
 export { HoverTranslateScopePanel } from "./HoverTranslateScopePanel.jsx";
 export { Panel } from "./Panel.jsx";
 export { PopupHero } from "./PopupHero.jsx";
+export { PopupModelField } from "./PopupModelField.jsx";
 export { QuickActionsPanel } from "./QuickActionsPanel.jsx";
-export { UpdateBanner } from "./UpdateBanner.jsx";
 export { UiRewriteAndLearningPanel } from "./UiRewriteAndLearningPanel.jsx";

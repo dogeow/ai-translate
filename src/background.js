@@ -14,12 +14,6 @@ import {
   openResultWindow,
   triggerVisualPageTranslate,
 } from "./shared/utils/messaging.js";
-import {
-  readStoredUpdateState,
-  ensureUpdateCheckAlarm,
-  checkForExtensionUpdate,
-  UPDATE_CHECK_ALARM_NAME,
-} from "./shared/utils/updateManager.js";
 import { migrateSettingsIfNeeded } from "./shared/settings.js";
 import {
   toggleAlwaysTranslateOrigin,
@@ -31,8 +25,13 @@ import { handleTranslationRuntimeMessage } from "./background/translationMessage
 import { handleUiRewriteMessage } from "./background/uiRewriteService.js";
 import { handleWordLearningMessage } from "./background/wordLearningService.js";
 import { setWordLearningStatus } from "./shared/word-learning.js";
+import {
+  SETTING_SHORTCUT_STORAGE_KEYS,
+  isSettingShortcutCommand,
+  resolveSettingShortcut,
+} from "./background/shortcutSettings.js";
 
-const LOG_PREFIX = "[Ollama 翻译]";
+const LOG_PREFIX = "[英语学习和AI翻译]";
 
 const MENU_REWRITE_PAGE = "ai-translate-rewrite-page";
 const MENU_LEARN_KNOWN = "ai-translate-learn-known";
@@ -67,8 +66,6 @@ async function initializeExtensionRuntime() {
     await createContextMenus();
     await createExtraContextMenus();
   }
-  void ensureUpdateCheckAlarm();
-  void checkForExtensionUpdate();
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -77,11 +74,6 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup?.addListener(() => {
   void initializeExtensionRuntime();
-});
-
-chrome.alarms?.onAlarm.addListener((alarm) => {
-  if (alarm.name !== UPDATE_CHECK_ALARM_NAME) return;
-  void checkForExtensionUpdate();
 });
 
 async function getActiveTabId() {
@@ -167,6 +159,21 @@ async function handleToggleApp() {
   }
 }
 
+async function handleSettingShortcut(command, tabId) {
+  const stored = await chrome.storage.sync.get(SETTING_SHORTCUT_STORAGE_KEYS);
+  const result = resolveSettingShortcut(command, stored);
+  if (!result) return;
+  if (result.updates) {
+    await chrome.storage.sync.set(result.updates);
+  }
+  if (tabId && result.message) {
+    await sendTabMessageSafe(tabId, {
+      action: "showShortcutHint",
+      message: result.message,
+    });
+  }
+}
+
 async function handleToggleTranslateSite(tabId) {
   let origin = "";
   try {
@@ -223,6 +230,10 @@ chrome.commands.onCommand.addListener(async (command) => {
       return;
     }
     const tabId = await getActiveTabId();
+    if (isSettingShortcutCommand(command)) {
+      await handleSettingShortcut(command, tabId);
+      return;
+    }
     if (!tabId) {
       console.warn(LOG_PREFIX, "no active tab id");
       return;
@@ -420,20 +431,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((err) =>
         sendResponse({ ok: false, error: err?.message || String(err) }),
       );
-    return true;
-  }
-
-  if (msg.action === "getExtensionUpdateState") {
-    readStoredUpdateState()
-      .then((state) => sendResponse({ ok: true, state }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (msg.action === "checkExtensionUpdate") {
-    checkForExtensionUpdate({ markChecking: true })
-      .then((state) => sendResponse({ ok: true, state }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 

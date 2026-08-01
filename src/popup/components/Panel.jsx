@@ -10,7 +10,7 @@ export function Panel({
 }) {
   const panelClassName = `popup-panel${
     isSubtle ? " popup-panel--subtle" : ""
-  } ${className}`;
+  } ${className}`.trim();
   const statusClassName = `popup-status popup-status--${statusTone}`;
   const statusRole = statusTone === "error" ? "alert" : "status";
   const statusLive = statusTone === "error" ? "assertive" : "polite";
