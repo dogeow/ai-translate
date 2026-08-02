@@ -87,6 +87,13 @@ export async function saveStudyingWords(words) {
   await setLocal({ [STUDYING_WORDS_STORAGE_KEY]: words || {} });
 }
 
+export async function saveAllWords({ known = {}, studying = {} } = {}) {
+  await setLocal({
+    [KNOWN_WORDS_STORAGE_KEY]: known,
+    [STUDYING_WORDS_STORAGE_KEY]: studying,
+  });
+}
+
 export async function loadAllWords() {
   const stored = await getLocal([
     KNOWN_WORDS_STORAGE_KEY,

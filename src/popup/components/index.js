@@ -1,10 +1,11 @@
 export { AppToggle } from "./AppToggle.jsx";
+export { AiRewritePanel } from "./AiRewritePanel.jsx";
 export { AutoTranslateModePanel } from "./AutoTranslateModePanel.jsx";
 export { ChoiceCard } from "./ChoiceCard.jsx";
 export { ChoiceGrid } from "./ChoiceGrid.jsx";
+export { EnglishLearningPanel } from "./EnglishLearningPanel.jsx";
 export { HoverTranslateScopePanel } from "./HoverTranslateScopePanel.jsx";
 export { Panel } from "./Panel.jsx";
 export { PopupHero } from "./PopupHero.jsx";
 export { PopupModelField } from "./PopupModelField.jsx";
 export { QuickActionsPanel } from "./QuickActionsPanel.jsx";
-export { UiRewriteAndLearningPanel } from "./UiRewriteAndLearningPanel.jsx";

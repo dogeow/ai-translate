@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 
 import {
   resolveHoverTranslateScope,
+  resolveSelectionButtonAnchorRect,
   resolveShortcutTranslationTarget,
 } from "./selection.js";
 
@@ -130,6 +131,42 @@ test("the active modifier temporarily inverts the configured hover scope", () =>
   assert.equal(resolveHoverTranslateScope("word", true), "paragraph");
   assert.equal(resolveHoverTranslateScope("paragraph", false), "paragraph");
   assert.equal(resolveHoverTranslateScope("paragraph", true), "word");
+});
+
+test("第三次点击扩展为段落时保留双击单词的按钮位置", () => {
+  const wordRect = {
+    top: 80,
+    bottom: 104,
+    left: 420,
+    right: 500,
+    width: 80,
+    height: 24,
+  };
+  const paragraphRect = {
+    top: 40,
+    bottom: 180,
+    left: 50,
+    right: 900,
+    width: 850,
+    height: 140,
+  };
+
+  assert.equal(
+    resolveSelectionButtonAnchorRect({
+      clickCount: 3,
+      selectionRect: paragraphRect,
+      wordSelectionRect: wordRect,
+    }),
+    wordRect,
+  );
+  assert.equal(
+    resolveSelectionButtonAnchorRect({
+      clickCount: 2,
+      selectionRect: wordRect,
+      wordSelectionRect: null,
+    }),
+    wordRect,
+  );
 });
 
 test("a broad article container is not treated as a paragraph fallback", () => {

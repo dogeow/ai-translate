@@ -1,11 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Panel } from "./Panel.jsx";
 import { PopupModelField } from "./PopupModelField.jsx";
 import { useCurrentPageRewrite } from "../hooks/useCurrentPageRewrite.js";
-import {
-  WORD_MARKING_ENABLED_KEY,
-  WORD_RECOGNITION_MODE_ENABLED_KEY,
-} from "../../shared/word-learning.js";
 
 const UI_REWRITE_PRESETS = [
   {
@@ -22,11 +18,9 @@ const UI_REWRITE_PRESETS = [
   },
 ];
 
-export function UiRewriteAndLearningPanel({
-  uiRewriteProvider,
-  learningProvider,
-  onUiRewriteProviderChange,
-  onLearningProviderChange,
+export function AiRewritePanel({
+  provider,
+  onProviderChange,
   availableModels = [],
   modelsLoading = false,
   onOpenProviderSetup,
@@ -35,37 +29,7 @@ export function UiRewriteAndLearningPanel({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [statusTone, setStatusTone] = useState("neutral");
-  const [wordMarkingEnabled, setWordMarkingEnabled] = useState(false);
-  const [recognitionModeEnabled, setRecognitionModeEnabled] = useState(false);
   const currentPageRewrite = useCurrentPageRewrite();
-
-  useEffect(() => {
-    chrome.storage.sync.get(
-      [WORD_MARKING_ENABLED_KEY, WORD_RECOGNITION_MODE_ENABLED_KEY],
-      (value) => {
-        setWordMarkingEnabled(value?.[WORD_MARKING_ENABLED_KEY] === true);
-        setRecognitionModeEnabled(
-          value?.[WORD_RECOGNITION_MODE_ENABLED_KEY] === true,
-        );
-      },
-    );
-    function onChanged(changes, area) {
-      if (area === "sync") {
-        if (WORD_MARKING_ENABLED_KEY in changes) {
-          setWordMarkingEnabled(
-            changes[WORD_MARKING_ENABLED_KEY].newValue === true,
-          );
-        }
-        if (WORD_RECOGNITION_MODE_ENABLED_KEY in changes) {
-          setRecognitionModeEnabled(
-            changes[WORD_RECOGNITION_MODE_ENABLED_KEY].newValue === true,
-          );
-        }
-      }
-    }
-    chrome.storage.onChanged.addListener(onChanged);
-    return () => chrome.storage.onChanged.removeListener(onChanged);
-  }, []);
 
   function setMessage(text, tone = "neutral") {
     setStatus(text);
@@ -96,18 +60,18 @@ export function UiRewriteAndLearningPanel({
         title: tab.title || "",
         prompt: text,
       },
-      (res) => {
+      (response) => {
         setBusy(false);
         if (chrome.runtime.lastError) {
           setMessage(chrome.runtime.lastError.message, "error");
           return;
         }
-        if (res?.ok) {
-          currentPageRewrite.markApplied(res.rule, res.version);
+        if (response?.ok) {
+          currentPageRewrite.markApplied(response.rule, response.version);
           setMessage("已应用到当前页", "success");
           setPrompt("");
         } else {
-          setMessage(res?.error || "生成失败", "error");
+          setMessage(response?.error || "生成失败", "error");
         }
       },
     );
@@ -122,25 +86,11 @@ export function UiRewriteAndLearningPanel({
     );
   }
 
-  function toggleMark() {
-    const next = !wordMarkingEnabled;
-    setWordMarkingEnabled(next);
-    chrome.storage.sync.set({ [WORD_MARKING_ENABLED_KEY]: next });
-  }
-
-  function toggleRecognitionMode() {
-    const next = !recognitionModeEnabled;
-    setRecognitionModeEnabled(next);
-    chrome.storage.sync.set({
-      [WORD_RECOGNITION_MODE_ENABLED_KEY]: next,
-    });
-  }
-
   return (
     <Panel
       title="AI 页面改造"
       isSubtle
-      className="popup-panel--learning"
+      className="popup-panel--rewrite"
       showStatus={!!status}
       statusText={status}
       statusTone={statusTone}
@@ -148,8 +98,8 @@ export function UiRewriteAndLearningPanel({
       <PopupModelField
         id="popup-ui-rewrite-model"
         label="改造模型"
-        value={uiRewriteProvider}
-        onChange={onUiRewriteProviderChange}
+        value={provider}
+        onChange={onProviderChange}
         options={availableModels}
         isLoading={modelsLoading}
         onOpenSetup={onOpenProviderSetup}
@@ -161,7 +111,7 @@ export function UiRewriteAndLearningPanel({
           className="popup-rewrite__input"
           value={prompt}
           placeholder="例如：背景改为米色，正文增大"
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(event) => setPrompt(event.target.value)}
           disabled={busy}
         />
         <div className="popup-rewrite-presets" aria-label="常用改造模板">
@@ -203,53 +153,6 @@ export function UiRewriteAndLearningPanel({
             {busy ? "生成中…" : "AI 改造当前页"}
           </button>
         </div>
-      </div>
-      <div className="popup-learning">
-        <div className="popup-learning__heading">英语学习</div>
-        <PopupModelField
-          id="popup-learning-model"
-          label="学习模型"
-          value={learningProvider}
-          onChange={onLearningProviderChange}
-          options={availableModels}
-          isLoading={modelsLoading}
-          onOpenSetup={onOpenProviderSetup}
-          className="popup-field--flush"
-        />
-        <label className="popup-learning-toggle">
-          <span className="popup-learning-toggle__copy">
-            <span className="popup-learning-toggle__title">生词标记</span>
-            <span className="popup-learning-toggle__hint">
-              用橙色边框方框标记学习中的单词
-            </span>
-          </span>
-          <input
-            className="popup-learning-toggle__input"
-            type="checkbox"
-            checked={wordMarkingEnabled}
-            onChange={toggleMark}
-          />
-          <span className="popup-learning-toggle__control" aria-hidden="true">
-            <span className="popup-learning-toggle__thumb" />
-          </span>
-        </label>
-        <label className="popup-learning-toggle">
-          <span className="popup-learning-toggle__copy">
-            <span className="popup-learning-toggle__title">认词模式</span>
-            <span className="popup-learning-toggle__hint">
-              用蓝色边框方框标记其他单词
-            </span>
-          </span>
-          <input
-            className="popup-learning-toggle__input"
-            type="checkbox"
-            checked={recognitionModeEnabled}
-            onChange={toggleRecognitionMode}
-          />
-          <span className="popup-learning-toggle__control" aria-hidden="true">
-            <span className="popup-learning-toggle__thumb" />
-          </span>
-        </label>
       </div>
     </Panel>
   );

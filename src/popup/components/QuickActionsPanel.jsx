@@ -11,6 +11,11 @@ export function QuickActionsPanel({
   isPageTranslateActive,
   pageDisplayMode,
   pageTranslateStatus,
+  articleNarrationState,
+  isChangingArticleNarration,
+  articleNarrationStatus,
+  onToggleArticleNarration,
+  onStopArticleNarration,
   onTogglePageTranslate,
   onPageDisplayModeChange,
   onToggleSiteAutoTranslate,
@@ -25,6 +30,17 @@ export function QuickActionsPanel({
   statusText,
   statusTone,
 }) {
+  const narrationStatus = articleNarrationState?.status || "idle";
+  const isNarrationActive =
+    narrationStatus === "playing" || narrationStatus === "paused";
+  const narrationButtonText = isChangingArticleNarration
+    ? "处理中..."
+    : narrationStatus === "playing"
+      ? "暂停朗读"
+      : narrationStatus === "paused"
+        ? "继续朗读"
+        : "朗读文章";
+
   return (
     <Panel
       title="快速操作"
@@ -103,6 +119,42 @@ export function QuickActionsPanel({
           })}
         </div>
       </div>
+      <div className="popup-article-narration">
+        <div className="popup-article-narration__summary">
+          <span className="popup-article-narration__label">文章朗读</span>
+          {isNarrationActive && (
+            <span className="popup-article-narration__progress">
+              {articleNarrationState.sectionIndex || 0} / {articleNarrationState.totalSections || 0}
+            </span>
+          )}
+        </div>
+        <div className="popup-article-narration__actions">
+          <button
+            type="button"
+            className={`btn popup-article-narration__toggle${isNarrationActive ? " popup-article-narration__toggle--active" : ""}`}
+            onClick={onToggleArticleNarration}
+            disabled={!appEnabled || isChangingArticleNarration}
+            title="先点击正文中的段落，再点朗读；默认从当前屏幕可见段开始。开始后可在页面控制条选择原文、译文、英美音和语速"
+          >
+            {narrationButtonText}
+          </button>
+          {isNarrationActive && (
+            <button
+              type="button"
+              className="btn popup-article-narration__stop"
+              onClick={onStopArticleNarration}
+              disabled={isChangingArticleNarration}
+            >
+              停止
+            </button>
+          )}
+        </div>
+      </div>
+      {(articleNarrationStatus || narrationStatus === "error") && (
+        <div className="popup-page-translate-status" role="status">
+          {articleNarrationStatus || articleNarrationState.error}
+        </div>
+      )}
       {pageTranslateStatus && (
         <div className="popup-page-translate-status" role="status">
           {pageTranslateStatus}

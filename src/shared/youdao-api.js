@@ -29,6 +29,32 @@ export function buildYoudaoLookupUrl(word) {
   return `${YOUDAO_LOOKUP_BASE}?${params.toString()}`;
 }
 
+function readYoudaoPhrase(value) {
+  if (typeof value === "string") return value.trim();
+  const nested = value?.l?.i;
+  if (typeof nested === "string") return nested.trim();
+  if (Array.isArray(nested)) return String(nested[0] || "").trim();
+  return "";
+}
+
+export function getYoudaoResponseWord(data) {
+  const ecWord = Array.isArray(data?.ec?.word)
+    ? data.ec.word[0]
+    : data?.ec?.word;
+  const simpleWord = Array.isArray(data?.simple?.word)
+    ? data.simple.word[0]
+    : data?.simple?.word;
+  const candidates = [
+    data?.input,
+    data?.simple?.query,
+    readYoudaoPhrase(ecWord?.["return-phrase"]),
+    readYoudaoPhrase(simpleWord?.["return-phrase"]),
+  ];
+  return String(
+    candidates.find((value) => String(value || "").trim()) || "",
+  ).trim();
+}
+
 /**
  * 查询单词，返回 { word, ukphone, usphone, phone, translations[], raw }
  */
@@ -53,7 +79,15 @@ export async function lookupYoudao(word, { signal } = {}) {
 
 function parseYoudaoResponse(word, data) {
   if (!data || typeof data !== "object") {
-    return { word, ukphone: "", usphone: "", phone: "", translations: [], raw: data };
+    return {
+      word,
+      responseWord: "",
+      ukphone: "",
+      usphone: "",
+      phone: "",
+      translations: [],
+      raw: data,
+    };
   }
   const ec = data.ec || data.simple || {};
   const wordEntry = (ec.word && (Array.isArray(ec.word) ? ec.word[0] : ec.word)) || null;
@@ -95,6 +129,7 @@ function parseYoudaoResponse(word, data) {
   const simpleWord = data.simple?.word?.[0] || {};
   return {
     word,
+    responseWord: getYoudaoResponseWord(data),
     ukphone: ukphone || simpleWord.ukphone || "",
     usphone: usphone || simpleWord.usphone || "",
     phone: phone || simpleWord.phone || "",

@@ -12,6 +12,7 @@ import {
   normalizeFeatureProvider,
   normalizeHoverTranslateModifierKey,
   normalizeHoverTranslateScope,
+  normalizeWordLookupProvider,
 } from "../../shared/settings.js";
 import { resolvePageTranslateState } from "../lib/pageTranslateState.js";
 
@@ -50,6 +51,9 @@ export function usePopupSettings() {
   const [learningProvider, setLearningProvider] = useState(
     () => getPopupSettingsState().learningProvider,
   );
+  const [wordLookupProvider, setWordLookupProvider] = useState(
+    () => getPopupSettingsState().wordLookupProvider,
+  );
   const [autoTranslateMode, setAutoTranslateMode] = useState(
     () => getPopupSettingsState().autoTranslateMode,
   );
@@ -61,6 +65,9 @@ export function usePopupSettings() {
   );
   const [appEnabled, setAppEnabled] = useState(
     () => getPopupSettingsState().appEnabled,
+  );
+  const [learningModeEnabled, setLearningModeEnabled] = useState(
+    () => getPopupSettingsState().learningModeEnabled,
   );
   const [isSaving, setIsSaving] = useState(false);
   const {
@@ -76,9 +83,11 @@ export function usePopupSettings() {
     setProvider(nextState.provider);
     setUiRewriteProvider(nextState.uiRewriteProvider);
     setLearningProvider(nextState.learningProvider);
+    setWordLookupProvider(nextState.wordLookupProvider);
     setAutoTranslateMode(nextState.autoTranslateMode);
     setHoverTranslateScope(nextState.hoverTranslateScope);
     setHoverTranslateModifierKey(nextState.hoverTranslateModifierKey);
+    setLearningModeEnabled(nextState.learningModeEnabled);
     setAppEnabled(nextState.appEnabled);
   }, []);
 
@@ -179,6 +188,21 @@ export function usePopupSettings() {
     [syncSettings],
   );
 
+  const updateWordLookupProvider = useCallback(
+    (nextProvider) => {
+      const normalized = normalizeWordLookupProvider(nextProvider);
+      setWordLookupProvider(normalized);
+      setSettings((previous) =>
+        normalizeAllSettings({
+          ...previous,
+          wordLookupProvider: normalized,
+        }),
+      );
+      syncSettings({ wordLookupProvider: normalized });
+    },
+    [syncSettings],
+  );
+
   // 更新自动翻译模式
   const updateAutoTranslateMode = useCallback(
     (mode) => {
@@ -217,6 +241,14 @@ export function usePopupSettings() {
     });
   }, [syncSettings]);
 
+  const toggleLearningModeEnabled = useCallback(() => {
+    setLearningModeEnabled((previous) => {
+      const next = !previous;
+      syncSettings({ learningModeEnabled: next });
+      return next;
+    });
+  }, [syncSettings]);
+
   return {
     settings,
     isSettingsLoaded,
@@ -224,9 +256,11 @@ export function usePopupSettings() {
     provider,
     uiRewriteProvider,
     learningProvider,
+    wordLookupProvider,
     autoTranslateMode,
     hoverTranslateScope,
     hoverTranslateModifierKey,
+    learningModeEnabled,
     appEnabled,
     isSaving,
     saveStatusText,
@@ -234,10 +268,12 @@ export function usePopupSettings() {
     updateProvider,
     updateUiRewriteProvider,
     updateLearningProvider,
+    updateWordLookupProvider,
     updateAutoTranslateMode,
     updateHoverTranslateScope,
     updateHoverTranslateModifierKey,
     toggleAppEnabled,
+    toggleLearningModeEnabled,
   };
 }
 

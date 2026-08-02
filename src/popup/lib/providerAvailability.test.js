@@ -101,4 +101,12 @@ test("模型选项显示服务商与实际模型，并可排除仅翻译模型",
       [PROVIDER_CHATGPT, "ChatGPT（设备登录） · gpt-test"],
     ],
   );
+
+  assert.equal(
+    getVerifiedModelOptions(settings, {
+      includeChromeAi: false,
+      shortenChatGptLabel: true,
+    }).find((option) => option.value === PROVIDER_CHATGPT)?.label,
+    "ChatGPT · gpt-test",
+  );
 });

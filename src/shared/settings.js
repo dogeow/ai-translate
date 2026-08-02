@@ -13,6 +13,8 @@ import {
   PROVIDER_CHATGPT,
   PROVIDER_CHROME_AI,
   DEFAULT_TRANSLATE_PROVIDER,
+  DEFAULT_WORD_LOOKUP_PROVIDER,
+  WORD_LOOKUP_PROVIDER_YOUDAO,
   DEFAULT_OLLAMA_URL,
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_MINIMAX_API_URL,
@@ -50,6 +52,7 @@ export const DEFAULT_SETTINGS = {
   provider: DEFAULT_TRANSLATE_PROVIDER,
   uiRewriteProvider: DEFAULT_TRANSLATE_PROVIDER,
   learningProvider: DEFAULT_TRANSLATE_PROVIDER,
+  wordLookupProvider: DEFAULT_WORD_LOOKUP_PROVIDER,
   addedProviders: [DEFAULT_TRANSLATE_PROVIDER],
   verifiedProviders: [],
   ollamaUrl: DEFAULT_OLLAMA_URL,
@@ -94,6 +97,7 @@ export const POPUP_SETTINGS_STORAGE_DEFAULTS = Object.freeze({
   provider: DEFAULT_SETTINGS.provider,
   uiRewriteProvider: DEFAULT_SETTINGS.uiRewriteProvider,
   learningProvider: DEFAULT_SETTINGS.learningProvider,
+  wordLookupProvider: DEFAULT_SETTINGS.wordLookupProvider,
   autoTranslateMode: DEFAULT_SETTINGS.autoTranslateMode,
   hoverTranslateScope: DEFAULT_SETTINGS.hoverTranslateScope,
   hoverTranslateModifierKey: DEFAULT_SETTINGS.hoverTranslateModifierKey,
@@ -160,6 +164,26 @@ export function normalizeFeatureProvider(
   if (addedProviders.includes(normalized)) return normalized;
   if (addedProviders.includes(normalizedFallback)) return normalizedFallback;
   return addedProviders[0];
+}
+
+export function normalizeWordLookupProvider(value, addedProviders = null) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw === WORD_LOOKUP_PROVIDER_YOUDAO) {
+    return WORD_LOOKUP_PROVIDER_YOUDAO;
+  }
+  if (!CANONICAL_PROVIDER_VALUES.has(raw)) {
+    return WORD_LOOKUP_PROVIDER_YOUDAO;
+  }
+
+  const normalized = normalizeTranslateProvider(raw);
+  if (
+    Array.isArray(addedProviders) &&
+    addedProviders.length > 0 &&
+    !addedProviders.includes(normalized)
+  ) {
+    return WORD_LOOKUP_PROVIDER_YOUDAO;
+  }
+  return normalized;
 }
 
 function hasOwnSetting(input, key) {
@@ -563,6 +587,10 @@ function normalizeSettings(settings = {}, options = {}) {
     provider,
     addedProviders,
   );
+  const wordLookupProvider = normalizeWordLookupProvider(
+    settings.wordLookupProvider,
+    addedProviders,
+  );
   const minimaxRegion = resolveMiniMaxRegionFromInput({
     ...settings,
     provider,
@@ -608,6 +636,7 @@ function normalizeSettings(settings = {}, options = {}) {
     provider,
     uiRewriteProvider,
     learningProvider,
+    wordLookupProvider,
     addedProviders,
     verifiedProviders,
     ollamaUrl: String(
@@ -730,9 +759,11 @@ export function getPopupSettingsState(stored = {}) {
     provider: normalized.provider,
     uiRewriteProvider: normalized.uiRewriteProvider,
     learningProvider: normalized.learningProvider,
+    wordLookupProvider: normalized.wordLookupProvider,
     autoTranslateMode: normalized.autoTranslateMode,
     hoverTranslateScope: normalized.hoverTranslateScope,
     hoverTranslateModifierKey: normalized.hoverTranslateModifierKey,
+    learningModeEnabled: normalized.learningModeEnabled,
     appEnabled: stored.appEnabled !== false,
   };
 }

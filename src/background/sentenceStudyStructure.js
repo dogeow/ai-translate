@@ -46,6 +46,135 @@ const PREPOSITIONS = new Set([
   "over",
   "under",
 ]);
+const SUBJECT_PRONOUNS = new Set([
+  "i",
+  "we",
+  "you",
+  "he",
+  "she",
+  "it",
+  "they",
+  "this",
+  "that",
+  "these",
+  "those",
+  "there",
+]);
+const LEADING_ADVERBS = new Set([
+  "also",
+  "already",
+  "always",
+  "often",
+  "usually",
+  "sometimes",
+  "still",
+  "then",
+  "just",
+  "never",
+  "recently",
+  "currently",
+]);
+const COMMON_FINITE_VERBS = new Set([
+  "accept",
+  "add",
+  "agree",
+  "allow",
+  "announce",
+  "ask",
+  "become",
+  "became",
+  "begin",
+  "began",
+  "believe",
+  "bring",
+  "brought",
+  "build",
+  "built",
+  "call",
+  "change",
+  "come",
+  "came",
+  "continue",
+  "create",
+  "develop",
+  "enable",
+  "find",
+  "found",
+  "follow",
+  "get",
+  "got",
+  "give",
+  "gave",
+  "go",
+  "went",
+  "grow",
+  "grew",
+  "help",
+  "include",
+  "keep",
+  "kept",
+  "know",
+  "knew",
+  "lead",
+  "led",
+  "leave",
+  "left",
+  "make",
+  "made",
+  "mean",
+  "meant",
+  "meet",
+  "met",
+  "move",
+  "need",
+  "offer",
+  "open",
+  "pay",
+  "paid",
+  "plan",
+  "play",
+  "provide",
+  "put",
+  "read",
+  "remain",
+  "report",
+  "require",
+  "run",
+  "ran",
+  "say",
+  "said",
+  "see",
+  "saw",
+  "set",
+  "show",
+  "start",
+  "support",
+  "take",
+  "took",
+  "tell",
+  "told",
+  "think",
+  "thought",
+  "try",
+  "turn",
+  "use",
+  "want",
+  "work",
+  "write",
+  "wrote",
+]);
+const PHRASAL_VERB_PARTICLES = new Set([
+  "away",
+  "back",
+  "down",
+  "forward",
+  "off",
+  "on",
+  "out",
+  "over",
+  "through",
+  "up",
+]);
 const SENTENCE_PART_LABELS = new Set([
   "主语",
   "系动词",
@@ -131,7 +260,84 @@ function inferSentencePattern(parts) {
   const labels = parts
     .map((part) => String(part.label || "").trim())
     .filter(Boolean);
-  return labels.join("+") || "句型分析";
+  const subjectIndex = labels.indexOf("主语");
+  if (subjectIndex === -1) return [...new Set(labels)].join("+") || "句型分析";
+
+  const patternParts = [...new Set(labels.slice(0, subjectIndex))];
+  const verbLabel = labels[subjectIndex + 1] || "";
+  const complementLabel = labels[subjectIndex + 2] || "";
+  let consumedUntil = subjectIndex + 1;
+
+  if (verbLabel === "系动词" && complementLabel === "表语") {
+    patternParts.push("主系表");
+    consumedUntil = subjectIndex + 3;
+  } else if (
+    ["谓语", "助动词", "动词"].includes(verbLabel) &&
+    complementLabel === "宾语"
+  ) {
+    patternParts.push("主谓宾");
+    consumedUntil = subjectIndex + 3;
+  } else if (["谓语", "助动词", "动词"].includes(verbLabel)) {
+    patternParts.push("主谓");
+    consumedUntil = subjectIndex + 2;
+  } else {
+    patternParts.push("主语");
+  }
+
+  for (const label of labels.slice(consumedUntil)) {
+    if (!patternParts.includes(label)) patternParts.push(label);
+  }
+  return patternParts.join("+") || "句型分析";
+}
+
+function cleanSentenceWord(word) {
+  return String(word || "")
+    .toLowerCase()
+    .replace(/^[^a-z]+|[^a-z]+$/gi, "");
+}
+
+function findLikelyFiniteVerbIndex(words) {
+  if (!Array.isArray(words) || words.length < 2) return -1;
+  const firstWord = cleanSentenceWord(words[0]);
+
+  if (SUBJECT_PRONOUNS.has(firstWord)) {
+    let index = 1;
+    while (index < words.length - 1) {
+      const token = cleanSentenceWord(words[index]);
+      if (!LEADING_ADVERBS.has(token) && !token.endsWith("ly")) break;
+      index += 1;
+    }
+    return index < words.length ? index : -1;
+  }
+
+  const tokens = words.map(cleanSentenceWord);
+  const strongMatch = tokens.findIndex(
+    (token, index) =>
+      index > 0 &&
+      (AUXILIARY_VERBS.has(token) ||
+        COMMON_FINITE_VERBS.has(token) ||
+        /^[a-z]{3,}ed$/i.test(token)),
+  );
+  if (strongMatch > 0) return strongMatch;
+
+  return tokens.findIndex(
+    (token, index) => index > 0 && /^[a-z]{3,}s$/i.test(token),
+  );
+}
+
+function inferRestChunkLabel(chunk, index) {
+  if (index === 0) return /^to\b/i.test(chunk) ? "补足成分" : "宾语";
+  if (/^(including|which|who|whose|that)\b/i.test(chunk)) return "定语";
+  if (/^(of|on|about|for|with|without)\b/i.test(chunk)) return "定语";
+  return "状语";
+}
+
+function splitRestChunks(text) {
+  return String(text || "")
+    .split(
+      /\s+(?=(?:with|without|in|on|at|by|from|as|if|when|while|because|after|before|during|through|into|about|over|under|including)\b)/i,
+    )
+    .filter(Boolean);
 }
 
 function normalizeSentencePattern(pattern, parts) {
@@ -380,39 +586,49 @@ export function buildHeuristicSentenceStudy(original) {
       .filter(Boolean);
     if (words.length === 0) return clauseParts;
 
-    function cleanWord(word) {
-      return String(word || "")
-        .toLowerCase()
-        .replace(/^[^a-z]+|[^a-z]+$/gi, "");
-    }
-
-    function isLikelyFiniteVerb(token) {
-      if (!token) return false;
-      if (AUXILIARY_VERBS.has(token)) return true;
-      if (/^(enable|enables|allow|allows|help|helps|make|makes|provide|provides)$/i.test(token)) {
-        return true;
-      }
-      return /^[a-z]{3,}(s|ed)$/i.test(token);
-    }
-
-    const verbIndex = words.findIndex((word) => isLikelyFiniteVerb(cleanWord(word)));
+    const verbIndex = findLikelyFiniteVerbIndex(words);
     if (verbIndex <= 0) {
-      pushSentencePart(clauseParts, { text: mainClauseText, label: "主句" });
       return clauseParts;
     }
 
     const subject = words.slice(0, verbIndex).join(" ");
-    const verb = words[verbIndex];
-    const restWords = words.slice(verbIndex + 1);
+    let verbEndIndex = verbIndex + 1;
+    const verbToken = cleanSentenceWord(words[verbIndex]);
+    const isCopula = /^(am|is|are|was|were|be|been|being)$/i.test(verbToken);
+
+    if (
+      AUXILIARY_VERBS.has(verbToken) &&
+      !isCopula &&
+      verbEndIndex < words.length
+    ) {
+      while (
+        verbEndIndex < words.length - 1 &&
+        (LEADING_ADVERBS.has(cleanSentenceWord(words[verbEndIndex])) ||
+          cleanSentenceWord(words[verbEndIndex]).endsWith("ly"))
+      ) {
+        verbEndIndex += 1;
+      }
+      verbEndIndex = Math.min(words.length, verbEndIndex + 1);
+    }
+
+    if (
+      verbEndIndex < words.length &&
+      PHRASAL_VERB_PARTICLES.has(cleanSentenceWord(words[verbEndIndex]))
+    ) {
+      verbEndIndex += 1;
+    }
+
+    const verb = words.slice(verbIndex, verbEndIndex).join(" ");
+    const restWords = words.slice(verbEndIndex);
     pushSentencePart(clauseParts, { text: subject, label: "主语" });
     pushSentencePart(clauseParts, {
       text: verb,
-      label: inferPartLabel(verb, "主语"),
+      label: isCopula ? "系动词" : "谓语",
     });
 
     if (restWords.length === 0) return clauseParts;
 
-    const firstRestToken = cleanWord(restWords[0]);
+    const firstRestToken = cleanSentenceWord(restWords[0]);
     const objectPronouns = new Set(["me", "you", "him", "her", "it", "us", "them"]);
 
     let remainingWords = restWords;
@@ -427,13 +643,10 @@ export function buildHeuristicSentenceStudy(original) {
     const remaining = remainingWords.join(" ").trim();
     if (!remaining) return clauseParts;
 
-    const restChunks = remaining
-      .split(/\s+(?=with|without|in|on|at|by|from|as|if|when|while|because|after|before)\b/i)
-      .filter(Boolean);
+    const restChunks = splitRestChunks(remaining);
 
     restChunks.forEach((chunk, index) => {
-      const label =
-        index === 0 ? (/^to\b/i.test(chunk) ? "补足成分" : "宾语") : "状语";
+      const label = inferRestChunkLabel(chunk, index);
       pushSentencePart(clauseParts, { text: chunk, label });
     });
 
@@ -457,39 +670,9 @@ export function buildHeuristicSentenceStudy(original) {
     });
   }
 
-  const fallbackParts = [];
-  const words = targetSentence.split(/\s+/);
-  const verbIndex = words.findIndex((word) =>
-    /^(am|is|are|was|were|be|been|being|do|does|did|have|has|had|can|could|will|would|should|may|might|must)$/i.test(
-      word.replace(/[.?!,:;]+$/g, ""),
-    ),
-  );
+  const fallbackParts = splitMainClause(targetSentence);
 
-  if (verbIndex > 0) {
-    const subject = words.slice(0, verbIndex).join(" ");
-    const verb = words[verbIndex];
-    const rest = words.slice(verbIndex + 1).join(" ");
-    pushSentencePart(fallbackParts, { text: subject, label: "主语" });
-    pushSentencePart(fallbackParts, {
-      text: verb,
-      label: inferPartLabel(verb, "主语"),
-    });
-    if (rest) {
-      const restChunks = rest
-        .split(/\s+(?=without|with|in|on|at|by|from|as|if|when|while|because|after|before)\b/i)
-        .filter(Boolean);
-      restChunks.forEach((chunk, index) => {
-        pushSentencePart(fallbackParts, {
-          text: chunk,
-          label: index === 0 && /^(for|to)\b/i.test(chunk) ? "表语" : "状语",
-        });
-      });
-    }
-  } else {
-    pushSentencePart(fallbackParts, { text: targetSentence, label: "主句" });
-  }
-
-  return fallbackParts.length > 0
+  return fallbackParts.length > 1
     ? finalizeSentenceStudy({
         pattern: inferSentencePattern(fallbackParts),
         parts: fallbackParts,
@@ -501,6 +684,9 @@ export function shouldUseHeuristicFallback(sentenceStudy, original) {
   if (!sentenceStudy || !Array.isArray(sentenceStudy.parts)) return true;
   const parts = sentenceStudy.parts;
   if (parts.length <= 1) return true;
+  if (parts.some((part) => String(part.label || "").trim() === "主句")) {
+    return true;
+  }
 
   const targetSentence = normalizeInlineWhitespace(getFirstSentence(original));
   const combined = normalizeInlineWhitespace(

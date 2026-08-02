@@ -53,7 +53,9 @@ export async function analyzeSentenceStudy(
 4. 主语不要包含系动词或谓语动词。
 5. parts.translation 与 note 用简体中文，尽量短。
 6. 每个 parts.translation 必须非空；可保留专有名词英文（如 Next.js、React）。
-7. 建议切成 3-8 段。
+7. 必须切成 3-8 段，至少明确标出“主语”和“谓语”。
+8. pattern 必须写出具体句式（如“主谓宾+定语”），禁止只写“主句”或“句子”。
+9. 禁止把完整句子放进一个 parts 项，也不要使用“主句”作为 label。
 
 原文：
 ${text}

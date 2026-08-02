@@ -17,9 +17,9 @@ export function getButtonElement() {
   return btn;
 }
 
-export function showButton(text) {
+export function showButton(text, anchorRect = null) {
   const btn = getButtonElement();
-  const rect = getSelectionRect();
+  const rect = anchorRect || getSelectionRect();
   if (!rect) return null;
   const pad = 4;
   btn.style.top = `${rect.bottom + pad + window.scrollY}px`;

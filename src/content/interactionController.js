@@ -13,6 +13,7 @@ import {
   getSelectionText,
   getSelectionRect,
   resolveHoverTranslateScope,
+  resolveSelectionButtonAnchorRect,
   resolveShortcutTranslationTarget,
 } from "./selection.js";
 import {
@@ -41,6 +42,7 @@ import { shouldPreferWordMarkerCard } from "./wordMarkerPolicy.js";
 export function createInteractionController({
   state,
   pageTranslator,
+  articleNarrator,
   shouldSkipHoverTranslate,
 }) {
   function isInteractionEnabled() {
@@ -130,6 +132,17 @@ export function createInteractionController({
       if (msg.action === "startVisualPageTranslate") {
         pageTranslator.stop();
         sendResponse({ ok: false, active: false, disabled: true });
+        return true;
+      }
+
+      if (msg.action === "startArticleNarration") {
+        articleNarrator?.stop?.();
+        sendResponse({ ok: false, disabled: true, state: articleNarrator?.getState?.() });
+        return true;
+      }
+
+      if (msg.action === "getArticleNarrationState") {
+        sendResponse({ ok: true, state: articleNarrator?.getState?.() });
         return true;
       }
 
@@ -277,6 +290,53 @@ export function createInteractionController({
       return true;
     }
 
+    if (msg.action === "getArticleNarrationState") {
+      sendResponse({ ok: true, state: articleNarrator?.getState?.() });
+      return true;
+    }
+
+    if (msg.action === "startArticleNarration") {
+      const result = articleNarrator?.start?.({
+        // Do not pass lastMouseTarget as "explicit" — opening the popup moves
+        // the pointer off the article. Resolver uses content click + viewport.
+        contentClickTarget:
+          state.narrationContentAnchor?.element || state.lastMouseTarget,
+      }) || { ok: false, error: "当前页面不支持文章朗读。" };
+      if (result?.notice) {
+        showShortcutHint?.(result.notice);
+      }
+      sendResponse(result);
+      return true;
+    }
+
+    if (msg.action === "toggleArticleNarrationPause") {
+      const current = articleNarrator?.getState?.();
+      let nextState = current;
+      if (current?.status === "paused") {
+        nextState = articleNarrator.resume();
+      } else if (current?.status === "playing") {
+        nextState = articleNarrator.pause();
+      } else {
+        const result = articleNarrator?.start?.({
+          contentClickTarget:
+            state.narrationContentAnchor?.element || state.lastMouseTarget,
+        }) || { ok: false, error: "当前页面不支持文章朗读。" };
+        if (result?.notice) {
+          showShortcutHint?.(result.notice);
+        }
+        sendResponse(result);
+        return true;
+      }
+      sendResponse({ ok: true, state: nextState });
+      return true;
+    }
+
+    if (msg.action === "stopArticleNarration") {
+      const nextState = articleNarrator?.stop?.();
+      sendResponse({ ok: true, state: nextState });
+      return true;
+    }
+
     if (msg.action === "getTextToTranslate") {
       const { element: currentElement, text: currentText } =
         getCurrentElementAndText(state.lastMouseX, state.lastMouseY);
@@ -331,21 +391,39 @@ export function createInteractionController({
   }
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
-  function onSelectionChange() {
+  function onSelectionChange(clickCount = 0) {
     if (!isInteractionEnabled()) {
       hideButton();
       return;
     }
     const text = getSelectionText();
     if (!text) {
+      state.selectionButtonWordRect = null;
       hideButton();
       return;
     }
     if (state.autoTranslateMode !== "hotkey") {
+      state.selectionButtonWordRect = null;
       hideButton();
       return;
     }
-    showButton(text);
+    const selectionRect = getSelectionRect();
+    if (clickCount === 2 && selectionRect) {
+      state.selectionButtonWordRect = selectionRect;
+    } else if (clickCount < 2) {
+      state.selectionButtonWordRect = null;
+    }
+    const anchorRect = resolveSelectionButtonAnchorRect({
+      clickCount,
+      selectionRect,
+      wordSelectionRect: state.selectionButtonWordRect,
+    });
+    showButton(text, anchorRect);
+  }
+
+  function onMouseDown(e) {
+    if (e.button !== 0 || isExtensionUiTarget(e.target)) return;
+    state.selectionPointerClickCount = e.detail || 1;
   }
 
   function onMouseUp(e) {
@@ -355,7 +433,10 @@ export function createInteractionController({
     const clientX = e.clientX;
     const clientY = e.clientY;
 
-    setTimeout(onSelectionChange, 10);
+    setTimeout(() => {
+      onSelectionChange(clickCount);
+      state.selectionPointerClickCount = 0;
+    }, 10);
     if (state.autoTranslateMode !== "selection" || clickCount < 2) return;
 
     clearSelectionAutoTranslateTimer();
@@ -567,6 +648,33 @@ export function createInteractionController({
     updateHoverAtPoint(e.clientX, e.clientY, e.buttons, e.target);
   }
 
+  function onPointerDownCapture(e) {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    if (
+      target.closest?.(
+        `#${BUTTON_ID}, #${TIP_ID}, #${SHORTCUT_HINT_ID}, #${HOVER_TARGET_INDICATOR_ID}, #${WORD_MARKER_CARD_ID}, #ollama-pt-bar`,
+      )
+    ) {
+      return;
+    }
+    const section = target.closest?.(
+      "h1, h2, h3, p, blockquote, li, figcaption, article, main, [role='main']",
+    );
+    if (!section) return;
+    // Prefer the nearest narratable block (p/h1/li…), not the whole article.
+    const block =
+      section.matches?.("h1, h2, h3, p, blockquote, li, figcaption")
+        ? section
+        : target.closest?.("h1, h2, h3, p, blockquote, li, figcaption");
+    if (!block) return;
+    state.narrationContentAnchor = {
+      element: block,
+      setAt: Date.now(),
+    };
+    state.lastMouseTarget = block;
+  }
+
   function refreshHoverForModifierChange() {
     if (state.autoTranslateMode !== "hover" || !state.lastMouseTarget) return;
     clearHoverAutoTranslateTimer({ preserveLastResolved: true });
@@ -615,9 +723,11 @@ export function createInteractionController({
     if (state.autoTranslateMode === "hover") {
       clearHoverAutoTranslateTimer({ preserveLastResolved: true });
     }
-    onSelectionChange();
+    onSelectionChange(state.selectionPointerClickCount);
   }
 
+  document.addEventListener("pointerdown", onPointerDownCapture, true);
+  document.addEventListener("mousedown", onMouseDown, true);
   document.addEventListener("mouseup", onMouseUp, true);
   document.addEventListener("selectionchange", onSelectionChangedEvent, true);
   document.addEventListener("scroll", onScroll, true);
@@ -638,6 +748,8 @@ export function createInteractionController({
       hideButton();
       hideTip();
       chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+      document.removeEventListener("pointerdown", onPointerDownCapture, true);
+      document.removeEventListener("mousedown", onMouseDown, true);
       document.removeEventListener("mouseup", onMouseUp, true);
       document.removeEventListener(
         "selectionchange",

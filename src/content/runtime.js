@@ -48,6 +48,13 @@ import {
 } from "../shared/always-translate-origins.js";
 import { initUiRewrite } from "./uiRewrite.js";
 import { initWordMarker } from "./wordMarker.js";
+import {
+  ARTICLE_NARRATION_ACCENT_KEY,
+  ARTICLE_NARRATION_MODE_KEY,
+  ARTICLE_NARRATION_RATE_KEY,
+  ARTICLE_NARRATION_SETTING_KEYS,
+  createArticleNarrator,
+} from "./articleNarration.js";
 
 function getAllSyncSettings() {
   return new Promise((resolve) => {
@@ -74,6 +81,8 @@ export function initContentRuntime() {
     lastMouseX: 0,
     lastMouseY: 0,
     lastMouseTarget: null,
+    /** Last content section the user pointed at (click), for narration start. */
+    narrationContentAnchor: null,
     lastMouseButtons: 0,
     lastTranslatedElement: null,
     lastTranslatedText: "",
@@ -83,6 +92,8 @@ export function initContentRuntime() {
     hoverTranslateModifierKey: DEFAULT_HOVER_TRANSLATE_MODIFIER_KEY,
     hoverTranslateDelayMs: DEFAULT_HOVER_TRANSLATE_DELAY_MS,
     selectionAutoTranslateTimerId: null,
+    selectionPointerClickCount: 0,
+    selectionButtonWordRect: null,
     hoverAutoTranslateTimerId: null,
     hoverCurrentKey: "",
     hoverPendingKey: "",
@@ -124,7 +135,46 @@ export function initContentRuntime() {
     },
   });
 
-  const pageTranslateBar = createPageTranslateBar(pageTranslator);
+  const articleNarrator = createArticleNarrator({
+    root: document.body,
+    getStartElement: () => {
+      const anchor = state.narrationContentAnchor;
+      if (
+        anchor?.element?.isConnected &&
+        Date.now() - (anchor.setAt || 0) < 5 * 60 * 1000
+      ) {
+        return anchor.element;
+      }
+      return state.lastMouseTarget;
+    },
+    isUiElement: (element) =>
+      !!element?.closest?.(
+        `#${BUTTON_ID}, #${TIP_ID}, #${SHORTCUT_HINT_ID}, #${HOVER_TARGET_INDICATOR_ID}, #${WORD_MARKER_CARD_ID}, #ollama-pt-bar`,
+      ),
+    onOptionsChange: ({ mode, rate, accent }) => {
+      chrome.storage.sync.set({
+        [ARTICLE_NARRATION_MODE_KEY]: mode,
+        [ARTICLE_NARRATION_RATE_KEY]: rate,
+        [ARTICLE_NARRATION_ACCENT_KEY]: accent,
+      });
+    },
+  });
+
+  chrome.storage.sync.get(ARTICLE_NARRATION_SETTING_KEYS, (values) => {
+    articleNarrator.setOptions(
+      {
+        mode: values?.[ARTICLE_NARRATION_MODE_KEY],
+        rate: values?.[ARTICLE_NARRATION_RATE_KEY],
+        accent: values?.[ARTICLE_NARRATION_ACCENT_KEY],
+      },
+      { restart: false },
+    );
+  });
+
+  const pageTranslateBar = createPageTranslateBar(
+    pageTranslator,
+    articleNarrator,
+  );
   const originalStart = pageTranslator.start;
   const originalStop = pageTranslator.stop;
   pageTranslator.start = () => {
@@ -146,6 +196,7 @@ export function initContentRuntime() {
   const interactionController = createInteractionController({
     state,
     pageTranslator,
+    articleNarrator,
     shouldSkipHoverTranslate,
   });
 
@@ -184,6 +235,7 @@ export function initContentRuntime() {
     });
     if (!state.appEnabled) {
       pageTranslator.stop();
+      articleNarrator.stop();
       hideButton();
       hideTip();
       return;
@@ -222,6 +274,16 @@ export function initContentRuntime() {
 
   function onStorageChanged(changes, area) {
     if (area !== "sync") return;
+    if (ARTICLE_NARRATION_SETTING_KEYS.some((key) => key in changes)) {
+      articleNarrator.setOptions(
+        {
+          mode: changes[ARTICLE_NARRATION_MODE_KEY]?.newValue,
+          rate: changes[ARTICLE_NARRATION_RATE_KEY]?.newValue,
+          accent: changes[ARTICLE_NARRATION_ACCENT_KEY]?.newValue,
+        },
+        { restart: false },
+      );
+    }
     if (ALWAYS_TRANSLATE_ORIGINS_KEY in changes) {
       void maybeAutoStartForAllowedOrigin();
     }
@@ -255,6 +317,7 @@ export function initContentRuntime() {
     chrome.storage.onChanged.removeListener(onStorageChanged);
     try { cleanupUiRewrite?.(); } catch (_) {}
     try { cleanupWordMarker?.(); } catch (_) {}
+    articleNarrator.destroy();
     pageTranslateBar.destroy();
   };
 }

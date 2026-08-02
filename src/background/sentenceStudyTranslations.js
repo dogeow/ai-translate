@@ -152,7 +152,37 @@ const LOCAL_WORD_TRANSLATIONS = {
   at: "在",
   of: "的",
   and: "和",
+  including: "包括",
+  fostering: "培育",
+  strengthening: "加强",
+  new: "新的",
+  growth: "增长",
+  driver: "动力",
+  drivers: "动力",
+  promoting: "促进",
+  integrated: "综合",
+  development: "发展",
+  innovation: "创新",
+  industrial: "产业",
+  chain: "链",
+  chains: "链",
 };
+
+const LOCAL_PHRASE_TRANSLATIONS = {
+  "put forward": "提出",
+  "opinions and suggestions": "意见和建议",
+  "on issues": "关于相关问题",
+};
+
+function getLocalPhraseTranslation(text) {
+  const normalizedPhrase = String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[.?!,:;]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return LOCAL_PHRASE_TRANSLATIONS[normalizedPhrase] || "";
+}
 
 function joinLocalizedTokens(tokens) {
   let merged = "";
@@ -174,6 +204,34 @@ function translateEnglishPhraseLocally(text) {
   const source = String(text || "").trim();
   if (!source) return "";
   if (/^['’]?s$/i.test(source)) return "的";
+
+  const knownPhrase = getLocalPhraseTranslation(source);
+  if (knownPhrase) return knownPhrase;
+
+  const coordinatedIncludingMatch = source.match(
+    /^including\s+fostering\s+and\s+strengthening\s+(.+?)\s+and\s+promoting\s+(.+)$/i,
+  );
+  if (coordinatedIncludingMatch) {
+    const strengthened = translateEnglishPhraseLocally(
+      coordinatedIncludingMatch[1],
+    );
+    const promoted = translateEnglishPhraseLocally(
+      coordinatedIncludingMatch[2],
+    );
+    if (strengthened && promoted) {
+      return sanitizePartTranslation(
+        `包括培育和壮大${strengthened}，并促进${promoted}`,
+      );
+    }
+  }
+
+  const integratedDevelopmentMatch = source.match(
+    /^(?:the\s+)?integrated\s+development\s+of\s+(.+)$/i,
+  );
+  if (integratedDevelopmentMatch) {
+    const body = translateEnglishPhraseLocally(integratedDevelopmentMatch[1]);
+    if (body) return sanitizePartTranslation(`${body}融合发展`);
+  }
 
   const powerMatch = source.match(/^with\s+the\s+power\s+of\s+(.+)$/i);
   if (powerMatch) {
@@ -199,7 +257,10 @@ function translateEnglishPhraseLocally(text) {
       "",
     );
     if (!cleaned) continue;
-    const lower = cleaned.toLowerCase();
+    const lower = cleaned
+      .toLowerCase()
+      .replace(/^[.'+-]+|[.'+-]+$/g, "");
+    if (lower === "a" || lower === "an" || lower === "the") continue;
     let mapped = LOCAL_WORD_TRANSLATIONS[lower] || "";
 
     if (!mapped && lower.endsWith("'s")) {
@@ -264,6 +325,9 @@ function buildLocalPartTranslation(part, fullTranslation, index) {
     const clauseCandidate = sanitizePartTranslation(leadingClause);
     if (clauseCandidate) return clauseCandidate;
   }
+
+  const knownPhrase = getLocalPhraseTranslation(sourceText);
+  if (knownPhrase) return knownPhrase;
 
   const phraseMatch = sourceText.match(/^(in|on|at|by|with|without|for|to)\s+(.+)$/i);
   if (phraseMatch) {

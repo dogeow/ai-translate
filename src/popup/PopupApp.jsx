@@ -3,20 +3,24 @@ import {
   AUTO_TRANSLATE_MODE_OPTIONS,
   HOVER_TRANSLATE_MODIFIER_OPTIONS,
   HOVER_TRANSLATE_SCOPE_OPTIONS,
+  WORD_LOOKUP_PROVIDER_YOUDAO,
 } from "../shared/constants.js";
 import {
+  AiRewritePanel,
   AutoTranslateModePanel,
+  EnglishLearningPanel,
   HoverTranslateScopePanel,
   PopupHero,
   QuickActionsPanel,
-  UiRewriteAndLearningPanel,
 } from "./components/index.js";
 import {
   usePopupSettings,
   usePageTranslate,
 } from "./hooks/usePopupSettings.js";
 import { getVerifiedModelOptions } from "./lib/providerAvailability.js";
+import { openEnglishExamplePage } from "./lib/examplePage.js";
 import { getSidePanelSupport, openSidePanel } from "./lib/sidePanel.js";
+import { useArticleNarration } from "./hooks/useArticleNarration.js";
 
 // 为 popup 创建简洁版选项（使用 shortTitle）
 const AUTO_MODE_OPTIONS = AUTO_TRANSLATE_MODE_OPTIONS.map((option) => ({
@@ -45,6 +49,7 @@ export function PopupApp({ surface = "popup" }) {
   // 使用自定义 hooks 管理状态
   const popupSettings = usePopupSettings();
   const pageTranslate = usePageTranslate(popupSettings.appEnabled);
+  const articleNarration = useArticleNarration(popupSettings.appEnabled);
   const availableModels = getVerifiedModelOptions(
     popupSettings.settings,
     { chromeAiReady: popupSettings.chromeAiReady },
@@ -54,8 +59,23 @@ export function PopupApp({ surface = "popup" }) {
     {
       chromeAiReady: popupSettings.chromeAiReady,
       includeChromeAi: false,
+      shortenChatGptLabel: true,
     },
   );
+  const availableWordModels = getVerifiedModelOptions(
+    popupSettings.settings,
+    {
+      chromeAiReady: popupSettings.chromeAiReady,
+      shortenChatGptLabel: true,
+    },
+  );
+  const wordLookupOptions = [
+    {
+      value: WORD_LOOKUP_PROVIDER_YOUDAO,
+      label: "有道词典（默认，失败时使用学习模型）",
+    },
+    ...availableWordModels,
+  ];
 
   useEffect(() => {
     if (!isPopup || !sidePanelSupport.chrome) return;
@@ -114,6 +134,24 @@ export function PopupApp({ surface = "popup" }) {
     popupSettings.updateUiRewriteProvider,
   ]);
 
+  useEffect(() => {
+    if (
+      !popupSettings.isSettingsLoaded ||
+      popupSettings.wordLookupProvider === WORD_LOOKUP_PROVIDER_YOUDAO ||
+      availableWordModels.some(
+        (option) => option.value === popupSettings.wordLookupProvider,
+      )
+    ) {
+      return;
+    }
+    popupSettings.updateWordLookupProvider(WORD_LOOKUP_PROVIDER_YOUDAO);
+  }, [
+    availableWordModels,
+    popupSettings.isSettingsLoaded,
+    popupSettings.updateWordLookupProvider,
+    popupSettings.wordLookupProvider,
+  ]);
+
   function openOptionsPage() {
     chrome.tabs.create({
       url: chrome.runtime.getURL("options/index.html"),
@@ -128,6 +166,11 @@ export function PopupApp({ surface = "popup" }) {
     if (isPopup) window.close();
   }
 
+  function openEnglishExample() {
+    const opened = openEnglishExamplePage();
+    if (opened && isPopup) window.close();
+  }
+
   function openPersistentSidePanel() {
     void openSidePanel({ windowId: currentWindowId })
       .then(() => window.close())
@@ -140,6 +183,9 @@ export function PopupApp({ surface = "popup" }) {
     isPopup && (sidePanelSupport.chrome || sidePanelSupport.firefox);
   const sidePanelButtonDisabled =
     sidePanelSupport.chrome && currentWindowId === null;
+  const learningModeSupported = availableGenerativeModels.some(
+    (option) => option.value === popupSettings.learningProvider,
+  );
 
   const showSaveStatus =
     popupSettings.isSaving || Boolean(popupSettings.saveStatusText);
@@ -158,7 +204,13 @@ export function PopupApp({ surface = "popup" }) {
         surface={surface}
         appEnabled={popupSettings.appEnabled}
         onToggleApp={popupSettings.toggleAppEnabled}
+        learningModeEnabled={
+          learningModeSupported && popupSettings.learningModeEnabled
+        }
+        learningModeSupported={learningModeSupported}
+        onToggleLearningMode={popupSettings.toggleLearningModeEnabled}
         onOpenSettings={openOptionsPage}
+        onOpenEnglishExample={openEnglishExample}
         showSidePanelButton={showSidePanelButton}
         sidePanelButtonDisabled={sidePanelButtonDisabled}
         onOpenSidePanel={openPersistentSidePanel}
@@ -170,6 +222,11 @@ export function PopupApp({ surface = "popup" }) {
         isPageTranslateActive={pageTranslate.isPageTranslateActive}
         pageDisplayMode={pageTranslate.displayMode}
         pageTranslateStatus={pageTranslate.status}
+        articleNarrationState={articleNarration.state}
+        isChangingArticleNarration={articleNarration.isChanging}
+        articleNarrationStatus={articleNarration.statusMessage}
+        onToggleArticleNarration={articleNarration.toggle}
+        onStopArticleNarration={articleNarration.stop}
         onTogglePageTranslate={pageTranslate.togglePageTranslate}
         onPageDisplayModeChange={pageTranslate.changeDisplayMode}
         onToggleSiteAutoTranslate={pageTranslate.toggleSiteAutoTranslate}
@@ -199,11 +256,19 @@ export function PopupApp({ surface = "popup" }) {
           onModifierChange={popupSettings.updateHoverTranslateModifierKey}
         />
       )}
-      <UiRewriteAndLearningPanel
-        uiRewriteProvider={popupSettings.uiRewriteProvider}
-        learningProvider={popupSettings.learningProvider}
-        onUiRewriteProviderChange={popupSettings.updateUiRewriteProvider}
-        onLearningProviderChange={popupSettings.updateLearningProvider}
+      <EnglishLearningPanel
+        provider={popupSettings.learningProvider}
+        onProviderChange={popupSettings.updateLearningProvider}
+        availableModels={availableGenerativeModels}
+        wordLookupProvider={popupSettings.wordLookupProvider}
+        onWordLookupProviderChange={popupSettings.updateWordLookupProvider}
+        wordLookupOptions={wordLookupOptions}
+        modelsLoading={!popupSettings.isSettingsLoaded}
+        onOpenProviderSetup={openProviderSetup}
+      />
+      <AiRewritePanel
+        provider={popupSettings.uiRewriteProvider}
+        onProviderChange={popupSettings.updateUiRewriteProvider}
         availableModels={availableGenerativeModels}
         modelsLoading={!popupSettings.isSettingsLoaded}
         onOpenProviderSetup={openProviderSetup}

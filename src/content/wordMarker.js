@@ -6,7 +6,7 @@
  *    在文本节点中用 <span class="ai-tr-word"> 包裹，显示带间距的边框方框。
  *  - 认词模式下，除 knownWords 外的英文单词都会显示边框标记。
  *  - 鼠标悬停 + 短停留 → 弹出小卡片：音标、发音按钮、记得/忘记/我知道按钮。
- *  - 监听 wordsChanged / 设置开关变化，做增量重渲染（简单粗暴：移除并重扫）。
+ *  - 单词状态变化时只更新同词标记；模式开关或批量导入时才完整重扫。
  */
 import {
   STUDYING_WORDS_STORAGE_KEY,
@@ -61,6 +61,35 @@ const SKIP_TAGS = new Set([
 ]);
 
 const WORD_REGEX = /[A-Za-z][A-Za-z'\-]{0,30}/g;
+const ASCII_IDENTIFIER_CHAR_REGEX = /[A-Za-z0-9_]/;
+
+export function collectMarkableEnglishWords(rawText) {
+  const text = String(rawText || "");
+  const matches = [];
+  WORD_REGEX.lastIndex = 0;
+  let match;
+
+  while ((match = WORD_REGEX.exec(text)) !== null) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const previousChar = start > 0 ? text[start - 1] : "";
+    const nextChar = end < text.length ? text[end] : "";
+
+    // Git 哈希、版本号和变量名中的字母片段不是独立英语单词。
+    if (
+      ASCII_IDENTIFIER_CHAR_REGEX.test(previousChar) ||
+      ASCII_IDENTIFIER_CHAR_REGEX.test(nextChar)
+    ) {
+      continue;
+    }
+
+    const word = normalizeWord(match[0]);
+    if (!word) continue;
+    matches.push({ raw: match[0], word, index: start, end });
+  }
+
+  return matches;
+}
 
 function ensureWordStyles() {
   if (document.getElementById(WORD_STYLE_TAG_ID)) return;
@@ -100,7 +129,7 @@ function ensureWordStyles() {
       padding:10px 12px;
       min-width:min(200px, calc(100vw - 16px));
       max-width:min(300px, calc(100vw - 16px));
-      max-height:calc(100vh - 16px); overflow:auto;
+      height:auto; overflow:visible;
       box-shadow:0 12px 32px rgba(0,0,0,0.45);
       font:13px -apple-system,"Segoe UI",sans-serif;
       line-height:1.45;
@@ -110,7 +139,7 @@ function ensureWordStyles() {
     #${CARD_ID} .ai-tr-card-phon button{background:transparent;border:0;color:#8ab4f8;cursor:pointer;padding:0;font:inherit}
     #${CARD_ID} .ai-tr-card-phon button.is-playing{color:#a5b4fc}
     #${CARD_ID} .ai-tr-card-phon button.is-error{color:#fca5a5}
-    #${CARD_ID} .ai-tr-card-tr{color:#d4d4d8;font-size:12px;margin-bottom:8px;max-height:96px;overflow:auto}
+    #${CARD_ID} .ai-tr-card-tr{color:#d4d4d8;font-size:12px;margin-bottom:8px;max-height:none;overflow:visible;overflow-wrap:anywhere}
     #${CARD_ID} .ai-tr-card-actions{display:flex;gap:6px;flex-wrap:wrap}
     #${CARD_ID} .ai-tr-card-actions button{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #27272a;background:#222228;color:#fafafa;border-radius:6px;padding:5px 8px;font:inherit;cursor:pointer;font-size:12px}
     #${CARD_ID} .ai-tr-card-actions kbd{color:#71717a;background:transparent;border:0;font:inherit;font-size:10px}
@@ -183,10 +212,8 @@ export function calculateRecognitionStats(root, knownWords = {}) {
     }
     if (shouldSkipWordMarkerNode(node)) continue;
 
-    WORD_REGEX.lastIndex = 0;
-    let match;
-    while ((match = WORD_REGEX.exec(node.nodeValue || "")) !== null) {
-      countWord(match[0]);
+    for (const match of collectMarkableEnglishWords(node.nodeValue)) {
+      countWord(match.word);
     }
   }
 
@@ -229,25 +256,25 @@ export function cleanupWordMarkerLinks(root) {
   });
 }
 
-function markTextNode(node, markerContext) {
+function markTextNode(node, markerContext, onlyWord = "") {
   const text = node.nodeValue;
   if (!text) return;
-  WORD_REGEX.lastIndex = 0;
-  let match;
+  const ownerDocument = node.ownerDocument || globalThis.document;
+  if (!ownerDocument) return;
   let lastIndex = 0;
   let frag = null;
-  while ((match = WORD_REGEX.exec(text)) !== null) {
-    const raw = match[0];
-    const lower = raw.toLowerCase();
+  for (const match of collectMarkableEnglishWords(text)) {
+    const { raw, word: lower } = match;
+    if (onlyWord && lower !== onlyWord) continue;
     const markKind = resolveWordMarkKind(lower, markerContext);
     if (!markKind) continue;
-    if (!frag) frag = document.createDocumentFragment();
+    if (!frag) frag = ownerDocument.createDocumentFragment();
     if (match.index > lastIndex) {
       frag.appendChild(
-        document.createTextNode(text.slice(lastIndex, match.index)),
+        ownerDocument.createTextNode(text.slice(lastIndex, match.index)),
       );
     }
-    const span = document.createElement("span");
+    const span = ownerDocument.createElement("span");
     span.className = `${WORD_SPAN_CLASS} ${WORD_SPAN_CLASS}--${markKind}`;
     span.dataset.word = lower;
     span.dataset.markKind = markKind;
@@ -256,32 +283,136 @@ function markTextNode(node, markerContext) {
     }
     span.textContent = raw;
     frag.appendChild(span);
-    lastIndex = match.index + raw.length;
+    lastIndex = match.end;
   }
   if (frag) {
     prepareWordMarkerLink(node.parentElement?.closest?.("a"));
     if (lastIndex < text.length) {
-      frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      frag.appendChild(ownerDocument.createTextNode(text.slice(lastIndex)));
     }
     node.parentNode?.replaceChild(frag, node);
   }
 }
 
-function scanAndMark(root, markerContext) {
+function scanAndMark(root, markerContext, onlyWord = "") {
   if (!root || !isWordMarkerActive(markerContext)) return;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+  const ownerDocument = root.ownerDocument || globalThis.document;
+  const nodeFilter =
+    ownerDocument?.defaultView?.NodeFilter || globalThis.NodeFilter;
+  if (!ownerDocument || !nodeFilter) return;
+  const walker = ownerDocument.createTreeWalker(root, nodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if (shouldSkipWordMarkerNode(node)) return NodeFilter.FILTER_REJECT;
+      if (shouldSkipWordMarkerNode(node)) return nodeFilter.FILTER_REJECT;
       if (!node.nodeValue) {
-        return NodeFilter.FILTER_REJECT;
+        return nodeFilter.FILTER_REJECT;
       }
-      return NodeFilter.FILTER_ACCEPT;
+      return nodeFilter.FILTER_ACCEPT;
     },
   });
   const nodes = [];
   let n;
   while ((n = walker.nextNode())) nodes.push(n);
-  for (const node of nodes) markTextNode(node, markerContext);
+  for (const node of nodes) markTextNode(node, markerContext, onlyWord);
+}
+
+function cleanupLinkIfUnmarked(link) {
+  if (!link?.classList?.contains(WORD_LINK_CLASS)) return;
+  if (link.querySelector?.(`.${WORD_SPAN_CLASS}`)) return;
+  link.classList.remove(WORD_LINK_CLASS);
+  link.style.removeProperty(WORD_LINK_COLOR_PROPERTY);
+}
+
+export function updateWordMarkersForWord(root, rawWord, markerContext = {}) {
+  if (!root?.querySelectorAll) return 0;
+  const word = normalizeWord(rawWord);
+  if (!word) return 0;
+  const markKind = resolveWordMarkKind(word, markerContext);
+  const matchingSpans = Array.from(
+    root.querySelectorAll(`.${WORD_SPAN_CLASS}`),
+  ).filter((span) => (span.dataset.word || "").toLowerCase() === word);
+  const affectedLinks = new Set();
+
+  for (const span of matchingSpans) {
+    const link = span.closest?.("a");
+    if (link) affectedLinks.add(link);
+    if (!markKind) {
+      const ownerDocument = span.ownerDocument || globalThis.document;
+      if (!ownerDocument) continue;
+      span.replaceWith(ownerDocument.createTextNode(span.textContent || ""));
+      continue;
+    }
+    span.classList.remove(
+      `${WORD_SPAN_CLASS}--${WORD_MARK_KIND.STUDYING}`,
+      `${WORD_SPAN_CLASS}--${WORD_MARK_KIND.RECOGNITION}`,
+    );
+    span.classList.add(`${WORD_SPAN_CLASS}--${markKind}`);
+    span.dataset.markKind = markKind;
+    if (markerContext.recognitionModeEnabled) {
+      span.dataset.recognitionMode = "true";
+    } else {
+      delete span.dataset.recognitionMode;
+    }
+  }
+
+  for (const link of affectedLinks) cleanupLinkIfUnmarked(link);
+  if (markKind) scanAndMark(root, markerContext, word);
+  return matchingSpans.length;
+}
+
+export function applyWordStatusToMarkerContext(
+  markerContext,
+  rawWord,
+  status,
+  entry = null,
+) {
+  const word = normalizeWord(rawWord);
+  if (!word) return markerContext;
+  const knownWords = { ...(markerContext?.knownWords || {}) };
+  const studyingWords = { ...(markerContext?.studyingWords || {}) };
+
+  if (status === "known") {
+    knownWords[word] = knownWords[word] || entry || { addedAt: Date.now() };
+    delete studyingWords[word];
+  } else if (status === "studying") {
+    delete knownWords[word];
+    studyingWords[word] =
+      entry ||
+      studyingWords[word] || {
+        addedAt: Date.now(),
+        level: -1,
+        lastReviewedAt: null,
+        nextReviewAt: null,
+        lastAction: null,
+        history: [],
+      };
+  } else if (status === "unmarked") {
+    delete knownWords[word];
+    delete studyingWords[word];
+  } else {
+    return markerContext;
+  }
+
+  return { ...markerContext, knownWords, studyingWords };
+}
+
+function wordEntryChanged(previous, next) {
+  return JSON.stringify(previous ?? null) !== JSON.stringify(next ?? null);
+}
+
+export function collectChangedWordKeys(changes = {}) {
+  const words = new Set();
+  for (const key of [KNOWN_WORDS_STORAGE_KEY, STUDYING_WORDS_STORAGE_KEY]) {
+    if (!(key in changes)) continue;
+    const previous = changes[key]?.oldValue || {};
+    const next = changes[key]?.newValue || {};
+    for (const word of new Set([
+      ...Object.keys(previous),
+      ...Object.keys(next),
+    ])) {
+      if (wordEntryChanged(previous[word], next[word])) words.add(word);
+    }
+  }
+  return [...words];
 }
 
 let cardEl = null;
@@ -775,7 +906,20 @@ export function initWordMarker({ onRecognitionStatsChange } = {}) {
   function onMessage(msg) {
     if (!msg) return;
     if (msg.action === "wordsChanged") {
-      void rescan();
+      const word = normalizeWord(msg.word);
+      if (word && ["known", "studying", "unmarked"].includes(msg.status)) {
+        markerContextCache = applyWordStatusToMarkerContext(
+          markerContextCache,
+          word,
+          msg.status,
+          msg.entry,
+        );
+        updateWordMarkersForWord(document.body, word, markerContextCache);
+        hideCard();
+        emitRecognitionStats();
+      } else {
+        void rescan();
+      }
     } else if (msg.action === "wordMarkingEnabledChanged") {
       markerContextCache = {
         ...markerContextCache,
@@ -810,7 +954,27 @@ export function initWordMarker({ onRecognitionStatsChange } = {}) {
         STUDYING_WORDS_STORAGE_KEY in changes ||
         KNOWN_WORDS_STORAGE_KEY in changes
       ) {
-        void rescan();
+        const changedWords = collectChangedWordKeys(changes);
+        markerContextCache = {
+          ...markerContextCache,
+          knownWords:
+            KNOWN_WORDS_STORAGE_KEY in changes
+              ? changes[KNOWN_WORDS_STORAGE_KEY].newValue || {}
+              : markerContextCache.knownWords,
+          studyingWords:
+            STUDYING_WORDS_STORAGE_KEY in changes
+              ? changes[STUDYING_WORDS_STORAGE_KEY].newValue || {}
+              : markerContextCache.studyingWords,
+        };
+        if (changedWords.length > 0 && changedWords.length <= 50) {
+          for (const word of changedWords) {
+            updateWordMarkersForWord(document.body, word, markerContextCache);
+          }
+          hideCard();
+          emitRecognitionStats();
+        } else {
+          void rescan();
+        }
       }
     }
   }

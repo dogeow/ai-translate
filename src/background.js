@@ -407,6 +407,7 @@ const WORD_LEARNING_ACTIONS = new Set([
   "getAllWords",
   "getKnownWords",
   "getStudyingWords",
+  "importWordLearningData",
   "getWordLearningStatus",
   "setWordLearningStatus",
   "addKnownWord",

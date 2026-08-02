@@ -37,3 +37,16 @@ test("没有英文单词时认词率为零", () => {
   });
   dom.window.close();
 });
+
+test("Git 提交哈希中的字母片段不计入英语单词", () => {
+  const dom = new JSDOM(
+    "<main>commit d6a4dc6 a4bd760 42a062e 92a7bc9 pushed</main>",
+  );
+
+  assert.deepEqual(calculateRecognitionStats(dom.window.document.body, {}), {
+    knownCount: 0,
+    totalCount: 2,
+    percentage: 0,
+  });
+  dom.window.close();
+});

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "英语学习和AI翻译",
-  "version": "0.0.3",
+  "version": "0.0.14",
   "description": "支持英语学习和多种 AI 服务的网页翻译扩展",
   "action": {
     "default_icon": {

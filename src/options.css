@@ -1157,23 +1157,207 @@ body {
 }
 
 /* ===== Word learning list ===== */
-.word-learning-settings {
+.word-learning-card {
+  padding: 20px;
+}
+
+.word-learning-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.word-learning-header__copy {
+  min-width: 0;
+}
+
+.word-learning-card .word-learning-header h2 {
+  margin-bottom: 6px;
+}
+
+.word-learning-header .hint {
+  max-width: 310px;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.word-learning-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(62px, 1fr));
+  gap: 6px;
+  flex: none;
+}
+
+.word-learning-overview__item {
+  display: flex;
+  min-width: 62px;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.word-learning-overview__item strong {
+  color: var(--text-primary);
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.word-learning-overview__item--due strong {
+  color: var(--accent-light);
+}
+
+.word-learning-management {
   margin-top: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.word-learning-management > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.word-learning-management > summary::-webkit-details-marker {
+  display: none;
+}
+
+.word-learning-management > summary::after {
+  content: '›';
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  transform: rotate(90deg);
+  transition: transform var(--transition-fast);
+}
+
+.word-learning-management[open] > summary::after {
+  transform: rotate(-90deg);
+}
+
+.word-learning-management__title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.word-learning-management__state {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.word-learning-management__body {
+  padding: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.word-learning-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
 }
 
 .word-learning-setting + .word-learning-setting {
-  margin-top: 8px;
+  margin-top: 0;
+}
+
+.word-learning-setting {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
 }
 
 .word-learning-setting__hint {
-  margin-left: 8px;
+  display: block;
+  margin: 6px 0 0 28px;
+  font-size: 10px;
+}
+
+.word-learning-transfer {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.word-learning-transfer__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.word-learning-transfer__heading h3 {
+  margin: 0 0 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.word-learning-transfer__heading .hint {
+  margin: 0;
+}
+
+.word-learning-transfer__heading .btn,
+.word-learning-transfer__actions .btn {
+  flex: none;
+  padding: 8px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.word-learning-transfer__input {
+  display: none;
+}
+
+.word-learning-transfer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.word-learning-transfer__status {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.word-learning-transfer__status--success {
+  color: var(--success);
+}
+
+.word-learning-transfer__status--error {
+  color: var(--error-text);
 }
 
 .word-learning-add {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .word-learning-add__input {
@@ -1182,14 +1366,20 @@ body {
 }
 
 .word-learning-add .btn {
+  padding: 8px 12px;
+  font-size: 12px;
   white-space: nowrap;
+}
+
+.word-learning-library {
+  margin-top: 12px;
 }
 
 .word-learning-toolbar {
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  margin-top: 12px;
+  margin-top: 0;
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -1248,6 +1438,14 @@ body {
   flex-direction: column;
   gap: 6px;
   margin-top: 12px;
+}
+
+.word-learning-empty {
+  margin-top: 12px;
+  padding: 24px 16px;
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  text-align: center;
 }
 
 .word-learning-item {
@@ -2323,8 +2521,79 @@ body {
     flex-wrap: wrap;
   }
 
+  .word-learning-card {
+    padding: 16px;
+  }
+
+  .word-learning-header {
+    gap: 12px;
+  }
+
+  .word-learning-header .hint {
+    max-width: 280px;
+  }
+
+  .word-learning-overview {
+    grid-template-columns: repeat(3, minmax(54px, 1fr));
+  }
+
+  .word-learning-overview__item {
+    min-width: 54px;
+    padding: 7px 6px;
+  }
+
+  .word-learning-settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .word-learning-setting__hint {
     margin-left: 0;
+  }
+
+  .word-learning-transfer__heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .word-learning-transfer__heading .btn,
+  .word-learning-transfer__actions .btn {
+    width: 100%;
+  }
+
+  .word-learning-add__input {
+    flex-basis: 180px;
+  }
+
+  .word-learning-toolbar {
+    align-items: flex-end;
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .word-learning-filter {
+    width: min(180px, 100%);
+    margin: 0 0 5px auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .word-learning-header {
+    flex-direction: column;
+  }
+
+  .word-learning-header .hint,
+  .word-learning-overview {
+    width: 100%;
+    max-width: none;
+  }
+
+  .word-learning-management__state {
+    display: none;
+  }
+
+  .word-learning-management > summary {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .word-learning-add__input {

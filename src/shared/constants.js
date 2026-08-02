@@ -13,6 +13,10 @@ export const PROVIDER_CHATGPT = "chatgpt";
 export const PROVIDER_CHROME_AI = "chrome-ai";
 export const DEFAULT_TRANSLATE_PROVIDER = PROVIDER_OLLAMA;
 
+// 单词释义来源：默认优先使用有道，失败时由英语学习模型兜底。
+export const WORD_LOOKUP_PROVIDER_YOUDAO = "youdao";
+export const DEFAULT_WORD_LOOKUP_PROVIDER = WORD_LOOKUP_PROVIDER_YOUDAO;
+
 export const TRANSLATE_PROVIDER_OPTIONS = [
   { value: PROVIDER_OLLAMA, label: "Ollama（本地）" },
   { value: PROVIDER_MINIMAX_CN, label: "MiniMax（国内）" },

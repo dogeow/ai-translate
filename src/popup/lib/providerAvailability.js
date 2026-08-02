@@ -52,7 +52,11 @@ export function getConfiguredProviderModel(settings = {}, provider) {
 
 export function getVerifiedModelOptions(
   settings = {},
-  { chromeAiReady = null, includeChromeAi = true } = {},
+  {
+    chromeAiReady = null,
+    includeChromeAi = true,
+    shortenChatGptLabel = false,
+  } = {},
 ) {
   return getVerifiedProviderOptions(settings, { chromeAiReady })
     .filter(
@@ -60,13 +64,17 @@ export function getVerifiedModelOptions(
     )
     .map((option) => {
       const model = getConfiguredProviderModel(settings, option.value);
+      const providerLabel =
+        shortenChatGptLabel && option.value === PROVIDER_CHATGPT
+          ? "ChatGPT"
+          : option.label;
       return {
         ...option,
         model,
         label:
           option.value === PROVIDER_CHROME_AI || !model
-            ? option.label
-            : `${option.label} · ${model}`,
+            ? providerLabel
+            : `${providerLabel} · ${model}`,
       };
     });
 }

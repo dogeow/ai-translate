@@ -176,6 +176,15 @@ export function resolveHoverTranslateScope(
   return normalizedScope === "paragraph" ? "word" : "paragraph";
 }
 
+export function resolveSelectionButtonAnchorRect({
+  clickCount = 0,
+  selectionRect = null,
+  wordSelectionRect = null,
+} = {}) {
+  if (clickCount >= 3 && wordSelectionRect) return wordSelectionRect;
+  return selectionRect;
+}
+
 export function resolveShortcutTranslationTarget({
   currentElement,
   currentText,

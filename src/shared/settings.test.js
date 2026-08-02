@@ -14,12 +14,25 @@ test("getPopupSettingsState 返回 popup 默认状态", () => {
     provider: POPUP_SETTINGS_STORAGE_DEFAULTS.provider,
     uiRewriteProvider: POPUP_SETTINGS_STORAGE_DEFAULTS.uiRewriteProvider,
     learningProvider: POPUP_SETTINGS_STORAGE_DEFAULTS.learningProvider,
+    wordLookupProvider: POPUP_SETTINGS_STORAGE_DEFAULTS.wordLookupProvider,
     autoTranslateMode: POPUP_SETTINGS_STORAGE_DEFAULTS.autoTranslateMode,
     hoverTranslateScope: POPUP_SETTINGS_STORAGE_DEFAULTS.hoverTranslateScope,
     hoverTranslateModifierKey:
       POPUP_SETTINGS_STORAGE_DEFAULTS.hoverTranslateModifierKey,
+    learningModeEnabled: false,
     appEnabled: true,
   });
+});
+
+test("getPopupSettingsState 向弹窗提供学习模式开关状态", () => {
+  assert.equal(
+    getPopupSettingsState({ learningModeEnabled: true }).learningModeEnabled,
+    true,
+  );
+  assert.equal(
+    getPopupSettingsState({ learningModeEnabled: false }).learningModeEnabled,
+    false,
+  );
 });
 
 test("migrateSettingsIfNeeded 后 getPopupSettingsState 可读取迁移结果", async () => {
@@ -45,25 +58,29 @@ test("migrateSettingsIfNeeded 后 getPopupSettingsState 可读取迁移结果", 
       provider: "minimax-global",
       uiRewriteProvider: "minimax-global",
       learningProvider: "minimax-global",
+      wordLookupProvider: "youdao",
       autoTranslateMode: "selection",
       hoverTranslateScope: "paragraph",
       hoverTranslateModifierKey: "alt",
+      learningModeEnabled: false,
       appEnabled: false,
     },
   );
 });
 
-test("三个 AI 用途可以保存独立的模型来源", () => {
+test("翻译、改造、学习和单词释义可以保存独立来源", () => {
   const normalized = normalizeAllSettings({
     provider: "chrome-ai",
     uiRewriteProvider: "chatgpt",
     learningProvider: "github-models",
+    wordLookupProvider: "chatgpt",
     addedProviders: ["chrome-ai", "chatgpt", "github-models"],
   });
 
   assert.equal(normalized.provider, "chrome-ai");
   assert.equal(normalized.uiRewriteProvider, "chatgpt");
   assert.equal(normalized.learningProvider, "github-models");
+  assert.equal(normalized.wordLookupProvider, "chatgpt");
 });
 
 test("旧设置缺少独立用途时沿用当前翻译模型来源", () => {
@@ -74,6 +91,26 @@ test("旧设置缺少独立用途时沿用当前翻译模型来源", () => {
 
   assert.equal(normalized.uiRewriteProvider, "chatgpt");
   assert.equal(normalized.learningProvider, "chatgpt");
+  assert.equal(normalized.wordLookupProvider, "youdao");
+});
+
+test("单词释义来源无效或已移除时恢复为有道", () => {
+  assert.equal(
+    normalizeAllSettings({
+      provider: "chatgpt",
+      wordLookupProvider: "unknown",
+      addedProviders: ["chatgpt"],
+    }).wordLookupProvider,
+    "youdao",
+  );
+  assert.equal(
+    normalizeAllSettings({
+      provider: "chatgpt",
+      wordLookupProvider: "chrome-ai",
+      addedProviders: ["chatgpt"],
+    }).wordLookupProvider,
+    "youdao",
+  );
 });
 
 test("normalizeAllSettings 不再直接读取 legacy 通用键", () => {

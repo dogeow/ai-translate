@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildYoudaoAudioUrl,
   buildYoudaoLookupUrl,
+  getYoudaoResponseWord,
   isPronounceableEnglishWord,
   lookupYoudao,
 } from "./youdao-api.js";
@@ -41,6 +42,7 @@ test("lookupYoudao uses a GET request without legacy webdict parameters", async 
       ok: true,
       async json() {
         return {
+          input: "its",
           ec: {
             word: [
               {
@@ -62,7 +64,24 @@ test("lookupYoudao uses a GET request without legacy webdict parameters", async 
   assert.equal(capturedOptions.method, "GET");
   assert.equal("body" in capturedOptions, false);
   assert.equal(result.usphone, "ɪts");
+  assert.equal(result.responseWord, "its");
   assert.deepEqual(result.translations, ["pron. 它的"]);
+});
+
+test("getYoudaoResponseWord reads both current and legacy response shapes", () => {
+  assert.equal(getYoudaoResponseWord({ input: "cultural" }), "cultural");
+  assert.equal(
+    getYoudaoResponseWord({
+      ec: {
+        word: [
+          {
+            "return-phrase": { l: { i: "federation" } },
+          },
+        ],
+      },
+    }),
+    "federation",
+  );
 });
 
 test("isPronounceableEnglishWord limits the tip button to English words", () => {

@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 export function WordLearningSettings({
   dueCount,
   enabled,
@@ -42,6 +44,90 @@ export function WordLearningSettings({
         </span>
       </div>
     </div>
+  );
+}
+
+export function WordLearningTransferControls({
+  busy,
+  knownCount,
+  onExportAll,
+  onExportKnown,
+  onExportStudying,
+  onImportFile,
+  status,
+  studyingCount,
+}) {
+  const inputRef = useRef(null);
+  const totalCount = knownCount + studyingCount;
+
+  function handleFileChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void onImportFile(file);
+  }
+
+  return (
+    <section className="word-learning-transfer" aria-labelledby="word-transfer-title">
+      <div className="word-learning-transfer__heading">
+        <div>
+          <h3 id="word-transfer-title">导入与导出</h3>
+          <p className="hint">
+            保留分类和复习进度；导入只合并新单词，不覆盖本机数据。
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {busy ? "导入中…" : "导入单词"}
+        </button>
+        <input
+          ref={inputRef}
+          className="word-learning-transfer__input"
+          type="file"
+          accept=".json,.txt,application/json,text/plain"
+          onChange={handleFileChange}
+        />
+      </div>
+
+      <div className="word-learning-transfer__actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={totalCount === 0}
+          onClick={onExportAll}
+        >
+          导出全部 ({totalCount})
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={studyingCount === 0}
+          onClick={onExportStudying}
+        >
+          导出学习中 ({studyingCount})
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={knownCount === 0}
+          onClick={onExportKnown}
+        >
+          导出我会的 ({knownCount})
+        </button>
+      </div>
+
+      {status ? (
+        <p
+          className={`word-learning-transfer__status word-learning-transfer__status--${status.type}`}
+          role="status"
+        >
+          {status.text}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

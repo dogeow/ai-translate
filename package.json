@@ -1,6 +1,6 @@
 {
   "name": "ai-translate",
-  "version": "0.0.3",
+  "version": "0.0.14",
   "type": "module",
   "description": "英语学习和AI翻译",
   "scripts": {

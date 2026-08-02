@@ -98,14 +98,14 @@ export function WordLearningList({
 }) {
   if (tab === "studying" && studyingList.length === 0) {
     return (
-      <div className="hint">
+      <div className="hint word-learning-empty">
         暂无学习中的单词。在网页上选中后右键，或在上方添加。
       </div>
     );
   }
 
   if (tab === "known" && knownList.length === 0) {
-    return <div className="hint">暂无已知单词。</div>;
+    return <div className="hint word-learning-empty">暂无已知单词。</div>;
   }
 
   return (

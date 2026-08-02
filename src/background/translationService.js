@@ -6,6 +6,7 @@ import {
 import {
   normalizeRuntimeSettings,
   PROVIDER_PURPOSE,
+  resolveProviderRuntime,
   resolvePurposeProviderRuntime,
   buildMissingCredentialError,
 } from "./translationSettings.js";
@@ -14,7 +15,16 @@ import {
   toProviderError,
 } from "./translationProviders.js";
 import { executeStreamingTranslation } from "./translationExecution.js";
-import { PROVIDER_OLLAMA } from "../shared/constants.js";
+import {
+  PROVIDER_OLLAMA,
+  WORD_LOOKUP_PROVIDER_YOUDAO,
+} from "../shared/constants.js";
+import { isPronounceableEnglishWord } from "../shared/youdao-api.js";
+import {
+  formatWordTranslations,
+  YOUDAO_WORD_SOURCE_LABEL,
+} from "../shared/word-lookup.js";
+import { lookupWordCached } from "./wordLookupService.js";
 import {
   normalizeDisplayText,
   splitThinkingFromText,
@@ -43,6 +53,99 @@ function registerLatestTranslateRequest(tabId, requestId) {
 function isLatestTranslateRequest(tabId, requestId) {
   if (!tabId || !requestId) return true;
   return latestTranslateRequestIdsByTab.get(tabId) === requestId;
+}
+
+export function shouldUseConfiguredWordLookup(
+  text,
+  triggerSource,
+  options = {},
+) {
+  return (
+    options.useWordLookup !== false &&
+    triggerSource !== "page-visual" &&
+    isPronounceableEnglishWord(text)
+  );
+}
+
+function getPendingWordLookupModel(settings) {
+  if (settings.wordLookupProvider === WORD_LOOKUP_PROVIDER_YOUDAO) {
+    return YOUDAO_WORD_SOURCE_LABEL;
+  }
+  return (
+    resolveProviderRuntime(settings, {
+      provider: settings.wordLookupProvider,
+    }).selectedModel || "AI"
+  );
+}
+
+async function translateWordWithConfiguredProvider({
+  text,
+  tabId,
+  settings,
+  showPending,
+  requestId,
+  triggerSource,
+  persistResult,
+}) {
+  const pendingModel = getPendingWordLookupModel(settings);
+  if (showPending && tabId) {
+    await sendTranslatePending(
+      tabId,
+      buildPendingTranslatePayload({
+        text,
+        targetLang: "Chinese",
+        model: pendingModel,
+        learningModeEnabled: false,
+        requestId,
+        triggerSource,
+      }),
+    );
+  }
+
+  const lookup = await lookupWordCached(text, { settings });
+  const result = lookup.ok
+    ? {
+        original: text,
+        translation: formatWordTranslations(lookup.translations) || null,
+        error: null,
+        targetLang: "Chinese",
+        provider: lookup.provider,
+        model: lookup.model || lookup.sourceLabel || pendingModel,
+        learningModeEnabled: false,
+        thinking: null,
+        sentenceStudy: null,
+        sentenceStudyThinking: null,
+        sentenceStudyPending: false,
+        requestId,
+        triggerSource,
+        wordLookupFallback: lookup.fallback === true,
+      }
+    : buildErrorResult({
+        original: text,
+        targetLang: "Chinese",
+        error: lookup.error || "单词查询失败。",
+        model: pendingModel,
+        learningModeEnabled: false,
+        requestId,
+        triggerSource,
+      });
+
+  const shouldCommitResult = isLatestTranslateRequest(tabId, requestId);
+  if (persistResult && shouldCommitResult) {
+    await persistTranslateResult(result);
+  }
+  if (!result.error && result.translation) {
+    await appendTranslationCache({
+      original: text,
+      translation: result.translation,
+      targetLang: result.targetLang,
+      provider: lookup.provider,
+      model: result.model,
+      triggerSource,
+      updatedAt: new Date().toISOString(),
+    }).catch(() => {});
+  }
+  return result;
 }
 
 async function buildNoModelResult(settings, text, providerRuntime, options) {
@@ -132,6 +235,18 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
 
   if (!settings.appEnabled) {
     return null;
+  }
+
+  if (shouldUseConfiguredWordLookup(text, triggerSource, options)) {
+    return translateWordWithConfiguredProvider({
+      text,
+      tabId,
+      settings,
+      showPending,
+      requestId: resolvedRequestId,
+      triggerSource,
+      persistResult,
+    });
   }
 
   if (showPending && tabId) {

@@ -26,7 +26,7 @@ export const MENU_HOVER_SCOPE_PARAGRAPH =
 
 /**
  * Read menu-related settings from Chrome storage
- * @returns {Promise<{autoTranslateMode: string, hoverTranslateScope: string, hoverTranslateModifierKey: string, appEnabled: boolean}>}
+ * @returns {Promise<{autoTranslateMode: string, hoverTranslateScope: string, hoverTranslateModifierKey: string, learningModeEnabled: boolean, appEnabled: boolean}>}
  */
 export function getMenuSettingsState(stored = {}) {
   return getPopupSettingsState(stored);

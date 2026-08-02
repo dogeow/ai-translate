@@ -699,6 +699,7 @@ export function injectStyles() {
 
 #${TIP_ID} .ollama-tip-grammar-parts {
     display: flex;
+    align-items: flex-start;
     gap: 8px;
     margin-top: 12px;
     overflow-x: auto;
@@ -857,6 +858,53 @@ html.ollama-pt-mode-bilingual .ollama-pt-trans::before {
     margin: 0 2px;
 }
 
+.ollama-article-narration-current {
+    position: relative !important;
+    border-radius: 6px !important;
+    background: rgba(99, 102, 241, 0.14) !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.46) !important;
+    transition: background 160ms ease, box-shadow 160ms ease !important;
+}
+
+.ollama-article-narration-start-flash {
+    animation: ollama-article-narration-start-flash 0.7s ease !important;
+}
+@keyframes ollama-article-narration-start-flash {
+    0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.0); background: rgba(250, 204, 21, 0.0); }
+    30% { box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.85); background: rgba(250, 204, 21, 0.28); }
+    100% { box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.46); background: rgba(99, 102, 241, 0.14); }
+}
+
+/* Current spoken word — CSS Custom Highlight API (no DOM rewrite) */
+::highlight(ollama-article-narration-word) {
+    background-color: #facc15;
+    color: #111827;
+    text-shadow: none;
+}
+
+/* Primary word mark: fixed overlay (works with recognition spans / transformed body) */
+#ollama-article-narration-word-overlay {
+    all: initial;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: visible !important;
+    pointer-events: none !important;
+    z-index: 2147483645 !important;
+}
+#ollama-article-narration-word-overlay .ollama-article-narration-word-mark {
+    position: fixed !important;
+    box-sizing: border-box !important;
+    border-radius: 4px !important;
+    background: rgba(250, 204, 21, 0.9) !important;
+    box-shadow:
+      0 0 0 2px rgba(202, 138, 4, 0.95),
+      0 1px 4px rgba(0, 0, 0, 0.2) !important;
+    pointer-events: none !important;
+}
+
 /* ===== Page translate control bar ===== */
 #ollama-pt-bar {
     all: initial;
@@ -901,6 +949,57 @@ html.ollama-pt-mode-bilingual .ollama-pt-trans::before {
 #ollama-pt-bar .ollama-pt-bar-recognition-row {
     justify-content: center;
     padding: 2px;
+}
+
+#ollama-pt-bar .ollama-pt-bar-narration-row {
+    min-width: 280px;
+    padding: 1px 2px 0 8px;
+}
+
+#ollama-pt-bar .ollama-pt-bar-narration-label {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    color: rgba(250, 250, 250, 0.9);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#ollama-pt-bar .ollama-pt-bar-narration-options {
+    padding: 0 4px 3px;
+}
+
+#ollama-pt-bar .ollama-pt-bar-select {
+    appearance: none;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 27px;
+    padding: 0 20px 0 8px;
+    color: rgba(250, 250, 250, 0.84);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    outline: none;
+    background-color: rgba(255, 255, 255, 0.06);
+    background-image:
+      linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+      calc(100% - 10px) 11px,
+      calc(100% - 7px) 11px;
+    background-repeat: no-repeat;
+    background-size: 3px 3px, 3px 3px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+#ollama-pt-bar .ollama-pt-bar-select:hover,
+#ollama-pt-bar .ollama-pt-bar-select:focus {
+    color: #fff;
+    border-color: rgba(129, 140, 248, 0.6);
 }
 
 #ollama-pt-bar .ollama-pt-bar-recognition-label {
@@ -1004,6 +1103,19 @@ html.ollama-pt-mode-bilingual .ollama-pt-trans::before {
     }
     #ollama-pt-bar .ollama-pt-bar-divider {
         background: rgba(0, 0, 0, 0.1);
+    }
+    #ollama-pt-bar .ollama-pt-bar-narration-label {
+        color: rgba(24, 24, 27, 0.9);
+    }
+    #ollama-pt-bar .ollama-pt-bar-select {
+        color: rgba(24, 24, 27, 0.78);
+        border-color: rgba(0, 0, 0, 0.12);
+        background-color: rgba(0, 0, 0, 0.04);
+    }
+    #ollama-pt-bar .ollama-pt-bar-select:hover,
+    #ollama-pt-bar .ollama-pt-bar-select:focus {
+        color: #18181b;
+        border-color: rgba(79, 70, 229, 0.5);
     }
 }
 
