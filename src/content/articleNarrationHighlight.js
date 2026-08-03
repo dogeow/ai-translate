@@ -266,17 +266,17 @@ function ensureWordHighlightStyles(doc) {
   style.id = ARTICLE_NARRATION_WORD_STYLE_ID;
   style.textContent = `
     .${ARTICLE_NARRATION_WORD_ACTIVE_CLASS}{
-      background: #fde047 !important;
-      background-color: #fde047 !important;
-      color: #111827 !important;
+      background: transparent !important;
+      background-color: transparent !important;
+      color: inherit !important;
       border: 2px solid #b45309 !important;
       border-radius: 4px !important;
-      box-shadow: 0 0 0 1px #fbbf24, 0 1px 3px rgba(0,0,0,.18) !important;
+      box-shadow: none !important;
       outline: none !important;
     }
     ::highlight(${ARTICLE_NARRATION_WORD_HIGHLIGHT_NAME}){
-      background-color:#fde047;
-      color:#111827;
+      background-color: transparent;
+      color: inherit;
     }
   `;
   (doc.head || doc.documentElement).appendChild(style);
@@ -381,9 +381,9 @@ export function createNarrationWordHighlighter(env = {}) {
         height: `${Math.max(rect.height + 2, 4)}px`,
         boxSizing: "border-box",
         borderRadius: "4px",
-        background: "rgba(253, 224, 71, 0.55)",
+        background: "transparent",
         border: "2px solid #b45309",
-        boxShadow: "0 0 0 1px #fbbf24, 0 1px 3px rgba(0,0,0,0.2)",
+        boxShadow: "none",
         pointerEvents: "none",
         zIndex: "2147483645",
       });

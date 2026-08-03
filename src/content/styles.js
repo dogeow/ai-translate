@@ -898,20 +898,18 @@ html.ollama-pt-mode-bilingual .ollama-pt-trans::before {
     position: fixed !important;
     box-sizing: border-box !important;
     border-radius: 4px !important;
-    background: rgba(253, 224, 71, 0.55) !important;
+    background: transparent !important;
     border: 2px solid #b45309 !important;
-    box-shadow:
-      0 0 0 1px #fbbf24,
-      0 1px 3px rgba(0, 0, 0, 0.2) !important;
+    box-shadow: none !important;
     pointer-events: none !important;
 }
 .ollama-article-narration-word-active {
-    background: #fde047 !important;
-    background-color: #fde047 !important;
-    color: #111827 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    color: inherit !important;
     border: 2px solid #b45309 !important;
     border-radius: 4px !important;
-    box-shadow: 0 0 0 1px #fbbf24, 0 1px 3px rgba(0, 0, 0, 0.18) !important;
+    box-shadow: none !important;
 }
 
 /* ===== Page translate control bar ===== */
