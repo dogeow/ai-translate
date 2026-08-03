@@ -1,13 +1,22 @@
 /**
- * Word-level narration highlight without rewriting page DOM.
- * Uses a fixed-position overlay (reliable in content scripts) plus optional
- * CSS Custom Highlight when the page stylesheet cooperates.
+ * Word-level narration highlight without rewriting page content structure.
+ *
+ * Strategy (most reliable first for recognition-mode pages):
+ * 1. Yellow class on matching `.ai-tr-word` spans already in the paragraph
+ * 2. Fixed-position overlay marks with FULLY INLINE styles (no stylesheet dependency)
+ * 3. Optional CSS Custom Highlight API
  */
 
 export const ARTICLE_NARRATION_WORD_HIGHLIGHT_NAME =
   "ollama-article-narration-word";
 export const ARTICLE_NARRATION_WORD_OVERLAY_ID =
   "ollama-article-narration-word-overlay";
+export const ARTICLE_NARRATION_WORD_ACTIVE_CLASS =
+  "ollama-article-narration-word-active";
+export const ARTICLE_NARRATION_WORD_STYLE_ID =
+  "ollama-article-narration-word-style";
+
+const WORD_MARKER_SPAN_CLASS = "ai-tr-word";
 
 const SKIP_TEXT_ANCESTOR_SELECTOR = [
   "script",
@@ -28,13 +37,16 @@ function normalizeWhitespaceChar(char) {
   return /\s/.test(char) ? " " : char;
 }
 
+export function normalizeHighlightWord(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
+    .toLowerCase();
+}
+
 /**
  * Walk live text nodes and build a whitespace-collapsed string with a
  * per-character map back into the DOM.
- *
- * @param {Element} element
- * @param {"original" | "translation"} mode
- * @returns {{ text: string, map: Array<{ node: Text, offset: number }> }}
  */
 export function buildSpeechCharMap(element, mode = "original") {
   const ownerDocument = element?.ownerDocument || globalThis.document;
@@ -100,13 +112,6 @@ export function buildSpeechCharMap(element, mode = "original") {
   return { text, map };
 }
 
-/**
- * Resolve a spoken character span to a live DOM Range.
- * @param {{ map: Array<{ node: Text, offset: number }> }} charMap
- * @param {number} start
- * @param {number} length
- * @returns {Range | null}
- */
 export function resolveSpeechRange(charMap, start, length) {
   const map = charMap?.map;
   if (!Array.isArray(map) || map.length === 0) return null;
@@ -130,15 +135,6 @@ export function resolveSpeechRange(charMap, start, length) {
   }
 }
 
-/**
- * Find a word occurrence in the live element after `fromIndex` in the
- * collapsed speech string (handles recognition re-wrapping text nodes).
- * @param {Element} element
- * @param {string} word
- * @param {"original" | "translation"} mode
- * @param {number} [fromIndex=0]
- * @returns {Range | null}
- */
 export function findWordRangeInElement(
   element,
   word,
@@ -155,11 +151,12 @@ export function findWordRangeInElement(
     index = charMap.text.indexOf(needle);
   }
   if (index < 0) {
-    // Strip trailing punctuation for engines that include "region," as a word.
-    const stripped = needle.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
-    if (stripped && stripped !== needle) {
-      index = charMap.text.indexOf(stripped, startFrom);
-      if (index < 0 && startFrom > 0) index = charMap.text.indexOf(stripped);
+    const stripped = normalizeHighlightWord(needle);
+    if (stripped && stripped !== needle.toLowerCase()) {
+      // Search case-insensitively in a simplified way
+      const lower = charMap.text.toLowerCase();
+      index = lower.indexOf(stripped, startFrom);
+      if (index < 0 && startFrom > 0) index = lower.indexOf(stripped);
       if (index >= 0) {
         return resolveSpeechRange(charMap, index, stripped.length);
       }
@@ -170,19 +167,24 @@ export function findWordRangeInElement(
 }
 
 /**
- * Resolve the best Range for a spoken word span.
- * Rebuilds the char map every call so recognition re-wraps stay valid.
- *
- * @param {object} opts
- * @param {Element} opts.element
- * @param {"original" | "translation"} [opts.mode]
- * @param {number} [opts.charIndex] index in the utterance chunk
- * @param {number} [opts.charLength]
- * @param {number} [opts.textStart] chunk start in the full section speech text
- * @param {string} [opts.word]
- * @param {{ text: string, map: Array } | null} [opts.cachedCharMap] optional hint
- * @returns {Range | null}
+ * Prefer existing recognition / studying word spans — visible yellow without overlay.
+ * @returns {Element[]}
  */
+export function findMatchingWordMarkers(element, word) {
+  if (!element?.querySelectorAll) return [];
+  const needle = normalizeHighlightWord(word);
+  if (!needle) return [];
+  const matches = [];
+  for (const span of element.querySelectorAll(`.${WORD_MARKER_SPAN_CLASS}`)) {
+    const dataWord = normalizeHighlightWord(span.getAttribute("data-word") || "");
+    const textWord = normalizeHighlightWord(span.textContent || "");
+    if (dataWord === needle || textWord === needle) {
+      matches.push(span);
+    }
+  }
+  return matches;
+}
+
 export function resolveSpokenWordRange({
   element,
   mode = "original",
@@ -201,7 +203,6 @@ export function resolveSpokenWordRange({
   let range = resolveSpeechRange(liveMap, absoluteStart, length);
   if (range) return range;
 
-  // Cached map from queue build (only if still connected).
   if (cachedCharMap?.map?.length) {
     range = resolveSpeechRange(cachedCharMap, absoluteStart, length);
     if (range) return range;
@@ -210,17 +211,14 @@ export function resolveSpokenWordRange({
   const spoken =
     String(word || "").trim() ||
     liveMap.text.slice(absoluteStart, absoluteStart + length).trim() ||
-    String(cachedCharMap?.text || "").slice(absoluteStart, absoluteStart + length).trim();
+    String(cachedCharMap?.text || "")
+      .slice(absoluteStart, absoluteStart + length)
+      .trim();
 
   if (!spoken) return null;
   return findWordRangeInElement(element, spoken, mode, absoluteStart);
 }
 
-/**
- * Infer word length when the engine omits charLength.
- * @param {string} text
- * @param {number} start
- */
 export function inferWordLength(text, start) {
   const source = String(text || "");
   const from = Math.max(0, Math.min(source.length, Number(start) || 0));
@@ -235,11 +233,6 @@ export function inferWordLength(text, start) {
   return end - from;
 }
 
-/**
- * Non-whitespace spans in spoken text (for boundary fallbacks).
- * @param {string} text
- * @returns {Array<{ start: number, length: number, word: string }>}
- */
 export function listSpeechWordSpans(text) {
   const source = String(text || "");
   const spans = [];
@@ -256,10 +249,6 @@ export function listSpeechWordSpans(text) {
   return spans;
 }
 
-/**
- * Whether a SpeechSynthesis boundary event should update the word highlight.
- * @param {SpeechSynthesisEvent | { name?: string, charIndex?: number }} event
- */
 export function isWordBoundaryEvent(event) {
   if (!event || typeof event !== "object") return false;
   const name = String(event.name || "").toLowerCase();
@@ -270,8 +259,29 @@ export function isWordBoundaryEvent(event) {
   return name !== "mark" && Number.isFinite(Number(event.charIndex));
 }
 
+function ensureWordHighlightStyles(doc) {
+  if (!doc?.getElementById) return;
+  if (doc.getElementById(ARTICLE_NARRATION_WORD_STYLE_ID)) return;
+  const style = doc.createElement("style");
+  style.id = ARTICLE_NARRATION_WORD_STYLE_ID;
+  style.textContent = `
+    .${ARTICLE_NARRATION_WORD_ACTIVE_CLASS}{
+      background: #facc15 !important;
+      background-color: #facc15 !important;
+      color: #111827 !important;
+      border-color: #ca8a04 !important;
+      box-shadow: 0 0 0 2px #ca8a04, 0 0 0 4px rgba(250,204,21,.45) !important;
+      outline: none !important;
+    }
+    ::highlight(${ARTICLE_NARRATION_WORD_HIGHLIGHT_NAME}){
+      background-color:#facc15;
+      color:#111827;
+    }
+  `;
+  (doc.head || doc.documentElement).appendChild(style);
+}
+
 /**
- * Create a highlighter that never rewrites page content.
  * @param {{ document?: Document, CSS?: typeof globalThis.CSS }} [env]
  */
 export function createNarrationWordHighlighter(env = {}) {
@@ -284,6 +294,31 @@ export function createNarrationWordHighlighter(env = {}) {
   let activeHighlight = null;
   let overlayRoot = null;
   let scrollListener = null;
+  let lastRange = null;
+  let activeMarkers = [];
+
+  ensureWordHighlightStyles(doc);
+
+  function clearMarkers() {
+    for (const el of activeMarkers) {
+      try {
+        el.classList?.remove?.(ARTICLE_NARRATION_WORD_ACTIVE_CLASS);
+      } catch {
+        /* ignore */
+      }
+    }
+    activeMarkers = [];
+  }
+
+  function paintMarkers(element, word) {
+    clearMarkers();
+    const matches = findMatchingWordMarkers(element, word);
+    for (const span of matches) {
+      span.classList.add(ARTICLE_NARRATION_WORD_ACTIVE_CLASS);
+      activeMarkers.push(span);
+    }
+    return matches.length > 0;
+  }
 
   function ensureOverlayRoot() {
     const mount = doc.documentElement || doc.body;
@@ -294,12 +329,23 @@ export function createNarrationWordHighlighter(env = {}) {
       overlayRoot = doc.createElement("div");
       overlayRoot.id = ARTICLE_NARRATION_WORD_OVERLAY_ID;
       overlayRoot.setAttribute("aria-hidden", "true");
+      // Inline critical host styles — do not depend on extension stylesheet.
+      Object.assign(overlayRoot.style, {
+        all: "initial",
+        position: "fixed",
+        left: "0",
+        top: "0",
+        width: "0",
+        height: "0",
+        overflow: "visible",
+        pointerEvents: "none",
+        zIndex: "2147483645",
+      });
       mount.appendChild(overlayRoot);
     }
     if (!scrollListener && globalThis.addEventListener) {
       scrollListener = () => {
-        // Marks use fixed coords; clear stale boxes on scroll until next word.
-        if (overlayRoot) overlayRoot.replaceChildren();
+        if (lastRange) paintOverlay(lastRange);
       };
       globalThis.addEventListener("scroll", scrollListener, true);
       globalThis.addEventListener("resize", scrollListener);
@@ -313,20 +359,32 @@ export function createNarrationWordHighlighter(env = {}) {
 
   function paintOverlay(range) {
     const root = ensureOverlayRoot();
-    if (!root) return false;
+    if (!root || !range) return false;
     root.replaceChildren();
-    // fixed + viewport rects (no scroll offset) — survives body transforms.
-    const rects = range.getClientRects?.() || [];
+    let rects;
+    try {
+      rects = range.getClientRects?.() || [];
+    } catch {
+      return false;
+    }
     let painted = 0;
     for (const rect of rects) {
       if (rect.width <= 0 || rect.height <= 0) continue;
       const mark = doc.createElement("div");
-      mark.className = "ollama-article-narration-word-mark";
-      mark.style.position = "fixed";
-      mark.style.left = `${rect.left}px`;
-      mark.style.top = `${rect.top}px`;
-      mark.style.width = `${Math.max(rect.width, 2)}px`;
-      mark.style.height = `${Math.max(rect.height, 2)}px`;
+      // Fully inline — never rely on page/extension CSS for visibility.
+      Object.assign(mark.style, {
+        position: "fixed",
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${Math.max(rect.width, 2)}px`,
+        height: `${Math.max(rect.height, 2)}px`,
+        boxSizing: "border-box",
+        borderRadius: "4px",
+        background: "rgba(250, 204, 21, 0.92)",
+        boxShadow: "0 0 0 2px #ca8a04, 0 1px 4px rgba(0,0,0,0.25)",
+        pointerEvents: "none",
+        zIndex: "2147483645",
+      });
       root.appendChild(mark);
       painted += 1;
     }
@@ -334,6 +392,8 @@ export function createNarrationWordHighlighter(env = {}) {
   }
 
   function clear() {
+    lastRange = null;
+    clearMarkers();
     if (supportsCustomHighlight) {
       try {
         cssApi.highlights.delete(ARTICLE_NARRATION_WORD_HIGHLIGHT_NAME);
@@ -345,24 +405,42 @@ export function createNarrationWordHighlighter(env = {}) {
     clearOverlay();
   }
 
-  function highlightRange(range) {
-    if (!range) {
+  /**
+   * @param {Range | null} range
+   * @param {{ element?: Element, word?: string }} [context]
+   */
+  function highlightRange(range, context = {}) {
+    const { element = null, word = "" } = context;
+    if (!range && !word) {
       clear();
       return false;
     }
-    const painted = paintOverlay(range);
-    if (supportsCustomHighlight) {
-      try {
-        activeHighlight = new globalThis.Highlight(range);
-        cssApi.highlights.set(
-          ARTICLE_NARRATION_WORD_HIGHLIGHT_NAME,
-          activeHighlight,
-        );
-      } catch {
-        /* overlay already attempted */
-      }
+
+    let ok = false;
+    if (element && word) {
+      ok = paintMarkers(element, word) || ok;
     }
-    return painted;
+
+    if (range) {
+      lastRange = range;
+      ok = paintOverlay(range) || ok;
+      if (supportsCustomHighlight) {
+        try {
+          activeHighlight = new globalThis.Highlight(range);
+          cssApi.highlights.set(
+            ARTICLE_NARRATION_WORD_HIGHLIGHT_NAME,
+            activeHighlight,
+          );
+        } catch {
+          /* overlay / markers already attempted */
+        }
+      }
+    } else {
+      lastRange = null;
+      clearOverlay();
+    }
+
+    return ok;
   }
 
   function destroy() {
@@ -374,6 +452,7 @@ export function createNarrationWordHighlighter(env = {}) {
     }
     overlayRoot?.remove?.();
     overlayRoot = null;
+    doc.getElementById(ARTICLE_NARRATION_WORD_STYLE_ID)?.remove?.();
   }
 
   return {

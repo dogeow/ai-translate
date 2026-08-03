@@ -13,7 +13,10 @@ import {
   splitSpeechText,
 } from "./articleNarration.js";
 import {
+  ARTICLE_NARRATION_WORD_ACTIVE_CLASS,
   buildSpeechCharMap,
+  createNarrationWordHighlighter,
+  findMatchingWordMarkers,
   findWordRangeInElement,
   inferWordLength,
   isWordBoundaryEvent,
@@ -217,6 +220,20 @@ test("认词 span 拆分后仍能按词解析 Range", () => {
     });
     assert.ok(byIndex);
     assert.equal(byIndex.toString(), "dispatched");
+
+    const markers = findMatchingWordMarkers(element, "dispatched");
+    assert.equal(markers.length, 1);
+    assert.equal(markers[0].getAttribute("data-word"), "dispatched");
+
+    const highlighter = createNarrationWordHighlighter({
+      document: harness.dom.window.document,
+    });
+    highlighter.highlightRange(null, { element, word: "dispatched" });
+    assert.equal(
+      markers[0].classList.contains(ARTICLE_NARRATION_WORD_ACTIVE_CLASS),
+      true,
+    );
+    highlighter.destroy();
   } finally {
     harness.cleanup();
   }
@@ -395,8 +412,8 @@ test("boundary 单词事件会更新 currentWord 并调用高亮，不改写页�
       highlightCalls.push("clear");
     },
     destroy() {},
-    highlightRange(range) {
-      highlightCalls.push(range?.toString?.() || "");
+    highlightRange(range, context = {}) {
+      highlightCalls.push(range?.toString?.() || context.word || "");
       return true;
     },
   };
@@ -471,8 +488,8 @@ test("无 boundary 时用计时回退推进当前单词高亮", async () => {
   const wordHighlighter = {
     clear() {},
     destroy() {},
-    highlightRange(range) {
-      words.push(range?.toString?.() || "");
+    highlightRange(range, context = {}) {
+      words.push(range?.toString?.() || context.word || "");
       return true;
     },
   };

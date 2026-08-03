@@ -531,9 +531,13 @@ export function createArticleNarrator({
     wordFallbackTimers = [];
   }
 
+  function clearWordVisual() {
+    highlighter.clear();
+  }
+
   function clearWordHighlight() {
     clearWordFallbackTimers();
-    highlighter.clear();
+    clearWordVisual();
   }
 
   function clearHighlight() {
@@ -543,7 +547,9 @@ export function createArticleNarrator({
   }
 
   function highlight(element) {
-    if (!element || element === currentElement) return;
+    if (!element) return;
+    if (element === currentElement) return;
+    // New paragraph: drop previous section timers + paint.
     clearWordHighlight();
     currentElement?.classList?.remove("ollama-article-narration-current");
     currentElement = element;
@@ -578,17 +584,21 @@ export function createArticleNarrator({
       word,
       cachedCharMap: item.charMap,
     });
-    if (range) {
-      highlighter.highlightRange(range);
-      // Keep a live map for the next word after recognition re-wraps.
-      try {
-        item.charMap = buildSpeechCharMap(
-          item.element,
-          item.speechMode || ARTICLE_NARRATION_MODE.ORIGINAL,
-        );
-      } catch {
-        /* ignore */
-      }
+
+    // Always paint: marker class and/or fixed overlay. Range may be null when
+    // recognition re-wrapped nodes; marker match still works by data-word.
+    highlighter.highlightRange(range, {
+      element: item.element,
+      word,
+    });
+
+    try {
+      item.charMap = buildSpeechCharMap(
+        item.element,
+        item.speechMode || ARTICLE_NARRATION_MODE.ORIGINAL,
+      );
+    } catch {
+      /* ignore */
     }
 
     if (word !== state.currentWord) {
