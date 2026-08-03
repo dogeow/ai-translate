@@ -101,7 +101,10 @@ export const ARTICLE_NARRATION_SETTING_KEYS = Object.freeze([
   ARTICLE_NARRATION_ACCENT_KEY,
 ]);
 
-export const ARTICLE_NARRATION_RATES = Object.freeze([0.75, 1, 1.25, 1.5]);
+/** Speech rates for the control-bar select (slow → fast). */
+export const ARTICLE_NARRATION_RATES = Object.freeze([
+  0.5, 0.6, 0.7, 0.75, 0.85, 1, 1.15, 1.25, 1.5,
+]);
 
 export function normalizeArticleNarrationMode(value) {
   return Object.values(ARTICLE_NARRATION_MODE).includes(value)
@@ -117,7 +120,19 @@ export function normalizeArticleNarrationAccent(value) {
 
 export function normalizeArticleNarrationRate(value) {
   const number = Number(value);
-  return ARTICLE_NARRATION_RATES.includes(number) ? number : 1;
+  if (ARTICLE_NARRATION_RATES.includes(number)) return number;
+  // Accept legacy / free-form values within a safe speech-synthesis band.
+  if (Number.isFinite(number) && number >= 0.4 && number <= 2) {
+    return Math.round(number * 100) / 100;
+  }
+  return 1;
+}
+
+export function getArticleNarrationRateOptions() {
+  return ARTICLE_NARRATION_RATES.map((rate) => ({
+    value: String(rate),
+    label: `${rate}×`,
+  }));
 }
 
 function normalizeText(value) {

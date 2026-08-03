@@ -3,6 +3,8 @@
  * 提供 原文 / 译文 / 双语 切换按钮、模型下载进度条、停止按钮。
  */
 
+import { getArticleNarrationRateOptions } from "./articleNarration.js";
+
 const BAR_ID = "ollama-pt-bar";
 
 const MODE_OPTIONS = [
@@ -22,12 +24,7 @@ const NARRATION_ACCENT_OPTIONS = [
   { value: "uk", label: "自然英音" },
 ];
 
-const NARRATION_RATE_OPTIONS = [
-  { value: "0.75", label: "0.75×" },
-  { value: "1", label: "1×" },
-  { value: "1.25", label: "1.25×" },
-  { value: "1.5", label: "1.5×" },
-];
+const NARRATION_RATE_OPTIONS = getArticleNarrationRateOptions();
 
 export function createPageTranslateBar(pageTranslator, articleNarrator = null) {
   let barElement = null;
