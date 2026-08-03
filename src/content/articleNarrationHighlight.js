@@ -266,15 +266,16 @@ function ensureWordHighlightStyles(doc) {
   style.id = ARTICLE_NARRATION_WORD_STYLE_ID;
   style.textContent = `
     .${ARTICLE_NARRATION_WORD_ACTIVE_CLASS}{
-      background: #facc15 !important;
-      background-color: #facc15 !important;
+      background: #fde047 !important;
+      background-color: #fde047 !important;
       color: #111827 !important;
-      border-color: #ca8a04 !important;
-      box-shadow: 0 0 0 2px #ca8a04, 0 0 0 4px rgba(250,204,21,.45) !important;
+      border: 2px solid #b45309 !important;
+      border-radius: 4px !important;
+      box-shadow: 0 0 0 1px #fbbf24, 0 1px 3px rgba(0,0,0,.18) !important;
       outline: none !important;
     }
     ::highlight(${ARTICLE_NARRATION_WORD_HIGHLIGHT_NAME}){
-      background-color:#facc15;
+      background-color:#fde047;
       color:#111827;
     }
   `;
@@ -374,14 +375,15 @@ export function createNarrationWordHighlighter(env = {}) {
       // Fully inline — never rely on page/extension CSS for visibility.
       Object.assign(mark.style, {
         position: "fixed",
-        left: `${rect.left}px`,
-        top: `${rect.top}px`,
-        width: `${Math.max(rect.width, 2)}px`,
-        height: `${Math.max(rect.height, 2)}px`,
+        left: `${Math.max(0, rect.left - 1)}px`,
+        top: `${Math.max(0, rect.top - 1)}px`,
+        width: `${Math.max(rect.width + 2, 4)}px`,
+        height: `${Math.max(rect.height + 2, 4)}px`,
         boxSizing: "border-box",
         borderRadius: "4px",
-        background: "rgba(250, 204, 21, 0.92)",
-        boxShadow: "0 0 0 2px #ca8a04, 0 1px 4px rgba(0,0,0,0.25)",
+        background: "rgba(253, 224, 71, 0.55)",
+        border: "2px solid #b45309",
+        boxShadow: "0 0 0 1px #fbbf24, 0 1px 3px rgba(0,0,0,0.2)",
         pointerEvents: "none",
         zIndex: "2147483645",
       });
