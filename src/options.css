@@ -1325,11 +1325,12 @@ body {
   color: var(--accent-light);
 }
 
+
 .word-learning-management {
-  margin-top: 12px;
+  margin-top: 18px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  background: var(--bg-base);
 }
 
 .word-learning-management > summary {
@@ -1552,7 +1553,7 @@ body {
 }
 
 .word-learning-library {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .word-learning-toolbar {

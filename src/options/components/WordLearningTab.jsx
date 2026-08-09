@@ -35,9 +35,7 @@ export function WordLearningTab() {
       <header className="word-learning-header">
         <div className="word-learning-header__copy">
           <h2>英语学习</h2>
-          <p className="hint">
-            复习和管理单词；网页标记、认词模式及数据迁移可在下方设置中调整。
-          </p>
+          <p className="hint">管理学习中与我会的单词，随时复习。</p>
         </div>
         <div className="word-learning-overview" aria-label="单词学习概况">
           <span className="word-learning-overview__item">
@@ -55,12 +53,35 @@ export function WordLearningTab() {
         </div>
       </header>
 
+      <section className="word-learning-library" aria-label="单词列表">
+        <WordLearningToolbar
+          filter={filter}
+          knownCount={knownList.length}
+          onFilterChange={setFilter}
+          onTabChange={setTab}
+          studyingCount={studyingList.length}
+          tab={tab}
+        />
+        <WordLearningAddForm
+          newWord={newWord}
+          onAddKnown={actions.addKnown}
+          onAddStudying={actions.addStudying}
+          onNewWordChange={setNewWord}
+        />
+        <WordLearningList
+          actions={actions}
+          knownList={knownList}
+          studyingList={studyingList}
+          tab={tab}
+        />
+      </section>
+
       <details className="word-learning-management">
         <summary>
           <span className="word-learning-management__title">设置与数据</span>
           <span className="word-learning-management__state">
-            {enabled ? "生词标记已开启" : "生词标记已关闭"} ·{" "}
-            {recognitionModeEnabled ? "认词模式已开启" : "认词模式已关闭"}
+            {enabled ? "生词标记开" : "生词标记关"} ·{" "}
+            {recognitionModeEnabled ? "认词开" : "认词关"}
           </span>
         </summary>
         <div className="word-learning-management__body">
@@ -86,29 +107,6 @@ export function WordLearningTab() {
           />
         </div>
       </details>
-
-      <section className="word-learning-library" aria-label="单词列表">
-        <WordLearningToolbar
-          filter={filter}
-          knownCount={knownList.length}
-          onFilterChange={setFilter}
-          onTabChange={setTab}
-          studyingCount={studyingList.length}
-          tab={tab}
-        />
-        <WordLearningAddForm
-          newWord={newWord}
-          onAddKnown={actions.addKnown}
-          onAddStudying={actions.addStudying}
-          onNewWordChange={setNewWord}
-        />
-        <WordLearningList
-          actions={actions}
-          knownList={knownList}
-          studyingList={studyingList}
-          tab={tab}
-        />
-      </section>
     </div>
   );
 }
