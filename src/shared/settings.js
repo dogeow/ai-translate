@@ -33,6 +33,7 @@ import {
   DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   DEFAULT_GITHUB_MODEL,
   DEFAULT_CHATGPT_MODEL,
+  DEPRECATED_CHATGPT_MODELS,
   GITHUB_AUTH_MODE_DEVICE,
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_AUTO_TRANSLATE_MODE,
@@ -294,6 +295,19 @@ export function isGitHubModelsProvider(provider) {
 export function isChatGptProvider(provider) {
   return provider === PROVIDER_CHATGPT;
 }
+
+/**
+ * 规范化 ChatGPT 模型：空值回落默认值，已下线模型迁移到当前默认。
+ */
+export function normalizeChatGptModel(value) {
+  const model = String(value || "").trim();
+  if (!model) return DEFAULT_CHATGPT_MODEL;
+  if (DEPRECATED_CHATGPT_MODELS.includes(model)) {
+    return DEFAULT_CHATGPT_MODEL;
+  }
+  return model;
+}
+
 
 export function isChromeAiProvider(provider) {
   return provider === PROVIDER_CHROME_AI;
@@ -657,7 +671,7 @@ function normalizeSettings(settings = {}, options = {}) {
     githubOAuthClientId,
     githubToken,
     githubModel: settings?.githubModel || DEFAULT_SETTINGS.githubModel,
-    chatgptModel: settings?.chatgptModel || DEFAULT_SETTINGS.chatgptModel,
+    chatgptModel: normalizeChatGptModel(settings?.chatgptModel),
     translateTargetLang:
       settings?.translateTargetLang || DEFAULT_SETTINGS.translateTargetLang,
     autoTranslateMode: normalizeAutoTranslateMode(

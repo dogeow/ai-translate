@@ -8,12 +8,13 @@
 - **页面翻译（可视区域优先）**：左键打开扩展弹窗后点击「翻译该页面」，或在网页右键选择「英语学习和AI翻译整个页面（可视区域优先）」，先翻译当前可视区域，滚动后继续翻译新出现内容；可在弹窗中停止后续翻译
 - **快捷键操作**：`Alt+T` 翻译当前选中内容；扩展开关、页面翻译、取词方式、学习模式、生词标记和认词模式等都可在扩展快捷方式中绑定按键
 - **多厂家切换**：`Ollama（本地）`、`MiniMax（云端）`、`GitHub Copilot`、`ChatGPT（设备登录）`、`Chrome 内置 AI`
-- **独立模型选择**：翻译、AI 页面改造和英语学习可分别选择已经验证的模型，互不影响；Ollama 使用本地模型列表，MiniMax / GitHub Copilot / ChatGPT 可手动指定模型
+- **独立模型选择**：翻译、AI 页面改造和英语学习可分别选择已经验证的模型，互不影响；Ollama 使用本地模型列表，GitHub Copilot / ChatGPT 可探测可用模型，MiniMax 可手动指定模型
 - **AI 页面改造**：支持专注阅读、护眼配色、正文放大等快捷模板，并可在弹窗中一键恢复当前网页原版
 - **中英双向翻译**：默认目标为中文时，英文等内容译为中文；识别到中文原文时自动改译英语。中英文混合页面会按每段语言分别处理
 - **单词朗读**：英文单词翻译结果支持美式发音，使用有道词典音频接口
 - **翻译偏好**：默认翻译语言在「翻译偏好」卡片中设置
 - **学习模式**（可选）：翻译后展示句型分析（主语/谓语/状语等）
+- **DogeOW 单词云同步**：通过 next.dogeow.com SSO 登录后，生词本（学习中 / 我会的）可多设备合并同步
 
 ## 前置条件
 
@@ -22,7 +23,7 @@
 - 如使用 Ollama：本机已安装 [Ollama](https://ollama.com)，并至少拉取一个模型（例如 `ollama pull qwen2.5:7b`）
 - 如使用 MiniMax：准备可用的 MiniMax API Key
 - 如使用 GitHub Copilot：准备一个已启用 Device Flow 的 GitHub OAuth App Client ID，并使用设备登录完成授权
-- 如使用 ChatGPT：账号需要开通 Codex，并在 ChatGPT 安全设置或工作区权限中允许设备码登录；`gpt-5.3-codex-spark` 预览模型需要相应账号权限
+- 如使用 ChatGPT：账号需要开通 Codex，并在 ChatGPT 安全设置或工作区权限中允许设备码登录；可用模型通过 Codex `/models` 探测，默认 `gpt-5.6-luna`
 
 ## 配置指引（重点）
 
@@ -42,9 +43,21 @@
    - 点击 **开始设备登录**
    - 在自动打开的 OpenAI 页面输入扩展显示的一次性验证码
    - 授权成功后扩展会自动保存并刷新令牌；令牌只保存在 `chrome.storage.local`，不会进入浏览器同步设置
-   - **模型** 默认值：`gpt-5.3-codex-spark`
+   - 点击 **测试连接** 会探测当前账号可用的 Codex 模型列表
+   - **模型** 默认值：`gpt-5.6-luna`（最快 / 最省额度；也可在下拉中切换 Sol / Terra 等）
 
 ChatGPT 设备登录使用 OpenAI 官方 Codex 流程，详见 [Codex authentication](https://learn.chatgpt.com/docs/auth#preferred-device-code-authentication-beta)。
+
+### 英语学习 · DogeOW 云同步
+
+1. 打开扩展设置 → **英语学习** → 展开「设置与数据」
+2. 点击 **DogeOW 登录**，在 next.dogeow.com 完成账号登录
+3. 登录成功后会自动做一次本地 ⇄ 云端合并同步；之后增删单词会后台自动同步
+4. 也可随时点 **立即同步** 手动合并
+
+后端依赖：
+- `https://next.dogeow.com/auth/sso/ai-translate`（SSO 登录页）
+- `https://next-api.dogeow.com/api/ai-translate/words`（单词云端存储）
 
 ## 学习模式说明
 

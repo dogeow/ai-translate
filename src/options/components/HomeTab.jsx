@@ -200,9 +200,8 @@ export function HomeTab({
         onSubmit={saveProvider}
         testConnectionResult={testConnectionResult}
         updateConnectionStatus={updateConnectionStatus}
-        models={
-          providerModalState?.provider === settings.provider ? models : []
-        }
+        models={models}
+        activeProvider={settings.provider}
         setOriginsModalOpen={(isOpen) => {
           if (isOpen) closeProviderModal();
           setOriginsModalOpen(isOpen);
@@ -212,7 +211,7 @@ export function HomeTab({
         }
       />
 
-      <Card title="翻译引擎">
+      <Card className="card-engines">
         <ProviderCards
           settings={settings}
           refreshKey={providerCardsRefreshKey}

@@ -5,6 +5,7 @@ import {
   WordLearningToolbar,
 } from "./word-learning/WordLearningControls.jsx";
 import { WordLearningList } from "./word-learning/WordLearningList.jsx";
+import { DogeowCloudSync } from "./word-learning/DogeowCloudSync.jsx";
 import { useWordLearning } from "./word-learning/useWordLearning.js";
 
 export function WordLearningTab() {
@@ -72,6 +73,7 @@ export function WordLearningTab() {
             recognitionModeEnabled={recognitionModeEnabled}
             studyingCount={studyingCount}
           />
+          <DogeowCloudSync />
           <WordLearningTransferControls
             busy={transferBusy}
             knownCount={knownCount}

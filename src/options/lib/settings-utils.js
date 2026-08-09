@@ -11,6 +11,7 @@ import {
   resolveGitHubToken,
   getGitHubTokenLabel,
   normalizeAllSettings,
+  normalizeChatGptModel,
   normalizeAutoTranslateMode,
   normalizeHoverTranslateScope,
   normalizeHoverTranslateDelayMs,
@@ -66,10 +67,7 @@ export function getSettingsSnapshot(settings = {}) {
       settings.githubModel,
       DEFAULT_SETTINGS.githubModel,
     ),
-    chatgptModel: normalizeModelInput(
-      settings.chatgptModel,
-      DEFAULT_SETTINGS.chatgptModel,
-    ),
+    chatgptModel: normalizeChatGptModel(settings.chatgptModel),
   };
 }
 
@@ -145,10 +143,7 @@ export function getStoredSettingsShape(stored = {}) {
       stored.githubModel,
       DEFAULT_SETTINGS.githubModel,
     ),
-    chatgptModel: normalizeModelInput(
-      stored.chatgptModel,
-      DEFAULT_SETTINGS.chatgptModel,
-    ),
+    chatgptModel: normalizeChatGptModel(stored.chatgptModel),
     hoverTranslateDelayMs: String(normalized.hoverTranslateDelayMs),
     pageTranslateConcurrency: String(normalized.pageTranslateConcurrency),
     pageTranslateBatchChars: String(normalized.pageTranslateBatchChars),

@@ -1,4 +1,5 @@
 import {
+  CHATGPT_CODEX_CLIENT_VERSION,
   CHATGPT_CODEX_ORIGINATOR,
   CHATGPT_CODEX_USER_AGENT,
   DEFAULT_CHATGPT_CODEX_API_URL,
@@ -20,6 +21,11 @@ import {
 } from "./utils/apiUtils.js";
 
 const CHATGPT_CODEX_RESPONSES_PATH = "/responses";
+const CHATGPT_CODEX_MODELS_PATH = "/models";
+const CHATGPT_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** @type {Map<string, { models: string[], updatedAt: number }>} */
+const chatgptModelsCache = new Map();
 
 export function buildChatGptCodexRequestBody(
   model = DEFAULT_CHATGPT_MODEL,
@@ -52,15 +58,15 @@ function makeRequestId() {
   return `ai-translate-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function buildChatGptCodexHeaders(auth, requestId = makeRequestId()) {
+export function buildChatGptCodexHeaders(auth, requestId = makeRequestId(), options = {}) {
   const accessToken = String(auth?.accessToken || "").trim();
   if (!accessToken) {
     throw new Error("请先完成 ChatGPT 设备登录。");
   }
+  const accept = options.accept || "text/event-stream";
   const headers = {
-    Accept: "text/event-stream",
+    Accept: accept,
     Authorization: `Bearer ${accessToken}`,
-    "Content-Type": "application/json",
     "X-Client-Request-Id": requestId,
     "Session-Id": requestId,
     "Thread-Id": requestId,
@@ -69,6 +75,9 @@ export function buildChatGptCodexHeaders(auth, requestId = makeRequestId()) {
     // User-Agent，因此 manifest 中另有一条仅针对 Codex API 的规则。
     "User-Agent": CHATGPT_CODEX_USER_AGENT,
   };
+  if (options.includeContentType !== false) {
+    headers["Content-Type"] = "application/json";
+  }
   if (auth.accountId) {
     headers["ChatGPT-Account-Id"] = auth.accountId;
   }
@@ -86,7 +95,7 @@ function buildChatGptErrorMessage(status, responseText = "") {
     return "当前 ChatGPT 账号或工作区未开通 Codex 设备登录权限。";
   }
   if (status === 404) {
-    return `ChatGPT 当前无法使用所选模型。${DEFAULT_CHATGPT_MODEL} 需要支持该预览模型的 ChatGPT 账号。`;
+    return "ChatGPT 当前无法使用所选模型，请点击「测试连接」重新拉取可用模型列表。";
   }
   if (status === 429) {
     return "ChatGPT 当前已达到使用限额，请稍后再试。";
@@ -95,6 +104,113 @@ function buildChatGptErrorMessage(status, responseText = "") {
     return `ChatGPT 服务暂时不可用（HTTP ${status}），请稍后再试。`;
   }
   return buildHttpErrorMessage(status, "ChatGPT", responseText);
+}
+
+function extractChatGptModelSlug(model) {
+  if (typeof model === "string") return model.trim();
+  if (!model || typeof model !== "object") return "";
+  return String(model.slug || model.id || model.name || "").trim();
+}
+
+/**
+ * 从 Codex /models 响应中筛出适合展示/请求的模型 slug。
+ * 隐藏项、非 API 模型以及审查专用模型会被排除。
+ */
+export function parseChatGptCodexModels(payload) {
+  const source = Array.isArray(payload?.models)
+    ? payload.models
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload)
+        ? payload
+        : [];
+
+  const names = [];
+  const seen = new Set();
+  for (const item of source) {
+    const slug = extractChatGptModelSlug(item);
+    if (!slug || seen.has(slug)) continue;
+    if (typeof item === "object" && item) {
+      const visibility = String(item.visibility || "list").toLowerCase();
+      if (visibility === "hide" || visibility === "hidden") continue;
+      if (item.supported_in_api === false) continue;
+      if (slug === "codex-auto-review") continue;
+    }
+    seen.add(slug);
+    names.push(slug);
+  }
+  return names;
+}
+
+export function buildChatGptModelsUrl(
+  clientVersion = CHATGPT_CODEX_CLIENT_VERSION,
+) {
+  const version = String(clientVersion || CHATGPT_CODEX_CLIENT_VERSION).trim();
+  const base = `${DEFAULT_CHATGPT_CODEX_API_URL}${CHATGPT_CODEX_MODELS_PATH}`;
+  return `${base}?client_version=${encodeURIComponent(version)}`;
+}
+
+/**
+ * 探测当前 ChatGPT 账号可用的 Codex 模型列表。
+ * @returns {Promise<string[]>}
+ */
+export async function fetchChatGptModels(options = {}) {
+  const { forceRefresh = false, fetchImpl = fetch } = options;
+  const auth =
+    options.auth ||
+    (await getValidChatGptAuth(options.authOptions || {}));
+  const cacheKey = String(auth.accountId || auth.email || "default");
+  const cached = chatgptModelsCache.get(cacheKey);
+  const now = Date.now();
+  if (
+    !forceRefresh &&
+    cached &&
+    now - cached.updatedAt < CHATGPT_MODELS_CACHE_TTL_MS
+  ) {
+    return [...cached.models];
+  }
+
+  const endpoint = buildChatGptModelsUrl(
+    options.clientVersion || CHATGPT_CODEX_CLIENT_VERSION,
+  );
+  let response = await fetchImpl(endpoint, {
+    method: "GET",
+    headers: buildChatGptCodexHeaders(auth, makeRequestId(), {
+      accept: "application/json",
+      includeContentType: false,
+    }),
+  });
+
+  if (response.status === 401 && !options.auth) {
+    const refreshed = await getValidChatGptAuth({
+      ...(options.authOptions || {}),
+      forceRefresh: true,
+    });
+    response = await fetchImpl(endpoint, {
+      method: "GET",
+      headers: buildChatGptCodexHeaders(refreshed, makeRequestId(), {
+        accept: "application/json",
+        includeContentType: false,
+      }),
+    });
+  }
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    throw new Error(buildChatGptErrorMessage(response.status, responseText));
+  }
+
+  const payload = await response.json().catch(() => null);
+  const models = parseChatGptCodexModels(payload);
+  if (models.length === 0) {
+    throw new Error("ChatGPT 未返回可用模型，请确认账号已开通 Codex。");
+  }
+
+  chatgptModelsCache.set(cacheKey, {
+    models: [...models],
+    updatedAt: now,
+  });
+  return [...models];
 }
 
 function extractResponseOutput(response) {
@@ -312,6 +428,24 @@ export async function testChatGptConnection(
     forceRefresh: options.forceRefresh === true,
   });
   if (options.probe === false) return auth;
+
+  // 优先探测模型列表；列表不可用时再回退到发送一条最小 completion。
+  if (options.listModels !== false) {
+    try {
+      const models = await fetchChatGptModels({
+        auth,
+        forceRefresh: true,
+        fetchImpl: options.fetchImpl,
+        clientVersion: options.clientVersion,
+      });
+      return { auth, models };
+    } catch (listError) {
+      if (options.allowCompletionFallback === false) {
+        throw listError;
+      }
+    }
+  }
+
   await generateChatGptCompletion(
     "",
     "",
@@ -322,5 +456,5 @@ export async function testChatGptConnection(
       fetchImpl: options.fetchImpl,
     },
   );
-  return auth;
+  return { auth, models: [model] };
 }

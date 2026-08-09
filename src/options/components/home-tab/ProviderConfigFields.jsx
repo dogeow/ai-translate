@@ -61,8 +61,9 @@ export function ProviderConfigFields({
   const testConnectionClassName = getConnectionResultClass(
     testConnectionResult.tone,
   );
-  const availableModels =
-    settings.provider === provider ? models : [];
+  // 弹窗 draft 的 provider 已对齐；主界面编辑时也可能直接传入配置用 settings。
+  // 模型列表由上游保证只在对应 provider 探测后填充。
+  const availableModels = Array.isArray(models) ? models : [];
 
   return (
     <>

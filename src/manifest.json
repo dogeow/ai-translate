@@ -49,6 +49,7 @@
     "tabs",
     "scripting",
     "activeTab",
+    "identity",
     "declarativeNetRequestWithHostAccess"
   ],
   "chrome:permissions": [
@@ -57,6 +58,7 @@
     "tabs",
     "scripting",
     "activeTab",
+    "identity",
     "declarativeNetRequestWithHostAccess",
     "sidePanel"
   ],
@@ -68,7 +70,9 @@
     "https://models.github.ai/*",
     "https://auth.openai.com/*",
     "https://chatgpt.com/*",
-    "https://dict.youdao.com/*"
+    "https://dict.youdao.com/*",
+    "https://next.dogeow.com/*",
+    "https://next-api.dogeow.com/*"
   ],
   "declarative_net_request": {
     "rule_resources": [

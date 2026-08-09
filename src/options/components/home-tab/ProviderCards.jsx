@@ -38,6 +38,12 @@ export function ProviderCards({
   return (
     <div className="provider-manager">
       <div className="provider-manager__header">
+        <div className="provider-manager__intro">
+          <h2 className="provider-manager__title">翻译引擎</h2>
+          <p className="provider-manager__desc">
+            添加并切换翻译所用的 AI 服务，点选卡片即可设为当前引擎。
+          </p>
+        </div>
         <button
           type="button"
           className="btn btn-primary provider-manager__add"
@@ -50,10 +56,22 @@ export function ProviderCards({
 
       {addedProviders.length === 0 ? (
         <div className="provider-manager__empty">
-          暂无已添加引擎，请点击“新增引擎”。
+          <p className="provider-manager__empty-title">还没有翻译引擎</p>
+          <p className="provider-manager__empty-desc">
+            点击右上角「新增引擎」添加 Ollama、ChatGPT 等服务。
+          </p>
+          {canAdd ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onAdd}
+            >
+              新增引擎
+            </button>
+          ) : null}
         </div>
       ) : (
-        <div className="provider-grid">
+        <div className="provider-list" role="list">
           {addedProviders.map((provider) => {
             const isActive = settings.provider === provider;
             const meta = getProviderCardMeta(
@@ -62,61 +80,71 @@ export function ProviderCards({
               chatGptLoggedIn,
               chromeAiRuntimeState,
             );
+            const label = getProviderLabel(provider);
             return (
               <div
                 key={provider}
-                className={`provider-card ${isActive ? "provider-card--active" : ""}`.trim()}
+                role="listitem"
+                className={`provider-row ${isActive ? "provider-row--active" : ""}`.trim()}
               >
                 <button
                   type="button"
-                  className="provider-card__switch"
+                  className="provider-row__main"
                   aria-pressed={isActive}
                   onClick={() => onSwitch(provider)}
                 >
-                  <span className="provider-card__icon">
+                  <span
+                    className={`provider-row__radio ${isActive ? "provider-row__radio--on" : ""}`.trim()}
+                    aria-hidden="true"
+                  />
+                  <span className="provider-row__icon">
                     {getProviderIconLabel(provider)}
                   </span>
-                  <span className="provider-card__content">
-                    <span className="provider-card__title">
-                      {getProviderLabel(provider)}
+                  <span className="provider-row__body">
+                    <span className="provider-row__top">
+                      <span className="provider-row__title">{label}</span>
+                      {isActive ? (
+                        <span className="provider-row__badge">使用中</span>
+                      ) : null}
                     </span>
-                    <span className="provider-card__detail">
-                      {meta.detail || "默认模型"}
-                    </span>
-                    <span
-                      className={`provider-card__status ${meta.ready ? "provider-card__status--ready" : ""}`.trim()}
-                    >
-                      <span aria-hidden="true"></span>
-                      {meta.status}
+                    <span className="provider-row__meta">
+                      <span className="provider-row__detail">
+                        {meta.detail || "默认模型"}
+                      </span>
+                      <span className="provider-row__dot" aria-hidden="true">
+                        ·
+                      </span>
+                      <span
+                        className={`provider-row__status ${meta.ready ? "provider-row__status--ready" : "provider-row__status--warn"}`.trim()}
+                      >
+                        <span
+                          className="provider-row__status-dot"
+                          aria-hidden="true"
+                        />
+                        {meta.status}
+                      </span>
                     </span>
                   </span>
                 </button>
-                <span className="provider-card__actions">
-                  {isActive ? (
-                    <span className="provider-card__active-badge">
-                      使用中
-                    </span>
-                  ) : null}
-                  <span className="provider-card__action-buttons">
-                    <button
-                      type="button"
-                      className="provider-card__settings"
-                      aria-label={`设置 ${getProviderLabel(provider)}`}
-                      title="设置"
-                      onClick={() => onConfigure(provider)}
-                    >
-                      设置
-                    </button>
-                    <button
-                      type="button"
-                      className="provider-card__delete"
-                      aria-label={`删除 ${getProviderLabel(provider)}`}
-                      title="删除"
-                      onClick={() => onRemove(provider)}
-                    >
-                      删除
-                    </button>
-                  </span>
+                <span className="provider-row__actions">
+                  <button
+                    type="button"
+                    className="provider-row__btn"
+                    aria-label={`设置 ${label}`}
+                    title="设置"
+                    onClick={() => onConfigure(provider)}
+                  >
+                    设置
+                  </button>
+                  <button
+                    type="button"
+                    className="provider-row__btn provider-row__btn--danger"
+                    aria-label={`删除 ${label}`}
+                    title="删除"
+                    onClick={() => onRemove(provider)}
+                  >
+                    删除
+                  </button>
                 </span>
               </div>
             );

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ProviderConfigFields } from "./ProviderConfigFields.jsx";
 import { InfoTip, FieldLabel } from "../common/InfoTip.jsx";
-import { isChromeAiProvider } from "../../../shared/settings.js";
+import { fetchChatGptModels } from "../../../shared/chatgpt-codex-api.js";
+import {
+  isChatGptProvider,
+  isChromeAiProvider,
+} from "../../../shared/settings.js";
 import {
   buildProviderDraft,
   getProviderLabel,
@@ -16,11 +20,13 @@ export function ProviderModal({
   testConnectionResult,
   updateConnectionStatus,
   models,
+  activeProvider,
   setOriginsModalOpen,
   onAvailabilityInvalidated,
 }) {
   const [draft, setDraft] = useState(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [modalModels, setModalModels] = useState([]);
   const [hasTestedConnection, setHasTestedConnection] = useState(false);
   const [chromeAiAutoReady, setChromeAiAutoReady] = useState(false);
   const [checkingChromeAi, setCheckingChromeAi] = useState(false);
@@ -36,7 +42,40 @@ export function ProviderModal({
     setHasTestedConnection(false);
     setChromeAiAutoReady(false);
     setCheckingChromeAi(false);
-  }, [state?.mode, state?.provider]);
+    // 仅当编辑当前激活引擎时，沿用主界面已探测到的模型列表；
+    // 新增 / 配置其他引擎时先清空，避免串用上一家的模型。
+    setModalModels(
+      state.provider === activeProvider && Array.isArray(models)
+        ? models
+        : [],
+    );
+  }, [state?.mode, state?.provider, activeProvider]);
+
+  useEffect(() => {
+    if (!Array.isArray(models) || models.length === 0) return;
+    // 测试连接后，或主界面已探测到当前引擎模型时，同步进弹窗列表。
+    if (hasTestedConnection || state?.provider === activeProvider) {
+      setModalModels(models);
+    }
+  }, [models, hasTestedConnection, state?.provider, activeProvider]);
+
+  // ChatGPT：打开弹窗时直接探测可用模型（不依赖「测试连接」，也不改验证状态）。
+  useEffect(() => {
+    if (!state || !draft) return undefined;
+    if (!isChatGptProvider(draft.provider)) return undefined;
+    let cancelled = false;
+    void fetchChatGptModels({ forceRefresh: true })
+      .then((names) => {
+        if (cancelled || !Array.isArray(names) || names.length === 0) return;
+        setModalModels(names.map((name) => ({ name })));
+      })
+      .catch(() => {
+        // 未登录或探测失败时保留 fallback 候选，不打断配置流程。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state?.mode, state?.provider, draft?.provider]);
 
   useEffect(() => {
     if (!state) return undefined;
@@ -73,16 +112,20 @@ export function ProviderModal({
     setHasTestedConnection(false);
     setChromeAiAutoReady(false);
     setCheckingChromeAi(false);
+    setModalModels(
+      provider === activeProvider && Array.isArray(models) ? models : [],
+    );
   };
   const updateModalConnectionStatus = async (
     nextSettings,
     options = {},
   ) => {
     setHasTestedConnection(true);
-    return updateConnectionStatus(nextSettings, {
+    const result = await updateConnectionStatus(nextSettings, {
       ...options,
       updateBannerStatus: state.mode === "add",
     });
+    return result;
   };
   const connectionVerified =
     chromeAiAutoReady ||
@@ -174,7 +217,7 @@ export function ProviderModal({
                 : { text: "", tone: "", showAction: false }
             }
             updateConnectionStatus={updateModalConnectionStatus}
-            models={models}
+            models={modalModels}
             modelDropdownOpen={modelDropdownOpen}
             setModelDropdownOpen={setModelDropdownOpen}
             modelDropdownRef={modelDropdownRef}
@@ -188,37 +231,45 @@ export function ProviderModal({
         </div>
 
         <div className="provider-modal__footer">
-          {state.mode === "add" && !connectionVerified ? (
-            <span className="provider-modal__verification-hint">
-              待测试
-            </span>
-          ) : null}
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            取消
-          </button>
-          {isChromeAi ? (
+          <div className="provider-modal__footer-status">
+            {state.mode === "add" && !connectionVerified ? (
+              <span className="provider-modal__verification-hint">
+                待测试
+              </span>
+            ) : null}
+          </div>
+          <div className="provider-modal__footer-actions">
             <button
               type="button"
               className="btn btn-secondary"
-              disabled={checkingChromeAi}
-              onClick={checkChromeAiFromFooter}
+              onClick={onClose}
             >
-              {checkingChromeAi ? "检测中…" : "检查可用性"}
+              取消
             </button>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={state.mode === "add" && !connectionVerified}
-            onClick={() =>
-              onSubmit(draftRef.current, {
-                connectionTested: hasTestedConnection,
-                connectionVerified,
-              })
-            }
-          >
-            {state.mode === "add" ? "添加并使用" : "保存设置"}
-          </button>
+            {isChromeAi ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={checkingChromeAi}
+                onClick={checkChromeAiFromFooter}
+              >
+                {checkingChromeAi ? "检测中…" : "检查可用性"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={state.mode === "add" && !connectionVerified}
+              onClick={() =>
+                onSubmit(draftRef.current, {
+                  connectionTested: hasTestedConnection,
+                  connectionVerified,
+                })
+              }
+            >
+              {state.mode === "add" ? "添加并使用" : "保存设置"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

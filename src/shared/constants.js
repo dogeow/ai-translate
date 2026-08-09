@@ -65,10 +65,24 @@ export const GITHUB_MODEL_WHITELIST = Object.freeze([
 // ChatGPT / Codex 连接配置
 export const DEFAULT_CHATGPT_CODEX_API_URL =
   "https://chatgpt.com/backend-api/codex";
-export const DEFAULT_CHATGPT_MODEL = "gpt-5.3-codex-spark";
+// 默认使用当前 Codex 侧最便宜/最快的 GPT-5.6 档；具体可用模型以 /models 探测为准。
+export const DEFAULT_CHATGPT_MODEL = "gpt-5.6-luna";
+// 未探测成功时展示的候选模型（与当前 Codex 常见公开档位对齐）。
+export const CHATGPT_MODEL_FALLBACK_LIST = Object.freeze([
+  "gpt-5.6-luna",
+  "gpt-5.6-terra",
+  "gpt-5.6-sol",
+  "gpt-5.5",
+  "gpt-5.4",
+  "gpt-5.4-mini",
+]);
+// 历史上写死、现已不再对 ChatGPT 账号开放的模型，读取设置时会迁移到默认值。
+export const DEPRECATED_CHATGPT_MODELS = Object.freeze([
+  "gpt-5.3-codex-spark",
+]);
 // ChatGPT 会从 Codex 客户端标识中判断是否支持预览模型。
 // 这是 Codex 协议兼容版本，不是浏览器扩展自身的 manifest 版本。
-export const CHATGPT_CODEX_CLIENT_VERSION = "0.146.0";
+export const CHATGPT_CODEX_CLIENT_VERSION = "0.147.0";
 export const CHATGPT_CODEX_ORIGINATOR = "Codex Desktop";
 export const CHATGPT_CODEX_USER_AGENT =
   `Codex Desktop/${CHATGPT_CODEX_CLIENT_VERSION} (Chrome Extension; ai-translate)`;

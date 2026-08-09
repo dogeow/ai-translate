@@ -24,7 +24,10 @@ import {
   checkChromeAiAvailability,
 } from "../../shared/chrome-ai-api.js";
 import { getChatGptAuthSummary } from "../../shared/chatgpt-auth.js";
-import { testChatGptConnection } from "../../shared/chatgpt-codex-api.js";
+import {
+  fetchChatGptModels,
+  testChatGptConnection,
+} from "../../shared/chatgpt-codex-api.js";
 
 /**
  * 管理翻译提供商连接状态的 hook
@@ -430,7 +433,8 @@ export function useConnectionStatus({
       if (isChatGptProvider(provider)) {
         const fallbackModel =
           nextSettings.chatgptModel || DEFAULT_CHATGPT_MODEL;
-        setModels([{ name: fallbackModel }]);
+        let chatgptModels = [{ name: fallbackModel }];
+        setModels(chatgptModels);
         const summary = await getChatGptAuthSummary({ refresh: true });
         if (requestId !== connectionRequestIdRef.current) return;
 
@@ -453,19 +457,36 @@ export function useConnectionStatus({
           return;
         }
 
-        if (showTestPending) {
-          try {
-            await testChatGptConnection(fallbackModel);
-          } catch (error) {
-            if (requestId !== connectionRequestIdRef.current) return;
+        let fetchedFromApi = false;
+        try {
+          const remoteModelNames = showTestPending
+            ? (
+                await testChatGptConnection(fallbackModel, {
+                  listModels: true,
+                })
+              )?.models
+            : await fetchChatGptModels({ forceRefresh: showTestPending });
+          if (requestId !== connectionRequestIdRef.current) return;
+          if (Array.isArray(remoteModelNames) && remoteModelNames.length > 0) {
+            const names = [...remoteModelNames];
+            if (fallbackModel && !names.includes(fallbackModel)) {
+              names.unshift(fallbackModel);
+            }
+            chatgptModels = names.map((name) => ({ name }));
+            fetchedFromApi = true;
+          }
+        } catch (error) {
+          if (requestId !== connectionRequestIdRef.current) return;
+          if (showTestPending) {
             applyConnectionStatus(
               {
                 kind: "err",
-                text: "ChatGPT 模型不可用",
+                text: "ChatGPT 模型列表不可用",
                 showAction: false,
               },
               updateBannerStatus,
             );
+            setModels(chatgptModels);
             setTestConnectionResult({
               text: error?.message || String(error),
               tone: "err",
@@ -475,6 +496,7 @@ export function useConnectionStatus({
           }
         }
 
+        setModels(chatgptModels);
         const identity = summary.email ? `（${summary.email}）` : "";
         applyConnectionStatus(
           {
@@ -486,7 +508,9 @@ export function useConnectionStatus({
         );
         if (!preserveTestMessage) {
           setTestConnectionResult({
-            text: `登录有效，当前模型：${fallbackModel}`,
+            text: fetchedFromApi
+              ? `登录有效，已获取 ${chatgptModels.length} 个模型`
+              : `登录有效，当前模型：${fallbackModel}`,
             tone: "ok",
             showAction: false,
           });

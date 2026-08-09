@@ -20,8 +20,43 @@ import {
   mergeWordLearningData,
   parseWordLearningImport,
 } from "../shared/word-learning-transfer.js";
+import {
+  beginDogeowSsoLogin,
+  getDogeowAuthSummary,
+  logoutDogeow,
+} from "../shared/dogeow-auth.js";
+import {
+  getWordSyncMeta,
+  syncWordsWithCloud,
+} from "../shared/dogeow-word-sync.js";
 
 export { lookupWordCached } from "./wordLookupService.js";
+
+let cloudSyncTimer = null;
+let cloudSyncInFlight = null;
+
+async function scheduleCloudWordSync() {
+  if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(() => {
+    cloudSyncTimer = null;
+    void maybeSyncWordsToCloud();
+  }, 1500);
+}
+
+async function maybeSyncWordsToCloud() {
+  const summary = await getDogeowAuthSummary({ skipProfile: true });
+  if (!summary.isLoggedIn) return null;
+  if (cloudSyncInFlight) return cloudSyncInFlight;
+  cloudSyncInFlight = syncWordsWithCloud()
+    .catch((error) => {
+      console.warn("[ai-translate] cloud word sync failed:", error);
+      return null;
+    })
+    .finally(() => {
+      cloudSyncInFlight = null;
+    });
+  return cloudSyncInFlight;
+}
 
 async function broadcastWordsChanged(change = {}) {
   try {
@@ -73,6 +108,7 @@ export async function handleWordLearningMessage(msg) {
       if (merged.addedKnown > 0 || merged.addedStudying > 0) {
         await saveAllWords(merged);
         await broadcastWordsChanged();
+        void scheduleCloudWordSync();
       }
       return {
         ok: true,
@@ -96,32 +132,43 @@ export async function handleWordLearningMessage(msg) {
   }
   if (msg.action === "setWordLearningStatus") {
     const result = await setWordLearningStatus(msg.word, msg.status);
-    if (result) await broadcastWordsChanged(result);
+    if (result) {
+      await broadcastWordsChanged(result);
+      void scheduleCloudWordSync();
+    }
     return result
       ? { ok: true, ...result }
       : { ok: false, error: "无效的单词状态。" };
   }
   if (msg.action === "addKnownWord") {
     const word = await addKnownWord(msg.word);
-    if (word) await broadcastWordsChanged({ word, status: "known" });
+    if (word) {
+      await broadcastWordsChanged({ word, status: "known" });
+      void scheduleCloudWordSync();
+    }
     return { ok: !!word, word };
   }
   if (msg.action === "removeKnownWord") {
     const ok = await removeKnownWord(msg.word);
     if (ok) {
       await broadcastWordsChanged({ word: msg.word, status: "unmarked" });
+      void scheduleCloudWordSync();
     }
     return { ok };
   }
   if (msg.action === "addStudyingWord") {
     const word = await addStudyingWord(msg.word);
-    if (word) await broadcastWordsChanged({ word, status: "studying" });
+    if (word) {
+      await broadcastWordsChanged({ word, status: "studying" });
+      void scheduleCloudWordSync();
+    }
     return { ok: !!word, word };
   }
   if (msg.action === "removeStudyingWord") {
     const ok = await removeStudyingWord(msg.word);
     if (ok) {
       await broadcastWordsChanged({ word: msg.word, status: "unmarked" });
+      void scheduleCloudWordSync();
     }
     return { ok };
   }
@@ -133,8 +180,56 @@ export async function handleWordLearningMessage(msg) {
         status: "studying",
         entry,
       });
+      void scheduleCloudWordSync();
     }
     return { ok: !!entry, entry };
   }
+
+  if (msg.action === "dogeowGetAuth") {
+    const summary = await getDogeowAuthSummary();
+    const meta = await getWordSyncMeta();
+    return { ok: true, ...summary, syncMeta: meta };
+  }
+  if (msg.action === "dogeowLogin") {
+    try {
+      const auth = await beginDogeowSsoLogin();
+      const summary = await getDogeowAuthSummary({ skipProfile: true });
+      // 登录后立刻做一次双向同步
+      const syncResult = await syncWordsWithCloud().catch((error) => ({
+        error: error?.message || String(error),
+      }));
+      if (syncResult && !syncResult.error) {
+        await broadcastWordsChanged();
+      }
+      return {
+        ok: true,
+        auth,
+        user: summary.user,
+        sync: syncResult,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error?.message || "DogeOW 登录失败。",
+      };
+    }
+  }
+  if (msg.action === "dogeowLogout") {
+    await logoutDogeow();
+    return { ok: true };
+  }
+  if (msg.action === "dogeowSyncWords") {
+    try {
+      const result = await syncWordsWithCloud();
+      await broadcastWordsChanged();
+      return { ok: true, ...result };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error?.message || "云端同步失败。",
+      };
+    }
+  }
+
   return null;
 }

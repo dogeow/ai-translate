@@ -52,12 +52,22 @@ test("getStoredSettingsShape 在加载时会 trim 自定义模型名", () => {
   assert.equal(stored.chatgptModel, "remote chatgpt model");
 });
 
-test("ChatGPT provider defaults to gpt-5.3-codex-spark", () => {
+test("ChatGPT provider defaults to gpt-5.6-luna", () => {
   const config = getConfig({ provider: "chatgpt" });
 
   assert.equal(config.provider, "chatgpt");
   assert.equal(config.model, DEFAULT_CHATGPT_MODEL);
+  assert.equal(config.model, "gpt-5.6-luna");
   assert.equal(config.apiKey, "");
+});
+
+test("ChatGPT migrates deprecated spark model to current default", () => {
+  const config = getConfig({
+    provider: "chatgpt",
+    chatgptModel: "gpt-5.3-codex-spark",
+  });
+  assert.equal(config.model, DEFAULT_CHATGPT_MODEL);
+  assert.equal(config.model, "gpt-5.6-luna");
 });
 
 test("settings keep the added provider card list and include the active provider", () => {
