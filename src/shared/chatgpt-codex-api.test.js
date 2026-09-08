@@ -27,6 +27,16 @@ test("ChatGPT Codex request defaults to gpt-5.6-luna", () => {
   assert.equal(body.stream, true);
 });
 
+test("ChatGPT Codex request can attach screenshot images", () => {
+  const body = buildChatGptCodexRequestBody("gpt-5.6-luna", "fix layout", {
+    images: ["data:image/jpeg;base64,abc"],
+  });
+  assert.deepEqual(body.input[0].content, [
+    { type: "input_text", text: "fix layout" },
+    { type: "input_image", image_url: "data:image/jpeg;base64,abc" },
+  ]);
+});
+
 test("ChatGPT fallback model list includes the default model", async () => {
   const { CHATGPT_MODEL_FALLBACK_LIST } = await import("./constants.js");
   assert.ok(CHATGPT_MODEL_FALLBACK_LIST.includes(DEFAULT_CHATGPT_MODEL));
@@ -180,6 +190,7 @@ test("ChatGPT Codex streaming restores all deltas", async () => {
       DEFAULT_CHATGPT_MODEL,
       "Translate dimensions",
       {
+        images: ["data:image/jpeg;base64,c2NyZWVuc2hvdA=="],
         auth: {
           accessToken: "access-token",
           accountId: "account-1",
@@ -194,6 +205,10 @@ test("ChatGPT Codex streaming restores all deltas", async () => {
       },
     );
     assert.equal(result.response, "尺寸");
+    assert.deepEqual(JSON.parse(sent.options.body).input[0].content[1], {
+      type: "input_image",
+      image_url: "data:image/jpeg;base64,c2NyZWVuc2hvdA==",
+    });
     assert.equal(
       JSON.parse(sent.options.body).model,
       DEFAULT_CHATGPT_MODEL,

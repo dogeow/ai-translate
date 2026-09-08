@@ -34,20 +34,22 @@ export async function runProviderCompletion({
   prompt,
   text,
   targetLang,
+  images = [],
 }) {
+  const imageOptions = { images };
   if (isChromeAiProvider(provider)) {
     return generateChromeAiCompletion(text, targetLang);
   }
   if (isMiniMaxProvider(provider)) {
-    return generateMiniMaxCompletion(base, apiKey, model, prompt);
+    return generateMiniMaxCompletion(base, apiKey, model, prompt, imageOptions);
   }
   if (isGitHubModelsProvider(provider)) {
-    return generateGitHubModelsCompletion(base, apiKey, model, prompt);
+    return generateGitHubModelsCompletion(base, apiKey, model, prompt, imageOptions);
   }
   if (isChatGptProvider(provider)) {
-    return generateChatGptCompletion(base, apiKey, model, prompt);
+    return generateChatGptCompletion(base, apiKey, model, prompt, imageOptions);
   }
-  return generateOllamaResponse(base, model, prompt);
+  return generateOllamaResponse(base, model, prompt, imageOptions);
 }
 
 export async function runProviderStreaming({

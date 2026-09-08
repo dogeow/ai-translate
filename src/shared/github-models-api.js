@@ -16,6 +16,7 @@ import {
   parseSseLine,
   processStreamResponse,
 } from "./utils/apiUtils.js";
+import { buildOpenAiChatUserContent } from "./ui-rewrite-media.js";
 
 export const GITHUB_API_VERSION = "2026-03-10";
 const DEVICE_CODE_URL = "https://github.com/login/device/code";
@@ -266,11 +267,13 @@ async function requestGitHubModelsChatCompletion(base, token, body) {
   };
 }
 
-export async function generateGitHubModelsCompletion(base, token, model, prompt) {
+export async function generateGitHubModelsCompletion(base, token, model, prompt, options = {}) {
   const normalizedBase = normalizeGitHubModelsBaseUrl(base);
   const requestBody = {
     model: model || DEFAULT_GITHUB_MODEL,
-    messages: [{ role: "user", content: prompt }],
+    messages: [
+      { role: "user", content: buildOpenAiChatUserContent(prompt, options.images) },
+    ],
     max_tokens: GITHUB_MODELS_MAX_OUTPUT_TOKENS,
     stream: false,
   };

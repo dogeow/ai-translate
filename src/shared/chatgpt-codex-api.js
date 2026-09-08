@@ -27,9 +27,24 @@ const CHATGPT_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
 /** @type {Map<string, { models: string[], updatedAt: number }>} */
 const chatgptModelsCache = new Map();
 
+function buildChatGptCodexInputContent(prompt = "", images = []) {
+  const content = [{ type: "input_text", text: String(prompt || "") }];
+  const source = Array.isArray(images) ? images : [];
+  for (const image of source) {
+    const url =
+      typeof image === "string"
+        ? image
+        : String(image?.dataUrl || image?.url || "").trim();
+    if (!url) continue;
+    content.push({ type: "input_image", image_url: url });
+  }
+  return content;
+}
+
 export function buildChatGptCodexRequestBody(
   model = DEFAULT_CHATGPT_MODEL,
   prompt = "",
+  options = {},
 ) {
   return {
     model: String(model || DEFAULT_CHATGPT_MODEL).trim() ||
@@ -40,7 +55,7 @@ export function buildChatGptCodexRequestBody(
       {
         type: "message",
         role: "user",
-        content: [{ type: "input_text", text: String(prompt || "") }],
+        content: buildChatGptCodexInputContent(prompt, options.images),
       },
     ],
     tools: [],
@@ -292,8 +307,9 @@ async function sendChatGptCodexRequest({
   prompt,
   auth,
   fetchImpl,
+  images,
 }) {
-  const requestBody = buildChatGptCodexRequestBody(model, prompt);
+  const requestBody = buildChatGptCodexRequestBody(model, prompt, { images });
   const endpoint = `${DEFAULT_CHATGPT_CODEX_API_URL}${CHATGPT_CODEX_RESPONSES_PATH}`;
   const response = await fetchImpl(endpoint, {
     method: "POST",
@@ -313,6 +329,7 @@ async function openChatGptCodexStream(model, prompt, options = {}) {
     prompt,
     auth,
     fetchImpl,
+    images: options.images,
   });
 
   if (result.response.status === 401 && !options.auth) {
@@ -325,6 +342,7 @@ async function openChatGptCodexStream(model, prompt, options = {}) {
       prompt,
       auth,
       fetchImpl,
+      images: options.images,
     });
   }
 
@@ -348,7 +366,9 @@ export async function generateChatGptStreamingCompletion(
   prompt,
   options = {},
 ) {
-  const requestBody = buildChatGptCodexRequestBody(model, prompt);
+  const requestBody = buildChatGptCodexRequestBody(model, prompt, {
+    images: options.images,
+  });
   const endpoint = `${DEFAULT_CHATGPT_CODEX_API_URL}${CHATGPT_CODEX_RESPONSES_PATH}`;
   const trace = createAiRequestLog({
     provider: "chatgpt",

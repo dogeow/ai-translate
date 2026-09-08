@@ -16,6 +16,10 @@ import {
   normalizeApiBaseUrl,
   safeJsonParse,
 } from "./utils/apiUtils.js";
+import {
+  normalizeRewriteImages,
+  stripDataUrlToBase64,
+} from "./ui-rewrite-media.js";
 
 function normalizeOllamaBaseUrl(base) {
   return normalizeApiBaseUrl(base, DEFAULT_OLLAMA_URL);
@@ -36,10 +40,17 @@ async function requestOllamaGenerate(base, requestBody) {
  * @param {string} base - Ollama 服务地址，如 http://127.0.0.1:11434
  * @param {string} model - 模型名称
  * @param {string} prompt - 提示词
+ * @param {{ images?: Array<{ dataUrl?: string } | string> }} [options]
  * @returns {Promise<string>} 生成的文本
  */
-export async function generateCompletion(base, model, prompt) {
+export async function generateCompletion(base, model, prompt, options = {}) {
   const requestBody = { model, prompt, stream: false };
+  const images = normalizeRewriteImages(options.images).map((image) =>
+    stripDataUrlToBase64(image.dataUrl),
+  );
+  if (images.length > 0) {
+    requestBody.images = images;
+  }
   const normalizedBase = normalizeOllamaBaseUrl(base);
   const endpoint = `${normalizedBase}/api/generate`;
   const trace = createAiRequestLog({

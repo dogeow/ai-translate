@@ -25,7 +25,12 @@ import {
   updateRuleMeta,
   findUiRewriteForUrl,
   getActiveCss,
+  getActiveVersion,
 } from "../shared/ui-rewrites.js";
+import {
+  isImageUnsupportedError,
+  mergeRewriteImages,
+} from "../shared/ui-rewrite-media.js";
 import { PROVIDER_CHROME_AI } from "../shared/constants.js";
 
 async function getRuntimeSettings() {
@@ -36,7 +41,110 @@ async function getRuntimeSettings() {
   return normalizeRuntimeSettings(stored);
 }
 
-export async function generateUiRewriteCss({ url, title, prompt }) {
+function sendTabMessage(tabId, message) {
+  return new Promise((resolve) => {
+    if (tabId == null) {
+      resolve(null);
+      return;
+    }
+    try {
+      chrome.tabs.sendMessage(tabId, message, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+        resolve(response || null);
+      });
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
+async function collectPageHtmlSnapshot(tabId, provided = "") {
+  const existing = String(provided || "").trim();
+  if (existing) return existing;
+  const response = await sendTabMessage(tabId, {
+    action: "collectUiRewriteContext",
+  });
+  return String(response?.html || "").trim();
+}
+
+async function captureTabScreenshot(tab, expectedUrl) {
+  if (tab?.id == null || tab.windowId == null) return "";
+  let changed = false;
+  const matchesTarget = (current) =>
+    current?.active &&
+    current.id === tab.id &&
+    current.windowId === tab.windowId &&
+    current.url === expectedUrl &&
+    (!current.pendingUrl || current.pendingUrl === expectedUrl);
+  const onActivated = (info) => {
+    if (info.windowId === tab.windowId && info.tabId !== tab.id) changed = true;
+  };
+  const onUpdated = (tabId, changeInfo) => {
+    if (tabId === tab.id && (changeInfo.url || changeInfo.status === "loading")) {
+      changed = true;
+    }
+  };
+  // captureVisibleTab captures the window's active tab, not a tab ID.
+  // Reject captures spanning a tab switch or navigation, even if it switches back.
+  chrome.tabs.onActivated.addListener(onActivated);
+  chrome.tabs.onUpdated.addListener(onUpdated);
+  try {
+    if (!matchesTarget(await chrome.tabs.get(tab.id)) || changed) return "";
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format: "jpeg",
+      quality: 55,
+    });
+    if (!matchesTarget(await chrome.tabs.get(tab.id)) || changed) return "";
+    return typeof dataUrl === "string" ? dataUrl : "";
+  } catch (_) {
+    return "";
+  } finally {
+    chrome.tabs.onActivated.removeListener(onActivated);
+    chrome.tabs.onUpdated.removeListener(onUpdated);
+  }
+}
+
+async function completeWithImages(runtime, buildPrompt, text, images) {
+  try {
+    return await runProviderCompletion({
+      provider: runtime.provider,
+      base: runtime.base,
+      model: runtime.selectedModel,
+      apiKey: runtime.apiKey,
+      prompt: buildPrompt(images.length > 0),
+      text,
+      targetLang: runtime.targetLang,
+      images,
+    });
+  } catch (error) {
+    if (images.length > 0 && isImageUnsupportedError(error)) {
+      return runProviderCompletion({
+        provider: runtime.provider,
+        base: runtime.base,
+        model: runtime.selectedModel,
+        apiKey: runtime.apiKey,
+        prompt: buildPrompt(false),
+        text,
+        targetLang: runtime.targetLang,
+        images: [],
+      });
+    }
+    throw error;
+  }
+}
+
+export async function generateUiRewriteCss({
+  url,
+  title,
+  prompt,
+  htmlSnapshot = "",
+  previousPrompt = "",
+  previousCss = "",
+  images = [],
+} = {}) {
   const text = String(prompt || "").trim();
   if (!text) {
     return { ok: false, error: "请输入改造需求。" };
@@ -56,21 +164,22 @@ export async function generateUiRewriteCss({ url, title, prompt }) {
   if (credentialError) {
     return { ok: false, error: credentialError };
   }
-  const fullPrompt =
-    `${buildUiRewriteSystemPrompt()}\n\n` +
-    buildUiRewriteUserPrompt({ url, title, prompt: text });
+  const prevCss = String(previousCss || "").trim();
+  const buildPrompt = (hasImages) =>
+    `${buildUiRewriteSystemPrompt({ hasPreviousCss: Boolean(prevCss) })}\n\n` +
+    buildUiRewriteUserPrompt({
+      url,
+      title,
+      prompt: text,
+      htmlSnapshot,
+      previousPrompt,
+      previousCss: prevCss,
+      hasImages,
+    });
 
   let raw = "";
   try {
-    raw = await runProviderCompletion({
-      provider: runtime.provider,
-      base: runtime.base,
-      model: runtime.selectedModel,
-      apiKey: runtime.apiKey,
-      prompt: fullPrompt,
-      text,
-      targetLang: runtime.targetLang,
-    });
+    raw = await completeWithImages(runtime, buildPrompt, text, images);
   } catch (error) {
     return {
       ok: false,
@@ -132,20 +241,31 @@ export async function broadcastRewriteUpdate() {
 
 export async function handleUiRewriteMessage(msg, sender) {
   if (msg.action === "generateUiRewrite") {
-    const tabId = sender?.tab?.id || msg.tabId;
+    const tabId = sender?.tab?.id ?? msg.tabId;
     let url = msg.url || "";
     let title = msg.title || "";
-    if (!url && tabId) {
+    let tab = null;
+    if (tabId != null) {
       try {
-        const tab = await chrome.tabs.get(tabId);
-        url = tab.url || "";
+        tab = await chrome.tabs.get(tabId);
+        url = url || tab.url || "";
         title = title || tab.title || "";
       } catch (_) {}
     }
+    const existingRule = await findUiRewriteForUrl(url);
+    const previous = getActiveVersion(existingRule);
+    const htmlSnapshot = await collectPageHtmlSnapshot(tabId, msg.htmlSnapshot);
+    const screenshot = await captureTabScreenshot(tab, url);
+    await sendTabMessage(tabId, { action: "uiRewriteScreenshotCaptured" });
+    const images = mergeRewriteImages(screenshot, msg.images);
     const result = await generateUiRewriteCss({
       url,
       title,
       prompt: msg.prompt,
+      htmlSnapshot,
+      previousPrompt: previous?.prompt || "",
+      previousCss: previous?.css || "",
+      images,
     });
     if (result.ok && tabId) {
       await applyRewriteToTab(tabId, {

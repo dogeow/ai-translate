@@ -2,6 +2,11 @@ import { useState } from "react";
 import { Panel } from "./Panel.jsx";
 import { PopupModelField } from "./PopupModelField.jsx";
 import { useCurrentPageRewrite } from "../hooks/useCurrentPageRewrite.js";
+import {
+  MAX_REWRITE_USER_IMAGES,
+  extractDataUrl,
+  isImageDataUrl,
+} from "../../shared/ui-rewrite-media.js";
 
 const UI_REWRITE_PRESETS = [
   {
@@ -18,6 +23,25 @@ const UI_REWRITE_PRESETS = [
   },
 ];
 
+const CORRECTION_PRESET = {
+  label: "修正排版",
+  prompt:
+    "对照当前效果修正：按钮和文字不要重叠或错位，对比度要够，不要挡住原有图片和内容",
+};
+
+function nextImageId() {
+  return `img_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("图片读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function AiRewritePanel({
   provider,
   onProviderChange,
@@ -26,10 +50,12 @@ export function AiRewritePanel({
   onOpenProviderSetup,
 }) {
   const [prompt, setPrompt] = useState("");
+  const [images, setImages] = useState([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [statusTone, setStatusTone] = useState("neutral");
   const currentPageRewrite = useCurrentPageRewrite();
+  const correcting = currentPageRewrite.isActive;
 
   function setMessage(text, tone = "neutral") {
     setStatus(text);
@@ -37,6 +63,47 @@ export function AiRewritePanel({
     if (text) {
       window.setTimeout(() => setStatus(""), 2200);
     }
+  }
+
+  function addImageFromDataUrl(dataUrl) {
+    const url = extractDataUrl(dataUrl);
+    if (!isImageDataUrl(url)) return false;
+    setImages((current) => {
+      if (current.some((image) => image.dataUrl === url)) return current;
+      if (current.length >= MAX_REWRITE_USER_IMAGES) {
+        setMessage(`最多添加 ${MAX_REWRITE_USER_IMAGES} 张截图`, "error");
+        return current;
+      }
+      return [...current, { id: nextImageId(), dataUrl: url }];
+    });
+    return true;
+  }
+
+  async function addImageFromFile(file) {
+    if (!file?.type?.startsWith("image/")) return;
+    const dataUrl = await readFileAsDataUrl(file);
+    addImageFromDataUrl(dataUrl);
+  }
+
+  function removeImage(id) {
+    setImages((current) => current.filter((image) => image.id !== id));
+  }
+
+  function handlePaste(event) {
+    const items = [...(event.clipboardData?.items || [])];
+    const imageItem = items.find((item) => item.type.startsWith("image/"));
+    if (!imageItem) return;
+    event.preventDefault();
+    const file = imageItem.getAsFile();
+    if (file) void addImageFromFile(file);
+  }
+
+  function handleDrop(event) {
+    const files = [...(event.dataTransfer?.files || [])];
+    const imageFile = files.find((file) => file.type.startsWith("image/"));
+    if (!imageFile) return;
+    event.preventDefault();
+    void addImageFromFile(imageFile);
   }
 
   async function submit() {
@@ -51,7 +118,7 @@ export function AiRewritePanel({
       return;
     }
     setBusy(true);
-    setMessage("AI 生成中…", "neutral");
+    setMessage(correcting ? "正在对照当前效果修正…" : "AI 生成中…", "neutral");
     chrome.runtime.sendMessage(
       {
         action: "generateUiRewrite",
@@ -59,6 +126,7 @@ export function AiRewritePanel({
         url: tab.url,
         title: tab.title || "",
         prompt: text,
+        images: images.map((image) => image.dataUrl),
       },
       (response) => {
         setBusy(false);
@@ -68,8 +136,9 @@ export function AiRewritePanel({
         }
         if (response?.ok) {
           currentPageRewrite.markApplied(response.rule, response.version);
-          setMessage("已应用到当前页", "success");
+          setMessage(correcting ? "已按你的说明修正" : "已应用到当前页", "success");
           setPrompt("");
+          setImages([]);
         } else {
           setMessage(response?.error || "生成失败", "error");
         }
@@ -85,6 +154,10 @@ export function AiRewritePanel({
       restored ? "success" : "error",
     );
   }
+
+  const presets = correcting
+    ? [CORRECTION_PRESET, ...UI_REWRITE_PRESETS]
+    : UI_REWRITE_PRESETS;
 
   return (
     <Panel
@@ -110,12 +183,56 @@ export function AiRewritePanel({
           rows={2}
           className="popup-rewrite__input"
           value={prompt}
-          placeholder="例如：背景改为米色，正文增大"
+          placeholder={
+            correcting
+              ? "指出哪里不好，例如：按钮重叠、文字看不清、图片不见了"
+              : "例如：背景改为米色，正文增大"
+          }
           onChange={(event) => setPrompt(event.target.value)}
+          onPaste={handlePaste}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
           disabled={busy}
         />
+        <p className="popup-rewrite__hint">
+          {correcting
+            ? "会对照当前截图和上一版 CSS 继续改，也可粘贴或选择截图。"
+            : "会自动带上当前页面截图。可粘贴、拖入或选择截图补充说明。"}
+        </p>
+        <div className="popup-rewrite-images">
+          {images.map((image) => (
+            <span key={image.id} className="popup-rewrite-thumb">
+              <img src={image.dataUrl} alt="" />
+              <button
+                type="button"
+                className="popup-rewrite-thumb__remove"
+                onClick={() => removeImage(image.id)}
+                disabled={busy}
+                aria-label="移除截图"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          {images.length < MAX_REWRITE_USER_IMAGES ? (
+            <label className="popup-rewrite-add-image">
+              添加截图
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                disabled={busy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void addImageFromFile(file);
+                }}
+              />
+            </label>
+          ) : null}
+        </div>
         <div className="popup-rewrite-presets" aria-label="常用改造模板">
-          {UI_REWRITE_PRESETS.map((preset) => (
+          {presets.map((preset) => (
             <button
               key={preset.label}
               type="button"
@@ -150,7 +267,13 @@ export function AiRewritePanel({
             onClick={submit}
             disabled={busy}
           >
-            {busy ? "生成中…" : "AI 改造当前页"}
+            {busy
+              ? correcting
+                ? "修正中…"
+                : "生成中…"
+              : correcting
+                ? "继续修正当前效果"
+                : "AI 改造当前页"}
           </button>
         </div>
       </div>

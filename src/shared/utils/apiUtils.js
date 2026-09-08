@@ -55,6 +55,7 @@ export function extractErrorMessage(data, fallback = "请求失败") {
     data.error?.message ||
     data.error?.msg ||
     data.error?.detail ||
+    (typeof data.error === "string" ? data.error : "") ||
     data.message ||
     data.msg ||
     data.detail ||

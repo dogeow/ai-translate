@@ -12,6 +12,7 @@ import {
   flattenTextContent,
   normalizeApiBaseUrl,
 } from "./utils/apiUtils.js";
+import { buildOpenAiChatUserContent } from "./ui-rewrite-media.js";
 
 export function normalizeMiniMaxBaseUrl(base) {
   return normalizeApiBaseUrl(base, DEFAULT_MINIMAX_API_URL);
@@ -135,11 +136,13 @@ async function requestMiniMaxChatCompletion(base, apiKey, body) {
   };
 }
 
-export async function generateMiniMaxCompletion(base, apiKey, model, prompt) {
+export async function generateMiniMaxCompletion(base, apiKey, model, prompt, options = {}) {
   const normalizedBase = normalizeMiniMaxBaseUrl(base);
   const requestBody = {
     model: model || DEFAULT_MINIMAX_MODEL,
-    messages: [{ role: "user", content: prompt }],
+    messages: [
+      { role: "user", content: buildOpenAiChatUserContent(prompt, options.images) },
+    ],
     stream: false,
   };
   const trace = createAiRequestLog({
