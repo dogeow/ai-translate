@@ -219,6 +219,7 @@ export function PopupApp({ surface = "popup" }) {
         appEnabled={popupSettings.appEnabled}
         isTogglingPageTranslate={pageTranslate.isToggling}
         isChangingPageDisplayMode={pageTranslate.isChangingDisplayMode}
+        isTogglingSiteAutoTranslate={pageTranslate.isTogglingSiteAutoTranslate}
         isPageTranslateActive={pageTranslate.isPageTranslateActive}
         pageDisplayMode={pageTranslate.displayMode}
         pageTranslateStatus={pageTranslate.status}
