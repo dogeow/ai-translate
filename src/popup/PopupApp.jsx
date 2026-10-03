@@ -41,6 +41,7 @@ const HOVER_MODIFIER_OPTIONS = HOVER_TRANSLATE_MODIFIER_OPTIONS.map(
 );
 
 export function PopupApp({ surface = "popup" }) {
+  const [activePanel, setActivePanel] = useState("translate");
   const currentVersion = chrome.runtime.getManifest().version;
   const isPopup = surface === "popup";
   const sidePanelSupport = getSidePanelSupport();
@@ -50,10 +51,9 @@ export function PopupApp({ surface = "popup" }) {
   const popupSettings = usePopupSettings();
   const pageTranslate = usePageTranslate(popupSettings.appEnabled);
   const articleNarration = useArticleNarration(popupSettings.appEnabled);
-  const availableModels = getVerifiedModelOptions(
-    popupSettings.settings,
-    { chromeAiReady: popupSettings.chromeAiReady },
-  );
+  const availableModels = getVerifiedModelOptions(popupSettings.settings, {
+    chromeAiReady: popupSettings.chromeAiReady,
+  });
   const availableGenerativeModels = getVerifiedModelOptions(
     popupSettings.settings,
     {
@@ -62,13 +62,10 @@ export function PopupApp({ surface = "popup" }) {
       shortenChatGptLabel: true,
     },
   );
-  const availableWordModels = getVerifiedModelOptions(
-    popupSettings.settings,
-    {
-      chromeAiReady: popupSettings.chromeAiReady,
-      shortenChatGptLabel: true,
-    },
-  );
+  const availableWordModels = getVerifiedModelOptions(popupSettings.settings, {
+    chromeAiReady: popupSettings.chromeAiReady,
+    shortenChatGptLabel: true,
+  });
   const wordLookupOptions = [
     {
       value: WORD_LOOKUP_PROVIDER_YOUDAO,
@@ -89,9 +86,7 @@ export function PopupApp({ surface = "popup" }) {
     if (
       !popupSettings.isSettingsLoaded ||
       availableModels.length === 0 ||
-      availableModels.some(
-        (option) => option.value === popupSettings.provider,
-      )
+      availableModels.some((option) => option.value === popupSettings.provider)
     ) {
       return;
     }
@@ -201,79 +196,157 @@ export function PopupApp({ surface = "popup" }) {
   return (
     <div className={`popup popup--${surface}`}>
       <PopupHero
-        surface={surface}
         appEnabled={popupSettings.appEnabled}
         onToggleApp={popupSettings.toggleAppEnabled}
-        learningModeEnabled={
-          learningModeSupported && popupSettings.learningModeEnabled
-        }
-        learningModeSupported={learningModeSupported}
-        onToggleLearningMode={popupSettings.toggleLearningModeEnabled}
         onOpenSettings={openOptionsPage}
-        onOpenEnglishExample={openEnglishExample}
-        showSidePanelButton={showSidePanelButton}
-        sidePanelButtonDisabled={sidePanelButtonDisabled}
-        onOpenSidePanel={openPersistentSidePanel}
       />
-      <QuickActionsPanel
-        appEnabled={popupSettings.appEnabled}
-        isTogglingPageTranslate={pageTranslate.isToggling}
-        isChangingPageDisplayMode={pageTranslate.isChangingDisplayMode}
-        isPageTranslateActive={pageTranslate.isPageTranslateActive}
-        pageDisplayMode={pageTranslate.displayMode}
-        pageTranslateStatus={pageTranslate.status}
-        articleNarrationState={articleNarration.state}
-        isChangingArticleNarration={articleNarration.isChanging}
-        articleNarrationStatus={articleNarration.statusMessage}
-        onToggleArticleNarration={articleNarration.toggle}
-        onStopArticleNarration={articleNarration.stop}
-        onTogglePageTranslate={pageTranslate.togglePageTranslate}
-        onPageDisplayModeChange={pageTranslate.changeDisplayMode}
-        onToggleSiteAutoTranslate={pageTranslate.toggleSiteAutoTranslate}
-        siteAutoTranslateEnabled={pageTranslate.siteAutoTranslateEnabled}
-        activeOrigin={pageTranslate.activeOrigin}
-        provider={popupSettings.provider}
-        onProviderChange={popupSettings.updateProvider}
-        availableProviders={availableModels}
-        providersLoading={!popupSettings.isSettingsLoaded}
-        onOpenProviderSetup={openProviderSetup}
-        showStatus={showSaveStatus}
-        statusText={saveStatusText}
-        statusTone={saveStatusTone}
-      />
-      <AutoTranslateModePanel
-        options={AUTO_MODE_OPTIONS}
-        value={popupSettings.autoTranslateMode}
-        onChange={popupSettings.updateAutoTranslateMode}
-      />
-      {popupSettings.autoTranslateMode === "hover" && (
-        <HoverTranslateScopePanel
-          options={HOVER_SCOPE_OPTIONS}
-          value={popupSettings.hoverTranslateScope}
-          onChange={popupSettings.updateHoverTranslateScope}
-          modifierOptions={HOVER_MODIFIER_OPTIONS}
-          modifierValue={popupSettings.hoverTranslateModifierKey}
-          onModifierChange={popupSettings.updateHoverTranslateModifierKey}
-        />
+      <div className="popup-tabs" role="tablist" aria-label="功能分组">
+        {[
+          { id: "translate", label: "翻译" },
+          { id: "learn", label: "英语学习" },
+          { id: "rewrite", label: "页面改造" },
+        ].map((tab, index, tabs) => (
+          <button
+            key={tab.id}
+            id={`popup-tab-${tab.id}`}
+            type="button"
+            role="tab"
+            aria-selected={activePanel === tab.id}
+            aria-controls={`popup-panel-${tab.id}`}
+            tabIndex={activePanel === tab.id ? 0 : -1}
+            onClick={() => setActivePanel(tab.id)}
+            onKeyDown={(event) => {
+              let next;
+              if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+              if (event.key === "ArrowLeft")
+                next = (index - 1 + tabs.length) % tabs.length;
+              if (event.key === "Home") next = 0;
+              if (event.key === "End") next = tabs.length - 1;
+              if (next === undefined) return;
+              event.preventDefault();
+              setActivePanel(tabs[next].id);
+              document.getElementById(`popup-tab-${tabs[next].id}`)?.focus();
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {!popupSettings.appEnabled && (
+        <p className="popup-paused-note" role="status">
+          翻译已暂停，点击右上方开关恢复。
+        </p>
       )}
-      <EnglishLearningPanel
-        provider={popupSettings.learningProvider}
-        onProviderChange={popupSettings.updateLearningProvider}
-        availableModels={availableGenerativeModels}
-        wordLookupProvider={popupSettings.wordLookupProvider}
-        onWordLookupProviderChange={popupSettings.updateWordLookupProvider}
-        wordLookupOptions={wordLookupOptions}
-        modelsLoading={!popupSettings.isSettingsLoaded}
-        onOpenProviderSetup={openProviderSetup}
-      />
-      <AiRewritePanel
-        provider={popupSettings.uiRewriteProvider}
-        onProviderChange={popupSettings.updateUiRewriteProvider}
-        availableModels={availableGenerativeModels}
-        modelsLoading={!popupSettings.isSettingsLoaded}
-        onOpenProviderSetup={openProviderSetup}
-      />
-      <p className="popup-version">当前版本 {currentVersion}</p>
+      <div
+        className="popup-tab-content"
+        id="popup-panel-translate"
+        role="tabpanel"
+        aria-labelledby="popup-tab-translate"
+        hidden={activePanel !== "translate"}
+      >
+        <QuickActionsPanel
+          appEnabled={popupSettings.appEnabled}
+          isTogglingPageTranslate={pageTranslate.isToggling}
+          isChangingPageDisplayMode={pageTranslate.isChangingDisplayMode}
+          isPageTranslateActive={pageTranslate.isPageTranslateActive}
+          pageDisplayMode={pageTranslate.displayMode}
+          pageTranslateStatus={pageTranslate.status}
+          articleNarrationState={articleNarration.state}
+          isChangingArticleNarration={articleNarration.isChanging}
+          articleNarrationStatus={articleNarration.statusMessage}
+          onToggleArticleNarration={articleNarration.toggle}
+          onStopArticleNarration={articleNarration.stop}
+          onTogglePageTranslate={pageTranslate.togglePageTranslate}
+          onPageDisplayModeChange={pageTranslate.changeDisplayMode}
+          onToggleSiteAutoTranslate={pageTranslate.toggleSiteAutoTranslate}
+          siteAutoTranslateEnabled={pageTranslate.siteAutoTranslateEnabled}
+          activeOrigin={pageTranslate.activeOrigin}
+          provider={popupSettings.provider}
+          onProviderChange={popupSettings.updateProvider}
+          availableProviders={availableModels}
+          providersLoading={!popupSettings.isSettingsLoaded}
+          onOpenProviderSetup={openProviderSetup}
+        />
+        <AutoTranslateModePanel
+          options={AUTO_MODE_OPTIONS}
+          value={popupSettings.autoTranslateMode}
+          onChange={popupSettings.updateAutoTranslateMode}
+        />
+        {popupSettings.autoTranslateMode === "hover" && (
+          <HoverTranslateScopePanel
+            options={HOVER_SCOPE_OPTIONS}
+            value={popupSettings.hoverTranslateScope}
+            onChange={popupSettings.updateHoverTranslateScope}
+            modifierOptions={HOVER_MODIFIER_OPTIONS}
+            modifierValue={popupSettings.hoverTranslateModifierKey}
+            onModifierChange={popupSettings.updateHoverTranslateModifierKey}
+          />
+        )}
+      </div>
+      <div
+        className="popup-tab-content"
+        id="popup-panel-learn"
+        role="tabpanel"
+        aria-labelledby="popup-tab-learn"
+        hidden={activePanel !== "learn"}
+      >
+        <EnglishLearningPanel
+          learningModeEnabled={
+            learningModeSupported && popupSettings.learningModeEnabled
+          }
+          learningModeSupported={learningModeSupported}
+          onToggleLearningMode={popupSettings.toggleLearningModeEnabled}
+          provider={popupSettings.learningProvider}
+          onProviderChange={popupSettings.updateLearningProvider}
+          availableModels={availableGenerativeModels}
+          wordLookupProvider={popupSettings.wordLookupProvider}
+          onWordLookupProviderChange={popupSettings.updateWordLookupProvider}
+          wordLookupOptions={wordLookupOptions}
+          modelsLoading={!popupSettings.isSettingsLoaded}
+          onOpenProviderSetup={openProviderSetup}
+        />
+      </div>
+      <div
+        className="popup-tab-content"
+        id="popup-panel-rewrite"
+        role="tabpanel"
+        aria-labelledby="popup-tab-rewrite"
+        hidden={activePanel !== "rewrite"}
+      >
+        <AiRewritePanel
+          provider={popupSettings.uiRewriteProvider}
+          onProviderChange={popupSettings.updateUiRewriteProvider}
+          availableModels={availableGenerativeModels}
+          modelsLoading={!popupSettings.isSettingsLoaded}
+          onOpenProviderSetup={openProviderSetup}
+        />
+      </div>
+      <footer className="popup-footer">
+        <div className="popup-footer__links">
+          <button
+            type="button"
+            onClick={openEnglishExample}
+            title="打开英语新闻示例页面"
+          >
+            英语示例 ↗
+          </button>
+          {showSidePanelButton && (
+            <button
+              type="button"
+              onClick={openPersistentSidePanel}
+              disabled={sidePanelButtonDisabled}
+            >
+              打开侧栏 ↗
+            </button>
+          )}
+        </div>
+        <span
+          className={`popup-footer__status popup-footer__status--${saveStatusTone}`}
+          role="status"
+        >
+          {showSaveStatus ? saveStatusText : `v${currentVersion}`}
+        </span>
+      </footer>
     </div>
   );
 }

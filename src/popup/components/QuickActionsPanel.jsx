@@ -43,7 +43,12 @@ export function QuickActionsPanel({
 
   return (
     <Panel
-      title="快速操作"
+      title="网页翻译"
+      hint={
+        activeOrigin
+          ? activeOrigin.replace(/^https?:\/\//, "")
+          : "翻译并阅读当前页面"
+      }
       isSubtle
       className="popup-panel--quick"
       showStatus={showStatus}
@@ -68,22 +73,7 @@ export function QuickActionsPanel({
               : "启动中..."
             : isPageTranslateActive
               ? "停止翻译"
-              : "翻译该页面"}
-        </button>
-        <button
-          type="button"
-          className={`btn popup-site-translate-btn${siteAutoTranslateEnabled ? " popup-site-translate-btn--on" : ""}`}
-          onClick={onToggleSiteAutoTranslate}
-          disabled={!appEnabled || !activeOrigin}
-          title={
-            !activeOrigin
-              ? "当前页面不支持（仅 http/https）"
-              : siteAutoTranslateEnabled
-                ? `点击关闭：${activeOrigin}`
-                : `打开后访问 ${activeOrigin} 下任意页面都会自动翻译`
-          }
-        >
-          {siteAutoTranslateEnabled ? "✓ 翻译该网站" : "翻译该网站"}
+              : "翻译当前页面"}
         </button>
       </div>
       <div className="popup-page-display">
@@ -119,12 +109,33 @@ export function QuickActionsPanel({
           })}
         </div>
       </div>
+      <button
+        type="button"
+        className={`popup-site-translate-btn${siteAutoTranslateEnabled ? " popup-site-translate-btn--on" : ""}`}
+        role="switch"
+        aria-checked={siteAutoTranslateEnabled}
+        onClick={onToggleSiteAutoTranslate}
+        disabled={!appEnabled || !activeOrigin}
+        title={
+          !activeOrigin
+            ? "当前页面不支持（仅 http/https）"
+            : siteAutoTranslateEnabled
+              ? `点击关闭：${activeOrigin}`
+              : `打开后访问 ${activeOrigin} 下任意页面都会自动翻译`
+        }
+      >
+        <span>始终翻译此网站</span>
+        <span className="popup-switch-track" aria-hidden="true">
+          <span />
+        </span>
+      </button>
       <div className="popup-article-narration">
         <div className="popup-article-narration__summary">
           <span className="popup-article-narration__label">文章朗读</span>
           {isNarrationActive && (
             <span className="popup-article-narration__progress">
-              {articleNarrationState.sectionIndex || 0} / {articleNarrationState.totalSections || 0}
+              {articleNarrationState.sectionIndex || 0} /{" "}
+              {articleNarrationState.totalSections || 0}
             </span>
           )}
         </div>

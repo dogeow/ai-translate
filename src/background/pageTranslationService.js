@@ -135,6 +135,7 @@ export async function translatePageTargetGroup(
       provider: providerRuntime.provider,
       base: providerRuntime.base,
       model: providerRuntime.selectedModel,
+      reasoningEffort: providerRuntime.reasoningEffort,
       apiKey: providerRuntime.apiKey,
       prompt,
       text: texts.join("\n"),

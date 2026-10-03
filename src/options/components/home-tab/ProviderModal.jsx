@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ProviderConfigFields } from "./ProviderConfigFields.jsx";
 import { InfoTip, FieldLabel } from "../common/InfoTip.jsx";
-import { fetchChatGptModels } from "../../../shared/chatgpt-codex-api.js";
+import { fetchChatGptModelCatalog } from "../../../shared/chatgpt-codex-api.js";
 import {
   isChatGptProvider,
   isChromeAiProvider,
@@ -64,10 +64,10 @@ export function ProviderModal({
     if (!state || !draft) return undefined;
     if (!isChatGptProvider(draft.provider)) return undefined;
     let cancelled = false;
-    void fetchChatGptModels({ forceRefresh: true })
-      .then((names) => {
-        if (cancelled || !Array.isArray(names) || names.length === 0) return;
-        setModalModels(names.map((name) => ({ name })));
+    void fetchChatGptModelCatalog({ forceRefresh: true })
+      .then((catalog) => {
+        if (cancelled || !Array.isArray(catalog) || catalog.length === 0) return;
+        setModalModels(catalog);
       })
       .catch(() => {
         // 未登录或探测失败时保留 fallback 候选，不打断配置流程。

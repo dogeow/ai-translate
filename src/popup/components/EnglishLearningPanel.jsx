@@ -7,6 +7,9 @@ import {
 } from "../../shared/word-learning.js";
 
 export function EnglishLearningPanel({
+  learningModeEnabled,
+  learningModeSupported = true,
+  onToggleLearningMode,
   provider,
   onProviderChange,
   availableModels = [],
@@ -61,33 +64,49 @@ export function EnglishLearningPanel({
   }
 
   return (
-    <Panel title="英语学习" isSubtle className="popup-panel--learning">
+    <Panel
+      title="阅读中学习"
+      hint="查看句式解析，标记和巩固生词。"
+      isSubtle
+      className="popup-panel--learning"
+    >
       <div className="popup-learning">
-        <PopupModelField
-          id="popup-word-lookup-provider"
-          label="单词释义"
-          value={wordLookupProvider}
-          onChange={onWordLookupProviderChange}
-          options={wordLookupOptions}
-          isLoading={modelsLoading}
-          onOpenSetup={onOpenProviderSetup}
-          className="popup-field--flush"
-        />
-        <PopupModelField
-          id="popup-learning-model"
-          label="学习模型"
-          value={provider}
-          onChange={onProviderChange}
-          options={availableModels}
-          isLoading={modelsLoading}
-          onOpenSetup={onOpenProviderSetup}
-          className="popup-field--flush"
-        />
+        <button
+          type="button"
+          className={`popup-learning-mode-switch${
+            learningModeEnabled ? " is-active" : ""
+          }`}
+          onClick={onToggleLearningMode}
+          disabled={!learningModeSupported}
+          aria-pressed={learningModeEnabled}
+          title={
+            learningModeSupported
+              ? learningModeEnabled
+                ? "关闭学习模式"
+                : "开启学习模式"
+              : "请先添加并选择支持句型分析的学习模型"
+          }
+        >
+          <span className="popup-learning-mode-switch__copy">
+            <span className="popup-learning-mode-switch__title">句式分析</span>
+            <span className="popup-learning-mode-switch__hint">
+              {learningModeSupported
+                ? "翻译后显示句式分析"
+                : "需要先设置学习模型"}
+            </span>
+          </span>
+          <span
+            className="popup-learning-mode-switch__track"
+            aria-hidden="true"
+          >
+            <span className="popup-learning-mode-switch__thumb" />
+          </span>
+        </button>
         <label className="popup-learning-toggle">
           <span className="popup-learning-toggle__copy">
             <span className="popup-learning-toggle__title">生词标记</span>
             <span className="popup-learning-toggle__hint">
-              用橙色边框方框标记学习中的单词
+              用橙色描边标记正在学习的单词
             </span>
           </span>
           <input
@@ -104,7 +123,7 @@ export function EnglishLearningPanel({
           <span className="popup-learning-toggle__copy">
             <span className="popup-learning-toggle__title">认词模式</span>
             <span className="popup-learning-toggle__hint">
-              用蓝色边框方框标记其他单词
+              用蓝色描边识别页面中的其他单词
             </span>
           </span>
           <input
@@ -117,6 +136,39 @@ export function EnglishLearningPanel({
             <span className="popup-learning-toggle__thumb" />
           </span>
         </label>
+        <details className="popup-model-settings">
+          <summary>
+            模型与词典
+            <span>
+              调整
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m6 4 4 4-4 4" />
+              </svg>
+            </span>
+          </summary>
+          <div className="popup-model-settings__content">
+            <PopupModelField
+              id="popup-word-lookup-provider"
+              label="单词释义"
+              value={wordLookupProvider}
+              onChange={onWordLookupProviderChange}
+              options={wordLookupOptions}
+              isLoading={modelsLoading}
+              onOpenSetup={onOpenProviderSetup}
+              className="popup-field--flush"
+            />
+            <PopupModelField
+              id="popup-learning-model"
+              label="学习模型"
+              value={provider}
+              onChange={onProviderChange}
+              options={availableModels}
+              isLoading={modelsLoading}
+              onOpenSetup={onOpenProviderSetup}
+              className="popup-field--flush"
+            />
+          </div>
+        </details>
       </div>
     </Panel>
   );

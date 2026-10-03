@@ -19,12 +19,18 @@ import {
   parseSseLine,
   processStreamResponse,
 } from "./utils/apiUtils.js";
+import {
+  parseChatGptReasoningInfo,
+  readChatGptModelInfo,
+  resolveChatGptReasoningEffort,
+  saveChatGptModelCatalog,
+} from "./chatgpt-reasoning.js";
 
 const CHATGPT_CODEX_RESPONSES_PATH = "/responses";
 const CHATGPT_CODEX_MODELS_PATH = "/models";
 const CHATGPT_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** @type {Map<string, { models: string[], updatedAt: number }>} */
+/** @type {Map<string, { models: object[], updatedAt: number }>} */
 const chatgptModelsCache = new Map();
 
 function buildChatGptCodexInputContent(prompt = "", images = []) {
@@ -46,9 +52,11 @@ export function buildChatGptCodexRequestBody(
   prompt = "",
   options = {},
 ) {
+  const selectedModel = String(model || DEFAULT_CHATGPT_MODEL).trim() || DEFAULT_CHATGPT_MODEL;
+  const effort = resolveChatGptReasoningEffort(selectedModel, options.reasoningEffort, options.modelInfo);
   return {
-    model: String(model || DEFAULT_CHATGPT_MODEL).trim() ||
-      DEFAULT_CHATGPT_MODEL,
+    model: selectedModel,
+    ...(effort ? { reasoning: { effort } } : {}),
     instructions:
       "Follow the user's instructions exactly. Return only the requested result without commentary.",
     input: [
@@ -129,9 +137,13 @@ function extractChatGptModelSlug(model) {
 
 /**
  * 从 Codex /models 响应中筛出适合展示/请求的模型 slug。
- * 隐藏项、非 API 模型以及审查专用模型会被排除。
+ * 只排除隐藏项与审查专用模型；普通 API 可用性不等同于订阅可用性。
  */
 export function parseChatGptCodexModels(payload) {
+  return parseChatGptModelCatalog(payload).map((model) => model.name);
+}
+
+export function parseChatGptModelCatalog(payload) {
   const source = Array.isArray(payload?.models)
     ? payload.models
     : Array.isArray(payload?.data)
@@ -144,15 +156,15 @@ export function parseChatGptCodexModels(payload) {
   const seen = new Set();
   for (const item of source) {
     const slug = extractChatGptModelSlug(item);
-    if (!slug || seen.has(slug)) continue;
+    if (!slug || seen.has(slug) || slug === "codex-auto-review") continue;
     if (typeof item === "object" && item) {
       const visibility = String(item.visibility || "list").toLowerCase();
       if (visibility === "hide" || visibility === "hidden") continue;
-      if (item.supported_in_api === false) continue;
-      if (slug === "codex-auto-review") continue;
+      // 这里使用 ChatGPT 设备登录。Spark 等订阅模型即便未开放普通 API，
+      // 只要账号的 Codex 模型目录列出它，就应当允许选择。
     }
     seen.add(slug);
-    names.push(slug);
+    names.push({ name: slug, ...parseChatGptReasoningInfo(item) });
   }
   return names;
 }
@@ -170,11 +182,15 @@ export function buildChatGptModelsUrl(
  * @returns {Promise<string[]>}
  */
 export async function fetchChatGptModels(options = {}) {
+  return (await fetchChatGptModelCatalog(options)).map((model) => model.name);
+}
+
+export async function fetchChatGptModelCatalog(options = {}) {
   const { forceRefresh = false, fetchImpl = fetch } = options;
   const auth =
     options.auth ||
     (await getValidChatGptAuth(options.authOptions || {}));
-  const cacheKey = String(auth.accountId || auth.email || "default");
+  const cacheKey = `${auth.accountId || auth.email || "default"}:${options.clientVersion || CHATGPT_CODEX_CLIENT_VERSION}`;
   const cached = chatgptModelsCache.get(cacheKey);
   const now = Date.now();
   if (
@@ -182,7 +198,7 @@ export async function fetchChatGptModels(options = {}) {
     cached &&
     now - cached.updatedAt < CHATGPT_MODELS_CACHE_TTL_MS
   ) {
-    return [...cached.models];
+    return structuredClone(cached.models);
   }
 
   const endpoint = buildChatGptModelsUrl(
@@ -216,7 +232,7 @@ export async function fetchChatGptModels(options = {}) {
   }
 
   const payload = await response.json().catch(() => null);
-  const models = parseChatGptCodexModels(payload);
+  const models = parseChatGptModelCatalog(payload);
   if (models.length === 0) {
     throw new Error("ChatGPT 未返回可用模型，请确认账号已开通 Codex。");
   }
@@ -225,7 +241,8 @@ export async function fetchChatGptModels(options = {}) {
     models: [...models],
     updatedAt: now,
   });
-  return [...models];
+  await saveChatGptModelCatalog(models);
+  return structuredClone(models);
 }
 
 function extractResponseOutput(response) {
@@ -308,8 +325,10 @@ async function sendChatGptCodexRequest({
   auth,
   fetchImpl,
   images,
+  reasoningEffort,
+  modelInfo,
 }) {
-  const requestBody = buildChatGptCodexRequestBody(model, prompt, { images });
+  const requestBody = buildChatGptCodexRequestBody(model, prompt, { images, reasoningEffort, modelInfo });
   const endpoint = `${DEFAULT_CHATGPT_CODEX_API_URL}${CHATGPT_CODEX_RESPONSES_PATH}`;
   const response = await fetchImpl(endpoint, {
     method: "POST",
@@ -330,6 +349,8 @@ async function openChatGptCodexStream(model, prompt, options = {}) {
     auth,
     fetchImpl,
     images: options.images,
+    reasoningEffort: options.reasoningEffort,
+    modelInfo: options.modelInfo,
   });
 
   if (result.response.status === 401 && !options.auth) {
@@ -343,6 +364,8 @@ async function openChatGptCodexStream(model, prompt, options = {}) {
       auth,
       fetchImpl,
       images: options.images,
+      reasoningEffort: options.reasoningEffort,
+      modelInfo: options.modelInfo,
     });
   }
 
@@ -366,8 +389,12 @@ export async function generateChatGptStreamingCompletion(
   prompt,
   options = {},
 ) {
+  const modelInfo = options.modelInfo || (options.reasoningEffort ? await readChatGptModelInfo(model) : undefined);
+  const requestOptions = { ...options, modelInfo };
   const requestBody = buildChatGptCodexRequestBody(model, prompt, {
     images: options.images,
+    reasoningEffort: options.reasoningEffort,
+    modelInfo,
   });
   const endpoint = `${DEFAULT_CHATGPT_CODEX_API_URL}${CHATGPT_CODEX_RESPONSES_PATH}`;
   const trace = createAiRequestLog({
@@ -384,7 +411,7 @@ export async function generateChatGptStreamingCompletion(
   let finalResponseText = "";
 
   try {
-    const opened = await openChatGptCodexStream(model, prompt, options);
+    const opened = await openChatGptCodexStream(model, prompt, requestOptions);
     status = opened.response.status;
 
     await processStreamResponse(opened.response, async (line) => {
@@ -452,13 +479,13 @@ export async function testChatGptConnection(
   // 优先探测模型列表；列表不可用时再回退到发送一条最小 completion。
   if (options.listModels !== false) {
     try {
-      const models = await fetchChatGptModels({
+      const modelCatalog = await fetchChatGptModelCatalog({
         auth,
         forceRefresh: true,
         fetchImpl: options.fetchImpl,
         clientVersion: options.clientVersion,
       });
-      return { auth, models };
+      return { auth, models: modelCatalog.map((item) => item.name), modelCatalog };
     } catch (listError) {
       if (options.allowCompletionFallback === false) {
         throw listError;
@@ -474,7 +501,8 @@ export async function testChatGptConnection(
     {
       auth,
       fetchImpl: options.fetchImpl,
+      reasoningEffort: options.reasoningEffort,
     },
   );
-  return { auth, models: [model] };
+  return { auth, models: [model], modelCatalog: [{ name: model }] };
 }

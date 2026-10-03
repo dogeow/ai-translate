@@ -41,21 +41,37 @@ test("ChatGPT fallback model list includes the default model", async () => {
   const { CHATGPT_MODEL_FALLBACK_LIST } = await import("./constants.js");
   assert.ok(CHATGPT_MODEL_FALLBACK_LIST.includes(DEFAULT_CHATGPT_MODEL));
   assert.ok(CHATGPT_MODEL_FALLBACK_LIST.length >= 3);
+  assert.ok(CHATGPT_MODEL_FALLBACK_LIST.includes("gpt-6-astra"));
+  assert.ok(CHATGPT_MODEL_FALLBACK_LIST.includes("gpt-5.3-codex-spark"));
 });
 
-test("ChatGPT Codex model list filters hidden and non-api models", () => {
+test("ChatGPT Codex model list keeps subscription models and filters hidden models", () => {
   assert.deepEqual(
     parseChatGptCodexModels({
       models: [
+        { slug: "gpt-6-astra", visibility: "list", supported_in_api: true },
         { slug: "gpt-5.6-luna", visibility: "list", supported_in_api: true },
         { slug: "gpt-5.6-sol-wm", visibility: "hide", supported_in_api: false },
         { slug: "codex-auto-review", visibility: "hide", supported_in_api: true },
         { slug: "gpt-5.6-terra", visibility: "list", supported_in_api: true },
+        { slug: "gpt-5.3-codex-spark", visibility: "list", supported_in_api: false },
+        { slug: "future-subscription-model", visibility: "list", supported_in_api: false },
         { slug: "gpt-5.6-luna", visibility: "list", supported_in_api: true },
       ],
     }),
-    ["gpt-5.6-luna", "gpt-5.6-terra"],
+    ["gpt-6-astra", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.3-codex-spark", "future-subscription-model"],
   );
+});
+
+test("ChatGPT Codex requests preserve the selected Astra or Spark model", () => {
+  for (const model of ["gpt-6-astra", "gpt-5.3-codex-spark"]) {
+    assert.equal(buildChatGptCodexRequestBody(model, "Translate this").model, model);
+  }
+});
+
+test("ChatGPT model discovery uses the current supported client version", () => {
+  assert.equal(CHATGPT_CODEX_CLIENT_VERSION, "0.153.4");
+  assert.match(buildChatGptModelsUrl(), /client_version=0\.153\.4$/);
 });
 
 test("ChatGPT Codex models URL includes client_version", () => {
@@ -79,9 +95,19 @@ test("fetchChatGptModels requests the Codex models endpoint", async () => {
         JSON.stringify({
           models: [
             {
+              slug: "gpt-6-astra",
+              visibility: "list",
+              supported_in_api: true,
+            },
+            {
               slug: "gpt-5.6-luna",
               visibility: "list",
               supported_in_api: true,
+            },
+            {
+              slug: "gpt-5.3-codex-spark",
+              visibility: "list",
+              supported_in_api: false,
             },
             {
               slug: "gpt-5.6-sol",
@@ -98,7 +124,7 @@ test("fetchChatGptModels requests the Codex models endpoint", async () => {
     },
   });
 
-  assert.deepEqual(models, ["gpt-5.6-luna", "gpt-5.6-sol"]);
+  assert.deepEqual(models, ["gpt-6-astra", "gpt-5.6-luna", "gpt-5.3-codex-spark", "gpt-5.6-sol"]);
   assert.match(sent.url, /chatgpt\.com\/backend-api\/codex\/models\?client_version=/);
   assert.equal(sent.options.method, "GET");
   assert.equal(sent.options.headers.Accept, "application/json");

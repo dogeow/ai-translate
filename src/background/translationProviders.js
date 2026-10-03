@@ -35,6 +35,7 @@ export async function runProviderCompletion({
   text,
   targetLang,
   images = [],
+  reasoningEffort,
 }) {
   const imageOptions = { images };
   if (isChromeAiProvider(provider)) {
@@ -47,7 +48,7 @@ export async function runProviderCompletion({
     return generateGitHubModelsCompletion(base, apiKey, model, prompt, imageOptions);
   }
   if (isChatGptProvider(provider)) {
-    return generateChatGptCompletion(base, apiKey, model, prompt, imageOptions);
+    return generateChatGptCompletion(base, apiKey, model, prompt, { ...imageOptions, reasoningEffort });
   }
   return generateOllamaResponse(base, model, prompt, imageOptions);
 }
@@ -61,6 +62,7 @@ export async function runProviderStreaming({
   text,
   targetLang,
   onChunk,
+  reasoningEffort,
 }) {
   if (isChromeAiProvider(provider)) {
     return generateChromeAiStreamingCompletion(text, targetLang, { onChunk });
@@ -78,6 +80,7 @@ export async function runProviderStreaming({
   if (isChatGptProvider(provider)) {
     return generateChatGptStreamingCompletion(base, apiKey, model, prompt, {
       onChunk,
+      reasoningEffort,
     });
   }
   return generateOllamaStreamingResponse(base, model, prompt, { onChunk });

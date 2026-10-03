@@ -136,7 +136,10 @@ export function AiRewritePanel({
         }
         if (response?.ok) {
           currentPageRewrite.markApplied(response.rule, response.version);
-          setMessage(correcting ? "已按你的说明修正" : "已应用到当前页", "success");
+          setMessage(
+            correcting ? "已按你的说明修正" : "已应用到当前页",
+            "success",
+          );
           setPrompt("");
           setImages([]);
         } else {
@@ -161,7 +164,8 @@ export function AiRewritePanel({
 
   return (
     <Panel
-      title="AI 页面改造"
+      title="自定义网页样式"
+      hint="描述你想要的样式，AI 会调整当前网页。"
       isSubtle
       className="popup-panel--rewrite"
       showStatus={!!status}
@@ -180,7 +184,8 @@ export function AiRewritePanel({
       />
       <div className="popup-rewrite">
         <textarea
-          rows={2}
+          rows={4}
+          aria-label="页面改造需求"
           className="popup-rewrite__input"
           value={prompt}
           placeholder={
@@ -196,8 +201,8 @@ export function AiRewritePanel({
         />
         <p className="popup-rewrite__hint">
           {correcting
-            ? "会对照当前截图和上一版 CSS 继续改，也可粘贴或选择截图。"
-            : "会自动带上当前页面截图。可粘贴、拖入或选择截图补充说明。"}
+            ? "会结合当前截图继续修正，也可补充截图。"
+            : "自动附上页面截图，也可粘贴或拖入截图。"}
         </p>
         <div className="popup-rewrite-images">
           {images.map((image) => (

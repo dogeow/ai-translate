@@ -33,7 +33,6 @@ import {
   DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   DEFAULT_GITHUB_MODEL,
   DEFAULT_CHATGPT_MODEL,
-  DEPRECATED_CHATGPT_MODELS,
   GITHUB_AUTH_MODE_DEVICE,
   DEFAULT_TRANSLATE_TARGET_LANG,
   DEFAULT_AUTO_TRANSLATE_MODE,
@@ -45,6 +44,7 @@ import {
   DEFAULT_LEARNING_MODE_ENABLED,
   DEFAULT_APP_ENABLED,
 } from "./constants.js";
+import { normalizeChatGptReasoningEffort } from "./chatgpt-reasoning.js";
 
 /**
  * 默认设置值
@@ -70,6 +70,7 @@ export const DEFAULT_SETTINGS = {
   githubOAuthClientId: DEFAULT_GITHUB_OAUTH_CLIENT_ID,
   githubModel: DEFAULT_GITHUB_MODEL,
   chatgptModel: DEFAULT_CHATGPT_MODEL,
+  chatgptReasoningEffort: "",
   translateTargetLang: DEFAULT_TRANSLATE_TARGET_LANG,
   autoTranslateMode: DEFAULT_AUTO_TRANSLATE_MODE,
   hoverTranslateScope: DEFAULT_HOVER_TRANSLATE_SCOPE,
@@ -297,15 +298,11 @@ export function isChatGptProvider(provider) {
 }
 
 /**
- * 规范化 ChatGPT 模型：空值回落默认值，已下线模型迁移到当前默认。
+ * 保留用户选择的 ChatGPT 模型；订阅可用性由服务端按账号判断。
  */
 export function normalizeChatGptModel(value) {
   const model = String(value || "").trim();
-  if (!model) return DEFAULT_CHATGPT_MODEL;
-  if (DEPRECATED_CHATGPT_MODELS.includes(model)) {
-    return DEFAULT_CHATGPT_MODEL;
-  }
-  return model;
+  return model || DEFAULT_CHATGPT_MODEL;
 }
 
 
@@ -672,6 +669,7 @@ function normalizeSettings(settings = {}, options = {}) {
     githubToken,
     githubModel: settings?.githubModel || DEFAULT_SETTINGS.githubModel,
     chatgptModel: normalizeChatGptModel(settings?.chatgptModel),
+    chatgptReasoningEffort: normalizeChatGptReasoningEffort(settings?.chatgptReasoningEffort),
     translateTargetLang:
       settings?.translateTargetLang || DEFAULT_SETTINGS.translateTargetLang,
     autoTranslateMode: normalizeAutoTranslateMode(

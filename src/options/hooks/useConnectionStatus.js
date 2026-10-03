@@ -25,7 +25,7 @@ import {
 } from "../../shared/chrome-ai-api.js";
 import { getChatGptAuthSummary } from "../../shared/chatgpt-auth.js";
 import {
-  fetchChatGptModels,
+  fetchChatGptModelCatalog,
   testChatGptConnection,
 } from "../../shared/chatgpt-codex-api.js";
 
@@ -459,20 +459,21 @@ export function useConnectionStatus({
 
         let fetchedFromApi = false;
         try {
-          const remoteModelNames = showTestPending
+          const remoteModels = showTestPending
             ? (
                 await testChatGptConnection(fallbackModel, {
                   listModels: true,
+                  reasoningEffort: nextSettings.chatgptReasoningEffort,
                 })
-              )?.models
-            : await fetchChatGptModels({ forceRefresh: showTestPending });
+              )?.modelCatalog
+            : await fetchChatGptModelCatalog({ forceRefresh: showTestPending });
           if (requestId !== connectionRequestIdRef.current) return;
-          if (Array.isArray(remoteModelNames) && remoteModelNames.length > 0) {
-            const names = [...remoteModelNames];
-            if (fallbackModel && !names.includes(fallbackModel)) {
-              names.unshift(fallbackModel);
+          if (Array.isArray(remoteModels) && remoteModels.length > 0) {
+            const catalog = [...remoteModels];
+            if (fallbackModel && !catalog.some((item) => item.name === fallbackModel)) {
+              catalog.unshift({ name: fallbackModel });
             }
-            chatgptModels = names.map((name) => ({ name }));
+            chatgptModels = catalog;
             fetchedFromApi = true;
           }
         } catch (error) {

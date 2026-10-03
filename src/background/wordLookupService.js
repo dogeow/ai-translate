@@ -37,6 +37,7 @@ function getWordLookupCacheKey(word, settings) {
     settings.wordLookupProvider,
     runtime.provider,
     runtime.selectedModel,
+    runtime.reasoningEffort,
   ].join("|");
 }
 
@@ -61,6 +62,7 @@ async function lookupWordWithAi(word, settings, options = {}) {
       provider: runtime.provider,
       base: runtime.base,
       model: runtime.selectedModel,
+      reasoningEffort: runtime.reasoningEffort,
       apiKey: runtime.apiKey,
       prompt: buildAiWordDefinitionPrompt(word),
       text: word,

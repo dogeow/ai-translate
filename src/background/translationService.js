@@ -374,6 +374,7 @@ export async function translateWithProvider(text, tabId = null, options = {}) {
       "",
       {
         provider: learningProviderRuntime.provider,
+        reasoningEffort: learningProviderRuntime.reasoningEffort,
         apiKey: sentenceStudyApiKey,
         onThinkingProgress: pushSentenceStudyThinking,
       },

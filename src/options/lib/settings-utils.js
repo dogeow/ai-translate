@@ -110,6 +110,7 @@ export function getConfig(settings = {}) {
       provider: snapshot.provider,
       base: "",
       model: snapshot.chatgptModel,
+      reasoningEffort: snapshot.chatgptReasoningEffort,
       apiKey: "",
       apiKeyLabel: "",
     };
@@ -185,6 +186,7 @@ export function runGenerateRequest(config, prompt, options = {}) {
       "",
       config.model,
       prompt,
+      { reasoningEffort: config.reasoningEffort },
     );
   }
   return generateCompletion(config.base, config.model, prompt);

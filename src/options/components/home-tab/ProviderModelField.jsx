@@ -7,6 +7,8 @@ import { ModelDropdown } from "../ModelDropdown.jsx";
 import { AutoSaveInputField } from "../common/AutoSaveField.jsx";
 import { FieldLabel } from "../common/InfoTip.jsx";
 import { FIELD_IDS } from "./constants.js";
+import { ChatGptReasoningField } from "./ChatGptReasoningField.jsx";
+import { resolveChatGptReasoningEffort } from "../../../shared/chatgpt-reasoning.js";
 
 function buildChatGptModelOptions(models, selected) {
   const names = [];
@@ -105,30 +107,51 @@ export function ProviderModelField({
     const probed = Array.isArray(models) && models.length > 1;
 
     return (
-      <div className="field">
-        <FieldLabel
-          tip={
-            probed
-              ? "列表来自当前 ChatGPT 账号的 Codex 可用模型。"
-              : "先展示常见 GPT-5.6 候选。登录后点「测试连接」会按账号权限刷新完整列表。"
-          }
-        >
-          模型
-        </FieldLabel>
-        <ModelDropdown
-          models={chatgptModels}
-          selectedValue={selected}
-          disabled={false}
-          isOpen={modelDropdownOpen}
-          onToggle={() => setModelDropdownOpen((value) => !value)}
-          onSelect={(name) => {
-            updateSettings({ chatgptModel: name }, "now");
+      <>
+        <div className="field">
+          <FieldLabel
+            tip={
+              probed
+                ? "列表来自当前 ChatGPT 账号的 Codex 可用模型。"
+                : "先展示常见候选，包括 GPT-6 Astra 和 Codex Spark；实际可用性取决于账号权限。登录后点「测试连接」刷新模型列表。"
+            }
+          >
+            模型
+          </FieldLabel>
+          <ModelDropdown
+            models={chatgptModels}
+            selectedValue={selected}
+            disabled={false}
+            isOpen={modelDropdownOpen}
+            onToggle={() => setModelDropdownOpen((value) => !value)}
+            onSelect={(name) => {
+              updateSettings(
+                {
+                  chatgptModel: name,
+                  chatgptReasoningEffort: resolveChatGptReasoningEffort(
+                    name,
+                    settings.chatgptReasoningEffort,
+                    models.find((model) => model.name === name),
+                  ),
+                },
+                "now",
+              );
+              void persistSettings(settingsRef.current);
+              setModelDropdownOpen(false);
+            }}
+            dropdownRef={modelDropdownRef}
+          />
+        </div>
+        <ChatGptReasoningField
+          model={selected}
+          modelInfo={models.find((model) => model.name === selected)}
+          value={settings.chatgptReasoningEffort || ""}
+          onChange={(effort) => {
+            updateSettings({ chatgptReasoningEffort: effort }, "now");
             void persistSettings(settingsRef.current);
-            setModelDropdownOpen(false);
           }}
-          dropdownRef={modelDropdownRef}
         />
-      </div>
+      </>
     );
   }
 

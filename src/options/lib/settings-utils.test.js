@@ -61,13 +61,18 @@ test("ChatGPT provider defaults to gpt-5.6-luna", () => {
   assert.equal(config.apiKey, "");
 });
 
-test("ChatGPT migrates deprecated spark model to current default", () => {
-  const config = getConfig({
-    provider: "chatgpt",
-    chatgptModel: "gpt-5.3-codex-spark",
-  });
-  assert.equal(config.model, DEFAULT_CHATGPT_MODEL);
-  assert.equal(config.model, "gpt-5.6-luna");
+test("ChatGPT preserves Astra and Pro Spark through save, reload and runtime selection", () => {
+  for (const model of ["gpt-6-astra", "gpt-5.3-codex-spark"]) {
+    const snapshot = getSettingsSnapshot({
+      provider: "chatgpt",
+      chatgptModel: `  ${model}  `,
+    });
+    const stored = getStoredSettingsShape(snapshot);
+    const config = getConfig(stored);
+    assert.equal(snapshot.chatgptModel, model);
+    assert.equal(stored.chatgptModel, model);
+    assert.equal(config.model, model);
+  }
 });
 
 test("settings keep the added provider card list and include the active provider", () => {

@@ -143,7 +143,7 @@ async function runSentenceStudyCompletion(base, model, prompt, runtime = {}) {
         "",
         model,
         prompt,
-        { onChunk: handleStreamChunk },
+        { onChunk: handleStreamChunk, reasoningEffort: runtime?.reasoningEffort },
       ),
       SENTENCE_STUDY_REQUEST_TIMEOUT_MS,
       "句型学习请求超时",
