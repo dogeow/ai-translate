@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTemporaryMessage } from "../../shared/hooks/useTemporaryMessage.js";
 import { detectChromeAiRuntimeAvailability } from "../../shared/chrome-ai-verification.js";
 import {
@@ -282,7 +282,7 @@ function getActiveTabInfo() {
     try {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs?.[0];
-        if (!tab?.id) {
+        if (chrome.runtime.lastError || !tab?.id) {
           resolve(null);
           return;
         }
@@ -293,7 +293,20 @@ function getActiveTabInfo() {
             origin = `${url.protocol}//${url.host}`;
           }
         } catch (_) {}
-        resolve({ tabId: tab.id, origin });
+        resolve({ tabId: tab.id, origin, url: tab.url || "" });
+      });
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
+function sendPageTranslateMessage(tabId, message) {
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, message, (response) => {
+        const error = chrome.runtime.lastError;
+        resolve(error ? null : response || null);
       });
     } catch (_) {
       resolve(null);
@@ -307,64 +320,68 @@ function getActiveTabInfo() {
 export function usePageTranslate(appEnabled) {
   const [isToggling, setIsToggling] = useState(false);
   const [isChangingDisplayMode, setIsChangingDisplayMode] = useState(false);
+  const [isTogglingSiteAutoTranslate, setIsTogglingSiteAutoTranslate] = useState(false);
   const [isPageTranslateActive, setIsPageTranslateActive] = useState(false);
   const [displayMode, setDisplayMode] = useState("translation");
   const [activeOrigin, setActiveOrigin] = useState("");
   const [siteEnabled, setSiteEnabled] = useState(false);
-  const { message: status, showMessage: showStatus } =
+  const contextRef = useRef(null);
+  const pendingRef = useRef({ toggle: false, mode: false, site: false });
+  const pageStateRef = useRef({ active: false, mode: "translation" });
+  const pageRevisionRef = useRef(0);
+  const siteRevisionRef = useRef(0);
+  const refreshRef = useRef(null);
+  const { message: status, showMessage: showStatus, clearMessage: clearStatus } =
     useTemporaryMessage(2800);
+
+  const applyPageState = useCallback((nextState) => {
+    pageStateRef.current = nextState;
+    setIsPageTranslateActive(nextState.active);
+    setDisplayMode(nextState.mode);
+  }, []);
+
+  const isCurrent = useCallback((context) => (
+    context !== null && context === contextRef.current && context.info !== null
+  ), []);
 
   useEffect(() => {
     let cancelled = false;
-    let refreshId = 0;
 
     async function refreshActiveTabState() {
-      const requestId = ++refreshId;
-      const info = await getActiveTabInfo();
-      if (cancelled || requestId !== refreshId) return;
-      if (!info) {
-        setActiveOrigin("");
-        setSiteEnabled(false);
-        setIsPageTranslateActive(false);
-        setDisplayMode("translation");
-        return;
-      }
-      setActiveOrigin(info.origin);
+      // Every activation/navigation owns a new context, including same-origin navigation.
+      const context = { info: null };
+      contextRef.current = context;
+      pendingRef.current = { toggle: false, mode: false, site: false };
+      setIsToggling(false);
+      setIsChangingDisplayMode(false);
+      setIsTogglingSiteAutoTranslate(false);
+      setActiveOrigin("");
       setSiteEnabled(false);
-      setIsPageTranslateActive(false);
-      setDisplayMode("translation");
+      applyPageState({ active: false, mode: "translation" });
+      clearStatus();
 
-      chrome.tabs.sendMessage(
-        info.tabId,
-        { action: "getPageTranslateState" },
-        (response) => {
-          const lastError = chrome.runtime.lastError;
-          if (
-            cancelled ||
-            requestId !== refreshId ||
-            lastError ||
-            !response?.ok
-          ) {
-            return;
-          }
+      const info = await getActiveTabInfo();
+      if (cancelled || context !== contextRef.current || !info) return;
+      context.info = info;
+      setActiveOrigin(info.origin);
+      const pageRevision = pageRevisionRef.current;
+      void sendPageTranslateMessage(info.tabId, { action: "getPageTranslateState" })
+        .then((response) => {
+          if (!isCurrent(context) || pageRevision !== pageRevisionRef.current || !response?.ok) return;
           const nextState = resolvePageTranslateState(response, {
             active: false,
             mode: "translation",
           });
-          setIsPageTranslateActive(nextState.active);
-          setDisplayMode(nextState.mode);
-        },
-      );
+          applyPageState(nextState);
+        });
 
-      if (!info.origin) {
-        setSiteEnabled(false);
-        return;
-      }
+      if (!info.origin) return;
+      const siteRevision = siteRevisionRef.current;
       const { isAlwaysTranslateOrigin } = await import(
         "../../shared/always-translate-origins.js"
       );
       const enabled = await isAlwaysTranslateOrigin(info.origin);
-      if (!cancelled && requestId === refreshId) setSiteEnabled(enabled);
+      if (isCurrent(context) && siteRevision === siteRevisionRef.current) setSiteEnabled(enabled);
     }
 
     function handleTabActivated() {
@@ -372,160 +389,158 @@ export function usePageTranslate(appEnabled) {
     }
 
     function handleTabUpdated(_tabId, changeInfo, tab) {
-      if (tab?.active && (changeInfo.url || changeInfo.status === "complete")) {
+      if (tab?.active && (changeInfo.url || changeInfo.status === "loading" || changeInfo.status === "complete")) {
         void refreshActiveTabState();
       }
     }
 
+    refreshRef.current = refreshActiveTabState;
     void refreshActiveTabState();
     chrome.tabs.onActivated?.addListener(handleTabActivated);
     chrome.tabs.onUpdated?.addListener(handleTabUpdated);
 
     return () => {
       cancelled = true;
+      contextRef.current = null;
+      refreshRef.current = null;
       chrome.tabs.onActivated?.removeListener(handleTabActivated);
       chrome.tabs.onUpdated?.removeListener(handleTabUpdated);
     };
-  }, []);
+  }, [applyPageState, clearStatus, isCurrent]);
 
-  const togglePageTranslate = useCallback(() => {
-    if (isToggling) return;
+  const resolveTarget = useCallback(async (context) => {
+    const info = await getActiveTabInfo();
+    if (!isCurrent(context)) return null;
+    if (!info || info.tabId !== context.info.tabId || info.url !== context.info.url) {
+      // A tab query can notice the switch before Chrome dispatches the tab event.
+      void refreshRef.current?.();
+      showStatus(info ? "当前页面已变化，请重试。" : "未找到当前标签页。");
+      return null;
+    }
+    return info;
+  }, [isCurrent, showStatus]);
+
+  const togglePageTranslate = useCallback(async () => {
+    if (pendingRef.current.toggle || pendingRef.current.mode) return;
     if (!appEnabled) {
       showStatus("应用已关闭，请先开启应用。");
       return;
     }
-    const shouldStop = isPageTranslateActive;
+    const context = contextRef.current;
+    if (!isCurrent(context)) {
+      showStatus("正在读取当前标签页，请稍后重试。");
+      return;
+    }
+    const shouldStop = pageStateRef.current.active;
+    pendingRef.current.toggle = true;
+    pageRevisionRef.current += 1;
     setIsToggling(true);
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs?.[0]?.id;
-      if (!tabId) {
-        setIsToggling(false);
-        showStatus("未找到当前标签页。");
-        return;
-      }
-      chrome.tabs.sendMessage(
-        tabId,
-        {
-          action: shouldStop
-            ? "stopVisualPageTranslate"
-            : "startVisualPageTranslate",
-        },
-        (response) => {
-          setIsToggling(false);
-          if (chrome.runtime.lastError) {
-            showStatus("当前页面不支持页面翻译。");
-            return;
-          }
-          if (response?.ok) {
-            const nextState = resolvePageTranslateState(response, {
-              active: !shouldStop,
-              mode: displayMode,
-            });
-            setIsPageTranslateActive(nextState.active);
-            setDisplayMode(nextState.mode);
-            showStatus(
-              shouldStop
-                ? "已停止继续翻译，已完成的译文会保留。"
-                : "已启动：先翻译可视区域，滚动后继续。",
-            );
-            return;
-          }
-          showStatus(
-            shouldStop ? "停止失败，请重试。" : "启动失败，请重试。",
-          );
-        },
-      );
-    });
-  }, [
-    appEnabled,
-    displayMode,
-    isPageTranslateActive,
-    isToggling,
-    showStatus,
-  ]);
-
-  const changeDisplayMode = useCallback(
-    (mode) => {
-      if (
-        isChangingDisplayMode ||
-        !isPageTranslateActive ||
-        !["translation", "original", "bilingual"].includes(mode)
-      ) {
-        return;
-      }
-
-      setIsChangingDisplayMode(true);
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tabId = tabs?.[0]?.id;
-        if (!tabId) {
-          setIsChangingDisplayMode(false);
-          showStatus("未找到当前标签页。");
-          return;
-        }
-
-        chrome.tabs.sendMessage(
-          tabId,
-          { action: "setPageTranslateMode", mode },
-          (response) => {
-            setIsChangingDisplayMode(false);
-            if (chrome.runtime.lastError || !response?.ok) {
-              setIsPageTranslateActive(false);
-              showStatus("当前页面的翻译状态已失效，请重新翻译。");
-              return;
-            }
-            const nextState = resolvePageTranslateState(response, {
-              active: isPageTranslateActive,
-              mode,
-            });
-            setIsPageTranslateActive(nextState.active);
-            setDisplayMode(nextState.mode);
-          },
-        );
+    try {
+      const info = await resolveTarget(context);
+      if (!info) return;
+      const response = await sendPageTranslateMessage(info.tabId, {
+        action: shouldStop ? "stopVisualPageTranslate" : "startVisualPageTranslate",
       });
-    },
-    [
-      isChangingDisplayMode,
-      isPageTranslateActive,
-      showStatus,
-    ],
-  );
+      if (!isCurrent(context)) return;
+      if (!response) {
+        showStatus("当前页面不支持页面翻译。");
+        return;
+      }
+      if (response.ok) {
+        const nextState = resolvePageTranslateState(response, {
+          active: !shouldStop,
+          mode: pageStateRef.current.mode,
+        });
+        applyPageState(nextState);
+        showStatus(shouldStop
+          ? "已停止继续翻译，已完成的译文会保留。"
+          : "已启动：先翻译可视区域，滚动后继续。");
+      } else {
+        showStatus(shouldStop ? "停止失败，请重试。" : "启动失败，请重试。");
+      }
+    } finally {
+      if (isCurrent(context)) {
+        pendingRef.current.toggle = false;
+        setIsToggling(false);
+      }
+    }
+  }, [appEnabled, applyPageState, isCurrent, resolveTarget, showStatus]);
+
+  const changeDisplayMode = useCallback(async (mode) => {
+    if (pendingRef.current.mode || pendingRef.current.toggle || !appEnabled
+      || !pageStateRef.current.active || !["translation", "original", "bilingual"].includes(mode)) return;
+    const context = contextRef.current;
+    if (!isCurrent(context)) return;
+    pendingRef.current.mode = true;
+    pageRevisionRef.current += 1;
+    setIsChangingDisplayMode(true);
+    try {
+      const info = await resolveTarget(context);
+      if (!info) return;
+      const response = await sendPageTranslateMessage(info.tabId, { action: "setPageTranslateMode", mode });
+      if (!isCurrent(context)) return;
+      if (!response?.ok) {
+        applyPageState({ active: false, mode: pageStateRef.current.mode });
+        showStatus("当前页面的翻译状态已失效，请重新翻译。");
+        return;
+      }
+      const nextState = resolvePageTranslateState(response, { active: pageStateRef.current.active, mode });
+      applyPageState(nextState);
+    } finally {
+      if (isCurrent(context)) {
+        pendingRef.current.mode = false;
+        setIsChangingDisplayMode(false);
+      }
+    }
+  }, [appEnabled, applyPageState, isCurrent, resolveTarget, showStatus]);
 
   const toggleSiteAutoTranslate = useCallback(async () => {
+    if (pendingRef.current.site) return;
     if (!appEnabled) {
       showStatus("应用已关闭，请先开启应用。");
       return;
     }
-    if (!activeOrigin) {
+    const context = contextRef.current;
+    if (!isCurrent(context) || !context.info.origin) {
       showStatus("当前页面不支持自动翻译（仅 http/https）。");
       return;
     }
-    const { toggleAlwaysTranslateOrigin } = await import(
-      "../../shared/always-translate-origins.js"
-    );
-    const result = await toggleAlwaysTranslateOrigin(activeOrigin);
-    if (!result.ok) {
-      showStatus("操作失败，请重试。");
-      return;
+    const origin = context.info.origin;
+    pendingRef.current.site = true;
+    siteRevisionRef.current += 1;
+    setIsTogglingSiteAutoTranslate(true);
+    try {
+      if (!await resolveTarget(context)) return;
+      const { toggleAlwaysTranslateOrigin } = await import(
+        "../../shared/always-translate-origins.js"
+      );
+      if (!isCurrent(context)) return;
+      const result = await toggleAlwaysTranslateOrigin(origin);
+      if (!isCurrent(context)) return;
+      if (!result.ok) {
+        showStatus("操作失败，请重试。");
+        return;
+      }
+      setSiteEnabled(result.enabled);
+      if (result.enabled) {
+        showStatus(`已加入自动翻译：${origin}`);
+        // 同时立即翻译当前页
+        if (!pageStateRef.current.active) void togglePageTranslate();
+      } else {
+        showStatus(`已移出自动翻译：${origin}`);
+      }
+    } finally {
+      if (isCurrent(context)) {
+        pendingRef.current.site = false;
+        setIsTogglingSiteAutoTranslate(false);
+      }
     }
-    setSiteEnabled(result.enabled);
-    if (result.enabled) {
-      showStatus(`已加入自动翻译：${activeOrigin}`);
-      // 同时立即翻译当前页
-      if (!isPageTranslateActive) togglePageTranslate();
-    } else {
-      showStatus(`已移出自动翻译：${activeOrigin}`);
-    }
-  }, [
-    appEnabled,
-    activeOrigin,
-    isPageTranslateActive,
-    showStatus,
-    togglePageTranslate,
-  ]);
+  }, [appEnabled, isCurrent, resolveTarget, showStatus, togglePageTranslate]);
 
   return {
     isToggling,
     isChangingDisplayMode,
+    isTogglingSiteAutoTranslate,
     isPageTranslateActive,
     displayMode,
     status,

@@ -8,6 +8,7 @@ export function QuickActionsPanel({
   appEnabled,
   isTogglingPageTranslate,
   isChangingPageDisplayMode,
+  isTogglingSiteAutoTranslate,
   isPageTranslateActive,
   pageDisplayMode,
   pageTranslateStatus,
@@ -60,7 +61,7 @@ export function QuickActionsPanel({
           type="button"
           className={`btn popup-page-translate-btn${isPageTranslateActive ? " btn-secondary popup-page-translate-btn--stop" : " btn-primary"}`}
           onClick={onTogglePageTranslate}
-          disabled={!appEnabled || isTogglingPageTranslate}
+          disabled={!appEnabled || isTogglingPageTranslate || isChangingPageDisplayMode}
           title={
             isPageTranslateActive
               ? "停止继续翻译，已完成的译文会保留"
@@ -73,7 +74,22 @@ export function QuickActionsPanel({
               : "启动中..."
             : isPageTranslateActive
               ? "停止翻译"
-              : "翻译当前页面"}
+              : "翻译该页面"}
+        </button>
+        <button
+          type="button"
+          className={`btn popup-site-translate-btn${siteAutoTranslateEnabled ? " popup-site-translate-btn--on" : ""}`}
+          onClick={onToggleSiteAutoTranslate}
+          disabled={!appEnabled || !activeOrigin || isTogglingSiteAutoTranslate}
+          title={
+            !activeOrigin
+              ? "当前页面不支持（仅 http/https）"
+              : siteAutoTranslateEnabled
+                ? `点击关闭：${activeOrigin}`
+                : `打开后访问 ${activeOrigin} 下任意页面都会自动翻译`
+          }
+        >
+          {isTogglingSiteAutoTranslate ? "保存中..." : siteAutoTranslateEnabled ? "✓ 翻译该网站" : "翻译该网站"}
         </button>
       </div>
       <div className="popup-page-display">
@@ -88,7 +104,7 @@ export function QuickActionsPanel({
             const isDisabled =
               !appEnabled ||
               !isPageTranslateActive ||
-              isChangingPageDisplayMode;
+              isChangingPageDisplayMode || isTogglingPageTranslate;
             return (
               <button
                 key={option.value}

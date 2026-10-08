@@ -200,42 +200,48 @@ export function PopupApp({ surface = "popup" }) {
         onToggleApp={popupSettings.toggleAppEnabled}
         onOpenSettings={openOptionsPage}
       />
-      <div className="popup-tabs" role="tablist" aria-label="功能分组">
-        {[
-          { id: "translate", label: "翻译" },
-          { id: "learn", label: "英语学习" },
-          { id: "rewrite", label: "页面改造" },
-        ].map((tab, index, tabs) => (
-          <button
-            key={tab.id}
-            id={`popup-tab-${tab.id}`}
-            type="button"
-            role="tab"
-            aria-selected={activePanel === tab.id}
-            aria-controls={`popup-panel-${tab.id}`}
-            tabIndex={activePanel === tab.id ? 0 : -1}
-            onClick={() => setActivePanel(tab.id)}
-            onKeyDown={(event) => {
-              let next;
-              if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
-              if (event.key === "ArrowLeft")
-                next = (index - 1 + tabs.length) % tabs.length;
-              if (event.key === "Home") next = 0;
-              if (event.key === "End") next = tabs.length - 1;
-              if (next === undefined) return;
-              event.preventDefault();
-              setActivePanel(tabs[next].id);
-              document.getElementById(`popup-tab-${tabs[next].id}`)?.focus();
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      {!popupSettings.appEnabled && (
-        <p className="popup-paused-note" role="status">
-          翻译已暂停，点击右上方开关恢复。
-        </p>
+      <QuickActionsPanel
+        appEnabled={popupSettings.appEnabled}
+        isTogglingPageTranslate={pageTranslate.isToggling}
+        isChangingPageDisplayMode={pageTranslate.isChangingDisplayMode}
+        isTogglingSiteAutoTranslate={pageTranslate.isTogglingSiteAutoTranslate}
+        isPageTranslateActive={pageTranslate.isPageTranslateActive}
+        pageDisplayMode={pageTranslate.displayMode}
+        pageTranslateStatus={pageTranslate.status}
+        articleNarrationState={articleNarration.state}
+        isChangingArticleNarration={articleNarration.isChanging}
+        articleNarrationStatus={articleNarration.statusMessage}
+        onToggleArticleNarration={articleNarration.toggle}
+        onStopArticleNarration={articleNarration.stop}
+        onTogglePageTranslate={pageTranslate.togglePageTranslate}
+        onPageDisplayModeChange={pageTranslate.changeDisplayMode}
+        onToggleSiteAutoTranslate={pageTranslate.toggleSiteAutoTranslate}
+        siteAutoTranslateEnabled={pageTranslate.siteAutoTranslateEnabled}
+        activeOrigin={pageTranslate.activeOrigin}
+        provider={popupSettings.provider}
+        onProviderChange={popupSettings.updateProvider}
+        availableProviders={availableModels}
+        providersLoading={!popupSettings.isSettingsLoaded}
+        onOpenProviderSetup={openProviderSetup}
+        showStatus={showSaveStatus}
+        statusText={saveStatusText}
+        statusTone={saveStatusTone}
+      />
+      <AutoTranslateModePanel
+        options={AUTO_MODE_OPTIONS}
+        value={popupSettings.autoTranslateMode}
+        onChange={popupSettings.updateAutoTranslateMode}
+      />
+      {popupSettings.autoTranslateMode === "hover" && (
+        <HoverTranslateScopePanel
+          options={HOVER_SCOPE_OPTIONS}
+          value={popupSettings.hoverTranslateScope}
+          onChange={popupSettings.updateHoverTranslateScope}
+          modifierOptions={HOVER_MODIFIER_OPTIONS}
+          modifierValue={popupSettings.hoverTranslateModifierKey}
+          onModifierChange={popupSettings.updateHoverTranslateModifierKey}
+        />
+      )}
       )}
       <div
         className="popup-tab-content"
