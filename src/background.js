@@ -1,13 +1,18 @@
 import {
-  createContextMenus,
+  refreshContextMenus,
+  MENU_SETTING_KEYS,
+  RADIO_MENU_SETTINGS,
   MENU_TRANSLATE_SELECTION,
   MENU_TRANSLATE_PAGE,
+  MENU_CYCLE_DISPLAY_MODE,
+  MENU_TOGGLE_SITE,
+  MENU_REWRITE_PAGE,
+  MENU_LEARN_KNOWN,
+  MENU_LEARN_STUDYING,
+  MENU_ENABLE_APP,
+  MENU_LEARNING_MODE,
+  MENU_WORD_MARKING,
   MENU_OPEN_OPTIONS,
-  MENU_AUTO_MODE_HOTKEY,
-  MENU_AUTO_MODE_SELECTION,
-  MENU_AUTO_MODE_HOVER,
-  MENU_HOVER_SCOPE_WORD,
-  MENU_HOVER_SCOPE_PARAGRAPH,
 } from "./shared/utils/contextMenu.js";
 import {
   sendTranslateResult,
@@ -33,29 +38,11 @@ import {
 
 const LOG_PREFIX = "[英语学习和AI翻译]";
 
-const MENU_REWRITE_PAGE = "ai-translate-rewrite-page";
-const MENU_LEARN_KNOWN = "ai-translate-learn-known";
-const MENU_LEARN_STUDYING = "ai-translate-learn-studying";
-
-async function createExtraContextMenus() {
-  try {
-    chrome.contextMenus.create({
-      id: MENU_REWRITE_PAGE,
-      title: "AI 改造这个页面…",
-      contexts: ["page", "action"],
-    });
-    chrome.contextMenus.create({
-      id: MENU_LEARN_KNOWN,
-      title: "加入我知道的单词",
-      contexts: ["selection"],
-    });
-    chrome.contextMenus.create({
-      id: MENU_LEARN_STUDYING,
-      title: "标记为生词（学习中）",
-      contexts: ["selection"],
-    });
-  } catch (_) {}
-}
+// 菜单复选项与快捷键共用同一套切换逻辑（含提示与限制）
+const CHECKBOX_MENU_COMMANDS = {
+  [MENU_LEARNING_MODE]: "toggle-learning-mode",
+  [MENU_WORD_MARKING]: "toggle-word-marking",
+};
 
 async function initializeExtensionRuntime() {
   const migration = await migrateSettingsIfNeeded(
@@ -63,8 +50,7 @@ async function initializeExtensionRuntime() {
     (updates) => chrome.storage.sync.set(updates),
   );
   if (!migration.shouldMigrate || migration.writeFailed) {
-    await createContextMenus();
-    await createExtraContextMenus();
+    await refreshContextMenus();
   }
 }
 
@@ -162,7 +148,7 @@ async function handleToggleApp() {
 async function handleSettingShortcut(command, tabId) {
   const stored = await chrome.storage.sync.get(SETTING_SHORTCUT_STORAGE_KEYS);
   const result = resolveSettingShortcut(command, stored);
-  if (!result) return;
+  if (!result) return null;
   if (result.updates) {
     await chrome.storage.sync.set(result.updates);
   }
@@ -172,6 +158,7 @@ async function handleSettingShortcut(command, tabId) {
       message: result.message,
     });
   }
+  return result;
 }
 
 async function handleToggleTranslateSite(tabId) {
@@ -263,29 +250,38 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
-const AUTO_MODE_MENU_MAP = {
-  [MENU_AUTO_MODE_HOTKEY]: { key: "autoTranslateMode", value: "hotkey" },
-  [MENU_AUTO_MODE_SELECTION]: {
-    key: "autoTranslateMode",
-    value: "selection",
-  },
-  [MENU_AUTO_MODE_HOVER]: { key: "autoTranslateMode", value: "hover" },
-  [MENU_HOVER_SCOPE_WORD]: { key: "hoverTranslateScope", value: "word" },
-  [MENU_HOVER_SCOPE_PARAGRAPH]: {
-    key: "hoverTranslateScope",
-    value: "paragraph",
-  },
-};
-
 chrome.contextMenus.onClicked.addListener(async (info, clickedTab) => {
-  const menuConfig = AUTO_MODE_MENU_MAP[info.menuItemId];
+  const menuConfig = RADIO_MENU_SETTINGS[info.menuItemId];
   if (menuConfig) {
     await chrome.storage.sync.set({ [menuConfig.key]: menuConfig.value });
     return;
   }
 
+  const checkboxCommand = CHECKBOX_MENU_COMMANDS[info.menuItemId];
+  if (checkboxCommand) {
+    const result = await handleSettingShortcut(checkboxCommand, clickedTab?.id);
+    // 设置未改变时（例如被拒绝），复选框需要恢复为真实状态
+    if (!result?.updates) void refreshContextMenus();
+    return;
+  }
+
   if (info.menuItemId === MENU_OPEN_OPTIONS) {
     await chrome.runtime.openOptionsPage();
+    return;
+  }
+
+  if (info.menuItemId === MENU_ENABLE_APP) {
+    await chrome.storage.sync.set({ appEnabled: true });
+    return;
+  }
+
+  if (info.menuItemId === MENU_CYCLE_DISPLAY_MODE) {
+    if (clickedTab?.id) await handleCycleDisplayMode(clickedTab.id);
+    return;
+  }
+
+  if (info.menuItemId === MENU_TOGGLE_SITE) {
+    if (clickedTab?.id) await handleToggleTranslateSite(clickedTab.id);
     return;
   }
 
@@ -379,17 +375,8 @@ chrome.contextMenus.onClicked.addListener(async (info, clickedTab) => {
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== "sync") return;
-  if (
-    !("autoTranslateMode" in changes) &&
-    !("ollamaAutoTranslateMode" in changes) &&
-    !("ollamaAutoTranslateSelection" in changes) &&
-    !("hoverTranslateScope" in changes) &&
-    !("ollamaHoverTranslateScope" in changes) &&
-    !("appEnabled" in changes)
-  ) {
-    return;
-  }
-  void createContextMenus().then(() => createExtraContextMenus());
+  if (!MENU_SETTING_KEYS.some((key) => key in changes)) return;
+  void refreshContextMenus();
 });
 
 const UI_REWRITE_ACTIONS = new Set([

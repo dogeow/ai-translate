@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Panel } from "./Panel.jsx";
 import { PopupModelField } from "./PopupModelField.jsx";
 import { useCurrentPageRewrite } from "../hooks/useCurrentPageRewrite.js";
@@ -54,14 +54,22 @@ export function AiRewritePanel({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [statusTone, setStatusTone] = useState("neutral");
+  const statusTimerRef = useRef(null);
   const currentPageRewrite = useCurrentPageRewrite();
   const correcting = currentPageRewrite.isActive;
 
-  function setMessage(text, tone = "neutral") {
+  useEffect(() => () => clearTimeout(statusTimerRef.current), []);
+
+  // 进行中的提示（persist）保持显示，直到被结果替换
+  function setMessage(text, tone = "neutral", { persist = false } = {}) {
+    clearTimeout(statusTimerRef.current);
     setStatus(text);
     setStatusTone(tone);
-    if (text) {
-      window.setTimeout(() => setStatus(""), 2200);
+    if (text && !persist) {
+      statusTimerRef.current = window.setTimeout(
+        () => setStatus(""),
+        tone === "error" ? 4000 : 2200,
+      );
     }
   }
 
@@ -118,7 +126,11 @@ export function AiRewritePanel({
       return;
     }
     setBusy(true);
-    setMessage(correcting ? "正在对照当前效果修正…" : "AI 生成中…", "neutral");
+    setMessage(
+      correcting ? "正在对照当前效果修正…" : "AI 生成中…",
+      "neutral",
+      { persist: true },
+    );
     chrome.runtime.sendMessage(
       {
         action: "generateUiRewrite",
@@ -150,7 +162,7 @@ export function AiRewritePanel({
   }
 
   async function restoreOriginal() {
-    setMessage("正在恢复原版…", "neutral");
+    setMessage("正在恢复原版…", "neutral", { persist: true });
     const restored = await currentPageRewrite.restoreOriginal();
     setMessage(
       restored ? "已恢复当前网页原版" : "恢复失败，请重试",
@@ -195,14 +207,24 @@ export function AiRewritePanel({
           }
           onChange={(event) => setPrompt(event.target.value)}
           onPaste={handlePaste}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              (event.metaKey || event.ctrlKey) &&
+              !busy
+            ) {
+              event.preventDefault();
+              void submit();
+            }
+          }}
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
           disabled={busy}
         />
         <p className="popup-rewrite__hint">
           {correcting
-            ? "会结合当前截图继续修正，也可补充截图。"
-            : "自动附上页面截图，也可粘贴或拖入截图。"}
+            ? "会结合当前截图继续修正，也可补充截图。⌘/Ctrl + Enter 提交。"
+            : "自动附上页面截图，也可粘贴或拖入截图。⌘/Ctrl + Enter 提交。"}
         </p>
         <div className="popup-rewrite-images">
           {images.map((image) => (

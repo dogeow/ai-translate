@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AUTO_TRANSLATE_MODE_OPTIONS,
   HOVER_TRANSLATE_MODIFIER_OPTIONS,
@@ -40,8 +40,51 @@ const HOVER_MODIFIER_OPTIONS = HOVER_TRANSLATE_MODIFIER_OPTIONS.map(
   }),
 );
 
+const POPUP_TABS = [
+  { id: "translate", label: "翻译" },
+  { id: "learn", label: "英语学习" },
+  { id: "rewrite", label: "页面改造" },
+];
+const ACTIVE_PANEL_STORAGE_KEY = "ai-translate:popup-active-panel";
+
+function readStoredPanel() {
+  try {
+    const stored = localStorage.getItem(ACTIVE_PANEL_STORAGE_KEY);
+    if (POPUP_TABS.some((tab) => tab.id === stored)) return stored;
+  } catch (_) {}
+  return "translate";
+}
+
+// 复用已打开的设置页，避免每次点击都新开标签
+function openExtensionPage(path) {
+  const url = chrome.runtime.getURL(path);
+  const baseUrl = chrome.runtime.getURL(path.split("?")[0]);
+  return new Promise((resolve) => {
+    chrome.tabs.query({ url: `${baseUrl}*` }, (tabs) => {
+      const existing = !chrome.runtime.lastError && tabs?.[0];
+      if (!existing?.id) {
+        chrome.tabs.create({ url }, () => resolve());
+        return;
+      }
+      chrome.tabs.update(
+        existing.id,
+        { active: true, ...(url !== existing.url ? { url } : {}) },
+        () => {
+          if (existing.windowId != null) {
+            chrome.windows.update(existing.windowId, { focused: true }, () =>
+              resolve(),
+            );
+          } else {
+            resolve();
+          }
+        },
+      );
+    });
+  });
+}
+
 export function PopupApp({ surface = "popup" }) {
-  const [activePanel, setActivePanel] = useState("translate");
+  const [activePanel, setActivePanel] = useState(readStoredPanel);
   const currentVersion = chrome.runtime.getManifest().version;
   const isPopup = surface === "popup";
   const sidePanelSupport = getSidePanelSupport();
@@ -51,28 +94,46 @@ export function PopupApp({ surface = "popup" }) {
   const popupSettings = usePopupSettings();
   const pageTranslate = usePageTranslate(popupSettings.appEnabled);
   const articleNarration = useArticleNarration(popupSettings.appEnabled);
-  const availableModels = getVerifiedModelOptions(popupSettings.settings, {
-    chromeAiReady: popupSettings.chromeAiReady,
-  });
-  const availableGenerativeModels = getVerifiedModelOptions(
-    popupSettings.settings,
-    {
-      chromeAiReady: popupSettings.chromeAiReady,
-      includeChromeAi: false,
-      shortenChatGptLabel: true,
-    },
+  const { settings, chromeAiReady } = popupSettings;
+  // 记忆化：下方的回退 effect 依赖这些数组，避免每次渲染都重新触发
+  const availableModels = useMemo(
+    () => getVerifiedModelOptions(settings, { chromeAiReady }),
+    [settings, chromeAiReady],
   );
-  const availableWordModels = getVerifiedModelOptions(popupSettings.settings, {
-    chromeAiReady: popupSettings.chromeAiReady,
-    shortenChatGptLabel: true,
-  });
-  const wordLookupOptions = [
-    {
-      value: WORD_LOOKUP_PROVIDER_YOUDAO,
-      label: "有道词典（默认，失败时使用学习模型）",
-    },
-    ...availableWordModels,
-  ];
+  const availableGenerativeModels = useMemo(
+    () =>
+      getVerifiedModelOptions(settings, {
+        chromeAiReady,
+        includeChromeAi: false,
+        shortenChatGptLabel: true,
+      }),
+    [settings, chromeAiReady],
+  );
+  const availableWordModels = useMemo(
+    () =>
+      getVerifiedModelOptions(settings, {
+        chromeAiReady,
+        shortenChatGptLabel: true,
+      }),
+    [settings, chromeAiReady],
+  );
+  const wordLookupOptions = useMemo(
+    () => [
+      {
+        value: WORD_LOOKUP_PROVIDER_YOUDAO,
+        label: "有道词典（默认，失败时使用学习模型）",
+      },
+      ...availableWordModels,
+    ],
+    [availableWordModels],
+  );
+
+  const selectPanel = useCallback((panelId) => {
+    setActivePanel(panelId);
+    try {
+      localStorage.setItem(ACTIVE_PANEL_STORAGE_KEY, panelId);
+    } catch (_) {}
+  }, []);
 
   useEffect(() => {
     if (!isPopup || !sidePanelSupport.chrome) return;
@@ -148,17 +209,15 @@ export function PopupApp({ surface = "popup" }) {
   ]);
 
   function openOptionsPage() {
-    chrome.tabs.create({
-      url: chrome.runtime.getURL("options/index.html"),
+    void openExtensionPage("options/index.html").then(() => {
+      if (isPopup) window.close();
     });
-    if (isPopup) window.close();
   }
 
   function openProviderSetup() {
-    chrome.tabs.create({
-      url: chrome.runtime.getURL("options/index.html?add-provider=1"),
+    void openExtensionPage("options/index.html?add-provider=1").then(() => {
+      if (isPopup) window.close();
     });
-    if (isPopup) window.close();
   }
 
   function openEnglishExample() {
@@ -200,48 +259,39 @@ export function PopupApp({ surface = "popup" }) {
         onToggleApp={popupSettings.toggleAppEnabled}
         onOpenSettings={openOptionsPage}
       />
-      <QuickActionsPanel
-        appEnabled={popupSettings.appEnabled}
-        isTogglingPageTranslate={pageTranslate.isToggling}
-        isChangingPageDisplayMode={pageTranslate.isChangingDisplayMode}
-        isTogglingSiteAutoTranslate={pageTranslate.isTogglingSiteAutoTranslate}
-        isPageTranslateActive={pageTranslate.isPageTranslateActive}
-        pageDisplayMode={pageTranslate.displayMode}
-        pageTranslateStatus={pageTranslate.status}
-        articleNarrationState={articleNarration.state}
-        isChangingArticleNarration={articleNarration.isChanging}
-        articleNarrationStatus={articleNarration.statusMessage}
-        onToggleArticleNarration={articleNarration.toggle}
-        onStopArticleNarration={articleNarration.stop}
-        onTogglePageTranslate={pageTranslate.togglePageTranslate}
-        onPageDisplayModeChange={pageTranslate.changeDisplayMode}
-        onToggleSiteAutoTranslate={pageTranslate.toggleSiteAutoTranslate}
-        siteAutoTranslateEnabled={pageTranslate.siteAutoTranslateEnabled}
-        activeOrigin={pageTranslate.activeOrigin}
-        provider={popupSettings.provider}
-        onProviderChange={popupSettings.updateProvider}
-        availableProviders={availableModels}
-        providersLoading={!popupSettings.isSettingsLoaded}
-        onOpenProviderSetup={openProviderSetup}
-        showStatus={showSaveStatus}
-        statusText={saveStatusText}
-        statusTone={saveStatusTone}
-      />
-      <AutoTranslateModePanel
-        options={AUTO_MODE_OPTIONS}
-        value={popupSettings.autoTranslateMode}
-        onChange={popupSettings.updateAutoTranslateMode}
-      />
-      {popupSettings.autoTranslateMode === "hover" && (
-        <HoverTranslateScopePanel
-          options={HOVER_SCOPE_OPTIONS}
-          value={popupSettings.hoverTranslateScope}
-          onChange={popupSettings.updateHoverTranslateScope}
-          modifierOptions={HOVER_MODIFIER_OPTIONS}
-          modifierValue={popupSettings.hoverTranslateModifierKey}
-          onModifierChange={popupSettings.updateHoverTranslateModifierKey}
-        />
-      )}
+      <div className="popup-tabs" role="tablist" aria-label="功能分组">
+        {POPUP_TABS.map((tab, index) => (
+          <button
+            key={tab.id}
+            id={`popup-tab-${tab.id}`}
+            type="button"
+            role="tab"
+            aria-selected={activePanel === tab.id}
+            aria-controls={`popup-panel-${tab.id}`}
+            tabIndex={activePanel === tab.id ? 0 : -1}
+            onClick={() => selectPanel(tab.id)}
+            onKeyDown={(event) => {
+              let next;
+              if (event.key === "ArrowRight")
+                next = (index + 1) % POPUP_TABS.length;
+              if (event.key === "ArrowLeft")
+                next = (index - 1 + POPUP_TABS.length) % POPUP_TABS.length;
+              if (event.key === "Home") next = 0;
+              if (event.key === "End") next = POPUP_TABS.length - 1;
+              if (next === undefined) return;
+              event.preventDefault();
+              selectPanel(POPUP_TABS[next].id);
+              document.getElementById(`popup-tab-${POPUP_TABS[next].id}`)?.focus();
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {!popupSettings.appEnabled && (
+        <p className="popup-paused-note" role="status">
+          翻译已暂停，点击右上方开关恢复。
+        </p>
       )}
       <div
         className="popup-tab-content"
@@ -254,6 +304,7 @@ export function PopupApp({ surface = "popup" }) {
           appEnabled={popupSettings.appEnabled}
           isTogglingPageTranslate={pageTranslate.isToggling}
           isChangingPageDisplayMode={pageTranslate.isChangingDisplayMode}
+          isTogglingSiteAutoTranslate={pageTranslate.isTogglingSiteAutoTranslate}
           isPageTranslateActive={pageTranslate.isPageTranslateActive}
           pageDisplayMode={pageTranslate.displayMode}
           pageTranslateStatus={pageTranslate.status}

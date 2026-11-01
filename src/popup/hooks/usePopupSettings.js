@@ -16,6 +16,10 @@ import {
 } from "../../shared/settings.js";
 import { resolvePageTranslateState } from "../lib/pageTranslateState.js";
 
+// 只有这些键会影响 Chrome 内置 AI 的可用性检测
+const CHROME_AI_RELEVANT_KEYS = ["addedProviders", "translateTargetLang"];
+const STORAGE_RELOAD_DELAY_MS = 60;
+
 function getAllSyncSettings() {
   return new Promise((resolve) => {
     chrome.storage.sync.get(null, resolve);
@@ -91,34 +95,54 @@ export function usePopupSettings() {
     setAppEnabled(nextState.appEnabled);
   }, []);
 
-  const reloadPopupSettings = useCallback(async () => {
-    const { settings } = await migrateSettingsIfNeeded(
-      getAllSyncSettings,
-      setAllSyncSettings,
-    );
-    const chromeAiAvailability =
-      await detectChromeAiRuntimeAvailability(settings);
-    applyPopupSettingsState(settings);
-    setChromeAiReady(
-      chromeAiAvailability.checked ? chromeAiAvailability.ready : null,
-    );
-    setIsSettingsLoaded(true);
-  }, [applyPopupSettingsState]);
+  const reloadPopupSettings = useCallback(
+    async ({ detectChromeAi = true } = {}) => {
+      const { settings } = await migrateSettingsIfNeeded(
+        getAllSyncSettings,
+        setAllSyncSettings,
+      );
+      if (detectChromeAi) {
+        const chromeAiAvailability =
+          await detectChromeAiRuntimeAvailability(settings);
+        setChromeAiReady(
+          chromeAiAvailability.checked ? chromeAiAvailability.ready : null,
+        );
+      }
+      applyPopupSettingsState(settings);
+      setIsSettingsLoaded(true);
+    },
+    [applyPopupSettingsState],
+  );
 
   // 初始加载设置
   useEffect(() => {
     void reloadPopupSettings();
   }, [reloadPopupSettings]);
 
-  // 监听存储变化
+  // 监听存储变化：合并短时间内的连续写入，只在必要时重新检测 Chrome AI
   useEffect(() => {
+    let timerId = null;
+    let needsChromeAiCheck = false;
+
     function handleStorageChanged(changes, areaName) {
       if (areaName !== "sync") return;
-      void reloadPopupSettings();
+      if (CHROME_AI_RELEVANT_KEYS.some((key) => key in changes)) {
+        needsChromeAiCheck = true;
+      }
+      if (timerId !== null) clearTimeout(timerId);
+      timerId = setTimeout(() => {
+        timerId = null;
+        const detectChromeAi = needsChromeAiCheck;
+        needsChromeAiCheck = false;
+        void reloadPopupSettings({ detectChromeAi });
+      }, STORAGE_RELOAD_DELAY_MS);
     }
 
     chrome.storage.onChanged.addListener(handleStorageChanged);
-    return () => chrome.storage.onChanged.removeListener(handleStorageChanged);
+    return () => {
+      if (timerId !== null) clearTimeout(timerId);
+      chrome.storage.onChanged.removeListener(handleStorageChanged);
+    };
   }, [reloadPopupSettings]);
 
   // 同步设置到存储

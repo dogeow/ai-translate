@@ -636,6 +636,26 @@ export function createInteractionController({
     ));
   }
 
+  // 悬停命中检测涉及 caret 定位与布局读取，mousemove 频率远高于帧率，
+  // 因此每帧只处理最后一次鼠标位置。
+  let hoverFrameId = 0;
+
+  function flushHoverFrame() {
+    hoverFrameId = 0;
+    updateHoverAtPoint(
+      state.lastMouseX,
+      state.lastMouseY,
+      state.lastMouseButtons,
+      state.lastMouseTarget,
+    );
+  }
+
+  function cancelHoverFrame() {
+    if (!hoverFrameId) return;
+    window.cancelAnimationFrame(hoverFrameId);
+    hoverFrameId = 0;
+  }
+
   function onMouseMove(e) {
     state.lastMouseX = e.clientX;
     state.lastMouseY = e.clientY;
@@ -645,7 +665,13 @@ export function createInteractionController({
       e,
       state.hoverTranslateModifierKey,
     );
-    updateHoverAtPoint(e.clientX, e.clientY, e.buttons, e.target);
+    if (state.autoTranslateMode !== "hover") {
+      cancelHoverFrame();
+      return;
+    }
+    if (!hoverFrameId) {
+      hoverFrameId = window.requestAnimationFrame(flushHoverFrame);
+    }
   }
 
   function onPointerDownCapture(e) {
@@ -741,6 +767,7 @@ export function createInteractionController({
     clearSelectionAutoTranslateTimer,
     clearHoverAutoTranslateTimer,
     cleanup() {
+      cancelHoverFrame();
       clearSelectionAutoTranslateTimer();
       clearHoverAutoTranslateTimer();
       pageTranslator.stop();

@@ -61,7 +61,10 @@ export function QuickActionsPanel({
           type="button"
           className={`btn popup-page-translate-btn${isPageTranslateActive ? " btn-secondary popup-page-translate-btn--stop" : " btn-primary"}`}
           onClick={onTogglePageTranslate}
-          disabled={!appEnabled || isTogglingPageTranslate || isChangingPageDisplayMode}
+          disabled={
+            !appEnabled || isTogglingPageTranslate || isChangingPageDisplayMode
+          }
+          aria-busy={isTogglingPageTranslate}
           title={
             isPageTranslateActive
               ? "停止继续翻译，已完成的译文会保留"
@@ -76,21 +79,6 @@ export function QuickActionsPanel({
               ? "停止翻译"
               : "翻译该页面"}
         </button>
-        <button
-          type="button"
-          className={`btn popup-site-translate-btn${siteAutoTranslateEnabled ? " popup-site-translate-btn--on" : ""}`}
-          onClick={onToggleSiteAutoTranslate}
-          disabled={!appEnabled || !activeOrigin || isTogglingSiteAutoTranslate}
-          title={
-            !activeOrigin
-              ? "当前页面不支持（仅 http/https）"
-              : siteAutoTranslateEnabled
-                ? `点击关闭：${activeOrigin}`
-                : `打开后访问 ${activeOrigin} 下任意页面都会自动翻译`
-          }
-        >
-          {isTogglingSiteAutoTranslate ? "保存中..." : siteAutoTranslateEnabled ? "✓ 翻译该网站" : "翻译该网站"}
-        </button>
       </div>
       <div className="popup-page-display">
         <span className="popup-page-display__label">页面显示</span>
@@ -104,7 +92,8 @@ export function QuickActionsPanel({
             const isDisabled =
               !appEnabled ||
               !isPageTranslateActive ||
-              isChangingPageDisplayMode || isTogglingPageTranslate;
+              isChangingPageDisplayMode ||
+              isTogglingPageTranslate;
             return (
               <button
                 key={option.value}
@@ -130,8 +119,9 @@ export function QuickActionsPanel({
         className={`popup-site-translate-btn${siteAutoTranslateEnabled ? " popup-site-translate-btn--on" : ""}`}
         role="switch"
         aria-checked={siteAutoTranslateEnabled}
+        aria-busy={isTogglingSiteAutoTranslate}
         onClick={onToggleSiteAutoTranslate}
-        disabled={!appEnabled || !activeOrigin}
+        disabled={!appEnabled || !activeOrigin || isTogglingSiteAutoTranslate}
         title={
           !activeOrigin
             ? "当前页面不支持（仅 http/https）"
@@ -140,7 +130,7 @@ export function QuickActionsPanel({
               : `打开后访问 ${activeOrigin} 下任意页面都会自动翻译`
         }
       >
-        <span>始终翻译此网站</span>
+        <span>{isTogglingSiteAutoTranslate ? "保存中..." : "始终翻译此网站"}</span>
         <span className="popup-switch-track" aria-hidden="true">
           <span />
         </span>
